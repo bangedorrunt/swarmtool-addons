@@ -11,10 +11,15 @@ import { getSwarmMailLibSQL } from "swarm-mail";
 import { MemoryTypeSchema } from "./taxonomy";
 
 import { EntityResolver } from "./resolver";
+import { ensureSchema } from "./migration";
 
 async function getLaneAdapter(): Promise<MemoryLaneAdapter> {
   const swarmMail = await getSwarmMailLibSQL(process.cwd());
   const db = await swarmMail.getDatabase();
+  
+  // Ensure schema is up to date
+  await ensureSchema(db);
+
   const baseMemory = await createMemoryAdapter(db);
   return new MemoryLaneAdapter(baseMemory);
 }

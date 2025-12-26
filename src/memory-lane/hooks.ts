@@ -8,6 +8,7 @@
 import { getSwarmMailLibSQL } from "swarm-mail";
 import { appendFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
+import { ensureSchema } from "./migration";
 
 /**
  * Swarm completion hook data structure
@@ -86,6 +87,9 @@ export async function createSwarmCompletionHook(
   try {
     // Initialize swarm-mail adapter
     swarmMail = await getSwarmMailLibSQL(projectPath);
+    const db = await swarmMail.getDatabase();
+    await ensureSchema(db);
+    
     console.log(`[swarm-completion-hook] Initialized for project: ${projectPath}`);
     logToFile(projectPath, `Hook initialized and listening for project: ${projectPath}`);
 
