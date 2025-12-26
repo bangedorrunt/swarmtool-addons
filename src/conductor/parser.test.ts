@@ -246,40 +246,8 @@ Content`;
         expect(result.frontmatter.tags).toEqual(['tag1', 'tag2', 'tag3', 'tag4', 'tag5']);
         expect(duration).toBeLessThan(10); // Should complete in <10ms
       });
-    });
-
-      bench('parse small frontmatter', () => {
-        const md = `---
-name: test
-type: feature
-priority: 1
-tools: [git, bash]
----
-Content`;
-        parseMarkdown(md);
       });
-
-      bench('parse large frontmatter with many fields', () => {
-        let yaml = '---\n';
-        for (let i = 0; i < 50; i++) {
-          yaml += `field${i}: value${i}\n`;
-        }
-        yaml += '---\nContent';
-        parseMarkdown(yaml);
-      });
-
-      bench('parse frontmatter with arrays and types', () => {
-        const md = `---
-name: test
-priority: 5
-enabled: true
-tags: [tag1, tag2, tag3, tag4, tag5]
-items: [item1, item2, item3, item4, item5]
----
-Content`;
-        parseMarkdown(md);
-      });
-    });
+  });
   });
 
   describe('parseCheckboxes', () => {
