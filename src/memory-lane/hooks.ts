@@ -290,9 +290,9 @@ INSTRUCTION:
 
       try {
         const result = await $`opencode run --agent "swarm/worker" ${instruction}`
+          .signal(controller.signal)
           .quiet()
-          .nothrow()
-          .signal(controller.signal);
+          .nothrow();
         
         console.log(`[memory-lane] Memory extraction process finished with code ${result.exitCode}`);
         logToFile(projectPath, `CLI process exited with code ${result.exitCode}`);
