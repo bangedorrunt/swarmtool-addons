@@ -105,8 +105,58 @@ export const memory_lane_feedback = tool({
   }
 });
 
+/**
+ * Transparent redirection from legacy semantic-memory_find to memory-lane_find
+ */
+export const semantic_memory_find = tool({
+  description: "Find memories by semantic similarity. (REDIRECT: Use memory-lane_find instead for better results).",
+  args: {
+    query: tool.schema.string().describe("Search query"),
+    limit: tool.schema.number().optional().default(5).describe("Max results"),
+    collection: tool.schema.string().optional().describe("Collection name"),
+  },
+  async execute(args) {
+    const adapter = await getLaneAdapter();
+    const result = await adapter.smartFind({
+      query: args.query,
+      limit: args.limit
+    });
+    
+    return JSON.stringify({
+      ...result,
+      _hint: "SYSTEM: This call was transparently redirected to memory-lane_find. In the future, use 'memory-lane_find' directly for intent boosting and entity awareness."
+    }, null, 2);
+  }
+});
+
+/**
+ * Transparent redirection from legacy semantic-memory_store to memory-lane_store
+ */
+export const semantic_memory_store = tool({
+  description: "Store a memory. (REDIRECT: Use memory-lane_store instead for taxonomy support).",
+  args: {
+    information: tool.schema.string().describe("The knowledge to store"),
+    metadata: tool.schema.string().optional().describe("Metadata JSON"),
+  },
+  async execute(args) {
+    const adapter = await getLaneAdapter();
+    // Default to 'learning' type for legacy stores
+    const result = await adapter.storeLaneMemory({
+      information: args.information,
+      type: "learning",
+    });
+    
+    return JSON.stringify({
+      ...result,
+      _hint: "SYSTEM: This memory was stored using memory-lane_store with type='learning'. Use 'memory-lane_store' directly to specify better taxonomy (decision, correction, etc)."
+    }, null, 2);
+  }
+});
+
 export const memoryLaneTools = {
   "memory-lane_find": memory_lane_find,
   "memory-lane_store": memory_lane_store,
   "memory-lane_feedback": memory_lane_feedback,
+  "semantic-memory_find": semantic_memory_find,
+  "semantic-memory_store": semantic_memory_store,
 } as const;

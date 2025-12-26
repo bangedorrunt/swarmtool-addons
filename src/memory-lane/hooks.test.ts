@@ -238,7 +238,7 @@ describe("createSwarmCompletionHook", () => {
       );
 
       expect(processLogs.length).toBe(2);
-      const logContent = processLogs.map(log => log[0]).join("\n");
+      const logContent = processLogs.map((log: any) => log[0]).join("\n");
       expect(logContent).toContain("bd-process-1");
       expect(logContent).toContain("bd-process-2");
     });
