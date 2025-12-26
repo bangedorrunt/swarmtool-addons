@@ -1,10 +1,10 @@
 {
-  "name": "{{pluginName}}",
+  "name": "swarm-tool-addons",
   "version": "0.1.0",
-  "description": "{{description}}",
+  "description": "Add-on features for swarmtools",
   "author": {
-    "name": "{{authorName}}",
-    "email": "{{authorEmail}}"
+    "name": "bangedorrunt",
+    "email": "bangedorrunt@proton.me"
   },
   "type": "module",
   "exports": {
@@ -15,7 +15,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "{{repositoryUrl}}"
+    "url": "https://github.com/bangedorrunt/swarm-tool-addons"
   },
   "publishConfig": {
     "access": "public",
@@ -29,6 +29,7 @@
     "@opencode-ai/plugin": "1.0.85"
   },
   "devDependencies": {
+    "opencode-swarm-plugin": "latest",
     "@eslint/js": "^9.39.1",
     "@types/node": "^20.11.5",
     "@typescript-eslint/eslint-plugin": "8.47.0",

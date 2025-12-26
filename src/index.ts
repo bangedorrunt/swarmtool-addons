@@ -12,11 +12,10 @@
 import type { Plugin } from '@opencode-ai/plugin';
 import { tool } from '@opencode-ai/plugin';
 import path from 'path';
+import { memoryLaneTools } from "./memory-lane/index";
 
-// ============================================================
 // COMMAND LOADER
 // Loads .md files from src/command/ directory as slash commands
-// ============================================================
 
 interface CommandFrontmatter {
   description?: string;
@@ -94,37 +93,87 @@ async function loadCommands(): Promise<ParsedCommand[]> {
   return commands;
 }
 
-export const ExamplePlugin: Plugin = async () => {
-  // ============================================================
-  // LOAD COMMANDS FROM .MD FILES
+export const SwarmToolAddons: Plugin = async () => {
+  // Load commands from .md files
   // Commands are loaded at plugin initialization time
-  // ============================================================
   const commands = await loadCommands();
 
-  // ============================================================
-  // EXAMPLE TOOL
-  // Tools are callable by the LLM during conversations
-  // ============================================================
-  const exampleTool = tool({
-    description: 'An example tool that echoes back the input message',
-    args: {
-      message: tool.schema.string().describe('The message to echo'),
-    },
-    async execute(args) {
-      return `Echo: ${args.message}`;
-    },
-  });
+  // Initialize event-driven extraction hook (Asynchronous)
+  // This listens for swarm-mail messages to trigger memory extraction
+  let stopHook: (() => void) | null = null;
+  const projectPath = process.cwd();
+
+  // We use a self-invoking async function to start the hook without blocking plugin init
+  (async () => {
+    try {
+      const { createSwarmCompletionHook } = await import("./memory-lane/hooks");
+      // Bun.$ is used as the shell helper
+      stopHook = await createSwarmCompletionHook(projectPath, Bun.$);
+    } catch (error) {
+      console.warn("[memory-lane] Failed to initialize swarm completion hook:", error);
+    }
+  })();
 
   return {
     // Register custom tools
     tool: {
-      example_tool: exampleTool,
+      ...memoryLaneTools,
     },
 
-    // ============================================================
-    // CONFIG HOOK
+    // OpenCode Hooks
+    hook: {
+      // Synchronous context injection
+      // Intercepts memory tool calls to prioritize Memory Lane
+      "tool.execute.before": async (input, output) => {
+        const memoryTools = ["semantic-memory_find", "memory-lane_find"];
+        
+        if (memoryTools.includes(input.tool)) {
+          // Inject context to guide the agent toward better retrieval patterns
+          output.context.push(
+            "SYSTEM: Memory Lane Guidance\n" +
+            "When searching for behavioral context (corrections, decisions, preferences), " +
+            "ALWAYS prioritize 'memory-lane_find' over 'semantic-memory_find'.\n" +
+            "Memory Lane provides intent boosting and entity filtering which 'semantic-memory_find' lacks."
+          );
+        }
+      },
+
+      // Post-tool execution hooks
+      // Used for immediate memory extraction after task completion
+      "tool.execute.after": async (input, output) => {
+        if (input.tool === "swarm_complete") {
+          try {
+            const { triggerMemoryExtraction } = await import("./memory-lane/hooks");
+            
+            // Extract outcome data from tool arguments
+            // swarm_complete args match our SwarmCompletionData interface
+            const outcomeData = {
+              bead_id: input.args.bead_id,
+              summary: input.args.summary,
+              files_touched: input.args.files_touched || [],
+              success: true, // swarm_complete implies success if it returned
+              duration_ms: 0, // Not easily available from args
+              agent_name: input.args.agent_name,
+            };
+
+            // Trigger extraction (non-blocking)
+            triggerMemoryExtraction(projectPath, outcomeData, Bun.$);
+          } catch (error) {
+            console.warn("[memory-lane] Failed to trigger immediate extraction:", error);
+          }
+        }
+      },
+
+      // Cleanup when session ends or plugin is unloaded
+      "event": async ({ event }) => {
+        if (event === "session.ended" && stopHook) {
+          stopHook();
+        }
+      }
+    },
+
+    // Config Hook
     // Modify config at runtime - use this to inject custom commands
-    // ============================================================
     async config(config) {
       // Initialize the command record if it doesn't exist
       config.command = config.command ?? {};
