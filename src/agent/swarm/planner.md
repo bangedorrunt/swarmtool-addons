@@ -1,5 +1,6 @@
 ---
 description: Strategic task decomposition for swarm coordination - optimized for Memory Lane
+mode: subagent
 model: opencode/grok-code
 ---
 

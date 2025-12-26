@@ -33,15 +33,15 @@ Swarm-tool modules integrate as **non-invasive sidecars** on top of swarm-tools,
    - Example: `semantic-memory_store` tool available to all agents
    - Tools should be idempotent and handle errors gracefully
 
-2. **Message Hooks** (`src/memory-lane/hooks.ts`):
-   - Module listens to swarm-mail messages via `swarmmail_inbox`
-   - Subscribe to relevant events (e.g., `swarm_complete`, `swarm_progress`)
-   - Process asynchronously, non-blocking to main agent workflow
+2. **Tool Execution Hooks** (`src/index.ts`):
+   - Module uses `tool.execute.after` to intercept tool calls directly
+   - Subscribe to specific tool completions (e.g., `swarm_complete`)
+   - Process immediately upon tool execution with access to results
 
 3. **Storage**:
    - Use libSQL via PGlite for persistent storage (see `src/memory-lane/index.ts`)
    - Follow schema patterns in documentation
-   - Design for decoupled operation (module works even if swarm-mail unavailable)
+   - Direct integration via OpenCode hooks ensures immediate processing
 
 ### Module Structure Template
 
@@ -49,7 +49,7 @@ Swarm-tool modules integrate as **non-invasive sidecars** on top of swarm-tools,
 src/
   module-name/
     index.ts              # Main entry, exports tools
-    hooks.ts              # Message event handlers
+    hooks.ts              # Tool event handlers (optional)
     adapter.ts            # External service adapters
     tools.ts              # Tool implementations
     taxonomy.ts           # Type definitions
@@ -69,6 +69,7 @@ src/
 
 - Prefer asynchronous processing over synchronous blocking
 - Use swarm-mail for inter-agent communication (never direct imports)
+- Use tool execution hooks for immediate event processing
 - Design for eventual consistency
 
 **Minimal Complexity:**

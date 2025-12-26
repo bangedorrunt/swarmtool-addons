@@ -10,9 +10,9 @@
  */
 
 import type { Plugin } from '@opencode-ai/plugin';
-import { tool } from '@opencode-ai/plugin';
 import path from 'path';
-import { memoryLaneTools } from "./memory-lane/index";
+import fs from 'node:fs';
+import { memoryLaneTools } from './memory-lane/index';
 
 // COMMAND LOADER
 // Loads .md files from src/command/ directory as slash commands
@@ -84,6 +84,11 @@ function parseFrontmatter(content: string): { frontmatter: any; body: string } {
 async function loadCommands(): Promise<ParsedCommand[]> {
   const commands: ParsedCommand[] = [];
   const commandDir = path.join(import.meta.dir, 'command');
+
+  if (!fs.existsSync(commandDir)) {
+    return commands;
+  }
+
   const glob = new Bun.Glob('**/*.md');
 
   for await (const file of glob.scan({ cwd: commandDir, absolute: true })) {
@@ -110,6 +115,11 @@ async function loadCommands(): Promise<ParsedCommand[]> {
 async function loadAgents(): Promise<ParsedAgent[]> {
   const agents: ParsedAgent[] = [];
   const agentDir = path.join(import.meta.dir, 'agent');
+
+  if (!fs.existsSync(agentDir)) {
+    return agents;
+  }
+
   const glob = new Bun.Glob('**/*.md');
 
   for await (const file of glob.scan({ cwd: agentDir, absolute: true })) {
@@ -134,21 +144,8 @@ export const SwarmToolAddons: Plugin = async () => {
   // Load commands and agents from .md files
   const [commands, agents] = await Promise.all([loadCommands(), loadAgents()]);
 
-  // Initialize event-driven extraction hook (Asynchronous)
-  // This listens for swarm-mail messages to trigger memory extraction
-  let stopHook: (() => void) | null = null;
+  // Set project path for tool hooks
   const projectPath = process.cwd();
-
-  // We use a self-invoking async function to start the hook without blocking plugin init
-  (async () => {
-    try {
-      const { createSwarmCompletionHook } = await import("./memory-lane/hooks");
-      // Bun.$ is used as the shell helper
-      stopHook = await createSwarmCompletionHook(projectPath, Bun.$);
-    } catch (error) {
-      console.warn("[memory-lane] Failed to initialize swarm completion hook:", error);
-    }
-  })();
 
   return {
     // Register custom tools
@@ -160,37 +157,37 @@ export const SwarmToolAddons: Plugin = async () => {
     hook: {
       // Synchronous context injection
       // Intercepts memory tool calls to prioritize Memory Lane
-      "tool.execute.before": async (input: any, output: any) => {
-        const memoryTools = ["semantic-memory_find", "memory-lane_find"];
-        
+      'tool.execute.before': async (input: any, output: any) => {
+        const memoryTools = ['semantic-memory_find', 'memory-lane_find'];
+
         if (memoryTools.includes(input.tool)) {
           // Inject context to guide the agent toward better retrieval patterns
           output.context.push(
-            "SYSTEM: Memory Lane Guidance\n" +
-            "When searching for behavioral context (corrections, decisions, preferences), " +
-            "ALWAYS prioritize 'memory-lane_find' over 'semantic-memory_find'.\n" +
-            "Memory Lane provides intent boosting and entity filtering which 'semantic-memory_find' lacks."
+            'SYSTEM: Memory Lane Guidance\n' +
+              'When searching for behavioral context (corrections, decisions, preferences), ' +
+              "ALWAYS prioritize 'memory-lane_find' over 'semantic-memory_find'.\n" +
+              "Memory Lane provides intent boosting and entity filtering which 'semantic-memory_find' lacks."
           );
         }
       },
 
       // Post-tool execution hooks
       // Used for immediate memory extraction after task completion
-      "tool.execute.after": async (input: any, output: any) => {
+      'tool.execute.after': async (input: any, output: any) => {
         // Inject guidance when a swarm session is initialized
-        if (input.tool === "swarmmail_init") {
+        if (input.tool === 'swarmmail_init') {
           output.context.push(
-            "SYSTEM: Memory Lane System Active\n" +
-            "You have access to 'memory-lane_find' and 'memory-lane_store'.\n" +
-            "ALWAYS use these instead of 'semantic-memory_*' tools. Memory Lane provides " +
-            "superior high-integrity search, intent boosting, and entity filtering."
+            'SYSTEM: Memory Lane System Active\n' +
+              "You have access to 'memory-lane_find' and 'memory-lane_store'.\n" +
+              "ALWAYS use these instead of 'semantic-memory_*' tools. Memory Lane provides " +
+              'superior high-integrity search, intent boosting, and entity filtering.'
           );
         }
 
-        if (input.tool === "swarm_complete") {
+        if (input.tool === 'swarm_complete') {
           try {
-            const { triggerMemoryExtraction } = await import("./memory-lane/hooks");
-            
+            const { triggerMemoryExtraction } = await import('./memory-lane/hooks');
+
             // Extract outcome data from tool arguments
             // swarm_complete args match our SwarmCompletionData interface
             const outcomeData = {
@@ -205,17 +202,16 @@ export const SwarmToolAddons: Plugin = async () => {
             // Trigger extraction (non-blocking)
             triggerMemoryExtraction(projectPath, outcomeData, Bun.$);
           } catch (error) {
-            console.warn("[memory-lane] Failed to trigger immediate extraction:", error);
+            // eslint-disable-next-line no-console
+            console.warn('[memory-lane] Failed to trigger immediate extraction:', error);
           }
         }
       },
 
       // Cleanup when session ends or plugin is unloaded
-      "event": async ({ event }: { event: any }) => {
-        if (event === "session.ended" && stopHook) {
-          stopHook();
-        }
-      }
+      event: async () => {
+        // No cleanup needed - we use tool hooks only, no persistent connections
+      },
     },
 
     // Config Hook

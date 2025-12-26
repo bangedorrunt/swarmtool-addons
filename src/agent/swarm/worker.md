@@ -1,5 +1,6 @@
 ---
 description: Executes subtasks in a swarm - optimized for Memory Lane
+mode: subagent
 model: opencode/big-pickle
 ---
 

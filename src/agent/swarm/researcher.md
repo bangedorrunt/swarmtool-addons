@@ -1,5 +1,6 @@
 ---
 description: READ-ONLY research agent - optimized for Memory Lane
+mode: subagent
 model: opencode/grok-code
 ---
 
