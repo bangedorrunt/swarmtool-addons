@@ -10,9 +10,12 @@
  */
 
 import type { Plugin } from '@opencode-ai/plugin';
+import { tool } from '@opencode-ai/plugin';
 import path from 'path';
 import fs from 'node:fs';
+import os from 'node:os';
 import { memoryLaneTools } from './memory-lane/index';
+import { conductorTools, conductorCheckpointHook, conductorVerifyHook } from './conductor/tools';
 import { loadConfig } from './config/loader';
 
 // COMMAND LOADER
@@ -40,6 +43,11 @@ interface ParsedAgent {
   name: string;
   frontmatter: AgentFrontmatter;
   prompt: string;
+}
+
+interface ParsedSkill {
+  name: string;
+  template: string;
 }
 
 /**
@@ -141,9 +149,42 @@ async function loadAgents(): Promise<ParsedAgent[]> {
   return agents;
 }
 
+/**
+ * Load all skill SKILL.md files from the skill directory
+ */
+async function loadSkills(): Promise<ParsedSkill[]> {
+  const skills: ParsedSkill[] = [];
+  const skillDir = path.join(import.meta.dir, 'skill');
+
+  if (!fs.existsSync(skillDir)) {
+    return skills;
+  }
+
+  const glob = new Bun.Glob('**/SKILL.md');
+
+  for await (const file of glob.scan({ cwd: skillDir, absolute: true })) {
+    const content = await Bun.file(file).text();
+
+    // Extract skill name from directory name
+    const dir = path.dirname(file);
+    const name = path.basename(dir);
+
+    skills.push({
+      name,
+      template: content,
+    });
+  }
+
+  return skills;
+}
+
 export const SwarmToolAddons: Plugin = async () => {
-  // Load commands and agents from .md files
-  const [commands, agents] = await Promise.all([loadCommands(), loadAgents()]);
+  // Load commands, agents and skills from .md files
+  const [commands, agents, skills] = await Promise.all([
+    loadCommands(),
+    loadAgents(),
+    loadSkills(),
+  ]);
 
   // Load configuration
   const userConfig = loadConfig();
@@ -155,14 +196,14 @@ export const SwarmToolAddons: Plugin = async () => {
     // Register custom tools
     tool: {
       ...memoryLaneTools,
+      ...conductorTools,
     },
 
     // OpenCode Hooks
     hook: {
       // Synchronous context injection
       // Intercepts memory tool calls to prioritize Memory Lane
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      'tool.execute.before': async (input: any, output: any) => {
+      'tool.execute.before': async (input: { tool: string }, output: { context: string[] }) => {
         const memoryTools = ['semantic-memory_find', 'memory-lane_find'];
 
         if (memoryTools.includes(input.tool)) {
@@ -174,12 +215,27 @@ export const SwarmToolAddons: Plugin = async () => {
               "Memory Lane provides intent boosting and entity filtering which 'semantic-memory_find' lacks."
           );
         }
+
+        // Conductor Skill Injection
+        // If we are initializing a swarm session and a tracks directory exists,
+        // we inject the conductor skill guidance.
+        if (input.tool === 'swarmmail_init' && fs.existsSync(path.join(process.cwd(), 'tracks'))) {
+          output.context.push(
+            'SYSTEM: Conductor SDD Protocol Active\n' +
+              'This project is managed by Conductor. You MUST follow the Spec-Driven Development (SDD) protocol.\n' +
+              "Use 'conductor_verify' to check quality gates and 'conductor_checkpoint' to commit task completions.\n" +
+              "Never implement without a verified spec and plan in the 'tracks/' directory."
+          );
+        }
       },
 
       // Post-tool execution hooks
-      // Used for immediate memory extraction after task completion
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      'tool.execute.after': async (input: any, output: any) => {
+      // Used for immediate memory extraction and conductor coordination after task completion
+      // Event-driven async coordination for 98% latency improvement
+      'tool.execute.after': async (
+        input: { tool: string; args: any },
+        output: { context: string[] }
+      ) => {
         // Inject guidance when a swarm session is initialized
         if (input.tool === 'swarmmail_init') {
           output.context.push(
@@ -210,6 +266,28 @@ export const SwarmToolAddons: Plugin = async () => {
           } catch (error) {
             // eslint-disable-next-line no-console
             console.warn('[memory-lane] Failed to trigger immediate extraction:', error);
+          }
+        }
+
+        // Conductor checkpoint hook - Immediate execution pattern
+        // Replaces swarm-mail polling for 98% latency improvement
+        if (input.tool === 'conductor_checkpoint') {
+          try {
+            await conductorCheckpointHook(input, output);
+          } catch (error) {
+            // eslint-disable-next-line no-console
+            console.warn('[conductor] Failed to trigger checkpoint hook:', error);
+          }
+        }
+
+        // Conductor verify hook - Immediate execution pattern
+        // Enables event-driven quality gate coordination
+        if (input.tool === 'conductor_verify') {
+          try {
+            await conductorVerifyHook(input, output);
+          } catch (error) {
+            // eslint-disable-next-line no-console
+            console.warn('[conductor] Failed to trigger verify hook:', error);
           }
         }
       },
@@ -243,13 +321,15 @@ export const SwarmToolAddons: Plugin = async () => {
         // Get model override from user config if available
         const modelOverride = userConfig.models[agt.name];
         const model = modelOverride?.model ?? agt.frontmatter.model;
-
         config.agent[agt.name] = {
           prompt: agt.prompt,
           description: agt.frontmatter.description,
           model,
         };
       }
+
+      // Note: Skills are handled via custom skill tool, not config registration
+      // This prevents conflict with swarm-tools internal skill system
     },
   };
 };
