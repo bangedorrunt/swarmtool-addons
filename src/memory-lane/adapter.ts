@@ -19,7 +19,7 @@ import {
 } from "./taxonomy";
 
 export interface SmartFindArgs {
-  query: string;
+  query?: string;
   limit?: number;
   entities?: string[]; // strictly filter by these entity slugs
 }
@@ -99,7 +99,7 @@ export class MemoryLaneAdapter {
    * 3. Re-rank results (Priority + Intent + Feedback)
    */
   async smartFind(args: SmartFindArgs): Promise<FindResult> {
-    const { query, limit = 10 } = args;
+    const { query = "", limit = 10 } = args;
     
     // 1. Detect Intent Boosting
     const boostedTypes = this.detectIntent(query);
@@ -168,6 +168,8 @@ export class MemoryLaneAdapter {
    * Scan query for intent keywords to boost specific memory types
    */
   private detectIntent(query: string): MemoryType[] {
+    if (!query) return [];
+    
     const q = query.toLowerCase();
     const boosts: MemoryType[] = [];
 

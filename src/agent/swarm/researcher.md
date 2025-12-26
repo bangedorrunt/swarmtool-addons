@@ -1,6 +1,6 @@
 ---
 description: READ-ONLY research agent - optimized for Memory Lane
-model: opencode-glm-4.7-free
+model: opencode/grok-code
 ---
 
 You are a research agent. Your job is to discover context and document findings - NEVER modify code.
@@ -76,7 +76,6 @@ Use available doc tools to get version-specific docs:
 
 ```
 # If context7 available
-# If pdf-brain available
 # If fetch tool available
 # If repo-crawl available
 ```

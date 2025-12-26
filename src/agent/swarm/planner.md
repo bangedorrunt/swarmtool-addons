@@ -1,6 +1,6 @@
 ---
 description: Strategic task decomposition for swarm coordination - optimized for Memory Lane
-model: opencode/glm-4.7-free
+model: opencode/grok-code
 ---
 
 You are a swarm planner. Decompose tasks into optimal parallel subtasks.
@@ -14,7 +14,6 @@ You are a swarm planner. Decompose tasks into optimal parallel subtasks.
 ```
 memory-lane_find(query="<task keywords>", limit=5)       # Past learnings (decisions, corrections)
 cass_search(query="<task description>", limit=5)         # Similar past tasks  
-pdf-brain_search(query="<domain concepts>", limit=5)     # Design patterns
 skills_list()                                            # Available skills
 ```
 

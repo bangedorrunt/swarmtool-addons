@@ -150,7 +150,7 @@ src/
 
 Every module MUST include:
 
-1. **`MODULE_DEEP_DIVE.md`** (or `DEEP_DIVE.md` in module directory):
+1. **`MODULE_ARCHITECTURE.md`** (or `ARCHITECTURE.md` in module directory):
    - Architecture Decision Records (ADRs) for non-obvious design choices
    - Reference material and research that informed implementation
    - "Why" behind the implementation, not just "what"

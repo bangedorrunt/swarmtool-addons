@@ -30,7 +30,7 @@ async function getLaneAdapter(): Promise<MemoryLaneAdapter> {
 export const memory_lane_find = tool({
   description: "Advanced semantic search through Memory Lane with intent boosting and entity awareness. If entity names are ambiguous, the system will ask for clarification.",
   args: {
-    query: tool.schema.string().describe("Search query"),
+    query: tool.schema.string().optional().describe("Search query"),
     entities: tool.schema.array(tool.schema.string()).optional().describe("Entity slugs or raw names (e.g. ['project:swarm', 'Mark'])"),
     limit: tool.schema.number().optional().default(5).describe("Max results")
   },

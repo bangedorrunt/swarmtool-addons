@@ -30,6 +30,17 @@ interface ParsedCommand {
   template: string;
 }
 
+interface AgentFrontmatter {
+  description?: string;
+  model?: string;
+}
+
+interface ParsedAgent {
+  name: string;
+  frontmatter: AgentFrontmatter;
+  prompt: string;
+}
+
 /**
  * Parse YAML frontmatter from a markdown file
  * Format:
@@ -39,7 +50,7 @@ interface ParsedCommand {
  * ---
  * Template content here
  */
-function parseFrontmatter(content: string): { frontmatter: CommandFrontmatter; body: string } {
+function parseFrontmatter(content: string): { frontmatter: any; body: string } {
   const frontmatterRegex = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
   const match = content.match(frontmatterRegex);
 
@@ -48,7 +59,7 @@ function parseFrontmatter(content: string): { frontmatter: CommandFrontmatter; b
   }
 
   const [, yamlContent, body] = match;
-  const frontmatter: CommandFrontmatter = {};
+  const frontmatter: any = {};
 
   // Simple YAML parsing for key: value pairs
   for (const line of yamlContent.split('\n')) {
@@ -93,10 +104,35 @@ async function loadCommands(): Promise<ParsedCommand[]> {
   return commands;
 }
 
+/**
+ * Load all agent .md files from the agent directory
+ */
+async function loadAgents(): Promise<ParsedAgent[]> {
+  const agents: ParsedAgent[] = [];
+  const agentDir = path.join(import.meta.dir, 'agent');
+  const glob = new Bun.Glob('**/*.md');
+
+  for await (const file of glob.scan({ cwd: agentDir, absolute: true })) {
+    const content = await Bun.file(file).text();
+    const { frontmatter, body } = parseFrontmatter(content);
+
+    // Extract agent name from filename (e.g., "swarm/worker.md" -> "swarm/worker")
+    const relativePath = path.relative(agentDir, file);
+    const name = relativePath.replace(/\.md$/, '');
+
+    agents.push({
+      name,
+      frontmatter,
+      prompt: body,
+    });
+  }
+
+  return agents;
+}
+
 export const SwarmToolAddons: Plugin = async () => {
-  // Load commands from .md files
-  // Commands are loaded at plugin initialization time
-  const commands = await loadCommands();
+  // Load commands and agents from .md files
+  const [commands, agents] = await Promise.all([loadCommands(), loadAgents()]);
 
   // Initialize event-driven extraction hook (Asynchronous)
   // This listens for swarm-mail messages to trigger memory extraction
@@ -183,10 +219,11 @@ export const SwarmToolAddons: Plugin = async () => {
     },
 
     // Config Hook
-    // Modify config at runtime - use this to inject custom commands
+    // Modify config at runtime - use this to inject custom commands and agents
     async config(config) {
-      // Initialize the command record if it doesn't exist
+      // Initialize records if they don't exist
       config.command = config.command ?? {};
+      config.agent = config.agent ?? {};
 
       // Register all loaded commands
       for (const cmd of commands) {
@@ -196,6 +233,15 @@ export const SwarmToolAddons: Plugin = async () => {
           agent: cmd.frontmatter.agent,
           model: cmd.frontmatter.model,
           subtask: cmd.frontmatter.subtask,
+        };
+      }
+
+      // Register all loaded agents
+      for (const agt of agents) {
+        config.agent[agt.name] = {
+          prompt: agt.prompt,
+          description: agt.frontmatter.description,
+          model: agt.frontmatter.model,
         };
       }
     },
