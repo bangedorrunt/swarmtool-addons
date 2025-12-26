@@ -13,6 +13,7 @@ import type { Plugin } from '@opencode-ai/plugin';
 import path from 'path';
 import fs from 'node:fs';
 import { memoryLaneTools } from './memory-lane/index';
+import { loadConfig } from './config/loader';
 
 // COMMAND LOADER
 // Loads .md files from src/command/ directory as slash commands
@@ -144,6 +145,9 @@ export const SwarmToolAddons: Plugin = async () => {
   // Load commands and agents from .md files
   const [commands, agents] = await Promise.all([loadCommands(), loadAgents()]);
 
+  // Load configuration
+  const userConfig = loadConfig();
+
   // Set project path for tool hooks
   const projectPath = process.cwd();
 
@@ -157,6 +161,7 @@ export const SwarmToolAddons: Plugin = async () => {
     hook: {
       // Synchronous context injection
       // Intercepts memory tool calls to prioritize Memory Lane
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       'tool.execute.before': async (input: any, output: any) => {
         const memoryTools = ['semantic-memory_find', 'memory-lane_find'];
 
@@ -173,6 +178,7 @@ export const SwarmToolAddons: Plugin = async () => {
 
       // Post-tool execution hooks
       // Used for immediate memory extraction after task completion
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       'tool.execute.after': async (input: any, output: any) => {
         // Inject guidance when a swarm session is initialized
         if (input.tool === 'swarmmail_init') {
@@ -232,12 +238,16 @@ export const SwarmToolAddons: Plugin = async () => {
         };
       }
 
-      // Register all loaded agents
+      // Register all loaded agents with model overrides from config
       for (const agt of agents) {
+        // Get model override from user config if available
+        const modelOverride = userConfig.models[agt.name];
+        const model = modelOverride?.model ?? agt.frontmatter.model;
+
         config.agent[agt.name] = {
           prompt: agt.prompt,
           description: agt.frontmatter.description,
-          model: agt.frontmatter.model,
+          model,
         };
       }
     },

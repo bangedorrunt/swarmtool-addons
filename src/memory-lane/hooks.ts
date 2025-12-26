@@ -41,6 +41,7 @@ function logToFile(projectPath: string, message: string) {
     const timestamp = new Date().toISOString();
     appendFileSync(logFile, `[${timestamp}] ${message}\n`);
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.warn('[memory-lane] Failed to write to log file:', error);
   }
 }
@@ -73,6 +74,7 @@ export async function triggerMemoryExtraction(
   outcomeData: SwarmCompletionData,
   $: any
 ): Promise<void> {
+  // eslint-disable-next-line no-console
   console.log(`[memory-lane] Triggering extraction for ${outcomeData.bead_id || 'unknown'}`);
   logToFile(projectPath, `Triggering extraction for task ${outcomeData.bead_id || 'unknown'}`);
 
@@ -98,11 +100,13 @@ INSTRUCTION:
 4. Store learnings using memory-lane_store (NOT semantic-memory_store).
 5. Exit when done.`;
 
+      // eslint-disable-next-line no-console
       console.log(`[memory-lane] Spawning memory-catcher CLI process...`);
       logToFile(projectPath, 'Spawning opencode CLI for memory-catcher...');
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
+      const controller = new globalThis.AbortController();
+      const timeoutId = globalThis.setTimeout(() => {
+        // eslint-disable-next-line no-console
         console.warn(
           `[memory-lane] Memory extraction timed out for ${outcomeData.bead_id}, aborting...`
         );
@@ -118,18 +122,21 @@ INSTRUCTION:
 
         const result = await shell;
 
+        // eslint-disable-next-line no-console
         console.log(
           `[memory-lane] Memory extraction process finished with code ${result.exitCode}`
         );
         logToFile(projectPath, `CLI process exited with code ${result.exitCode}`);
       } finally {
-        clearTimeout(timeoutId);
+        globalThis.clearTimeout(timeoutId);
       }
     } catch (spawnError) {
+      // eslint-disable-next-line no-console
       console.warn(`[memory-lane] Failed to spawn memory-catcher process:`, spawnError);
       logToFile(projectPath, `Spawn error: ${spawnError}`);
     }
   } else {
+    // eslint-disable-next-line no-console
     console.warn(`[memory-lane] Shell helper not available, skipping memory extraction spawn`);
     logToFile(projectPath, 'Shell helper ($) unavailable - skipping spawn');
   }

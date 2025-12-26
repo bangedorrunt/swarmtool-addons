@@ -1,22 +1,22 @@
 /**
  * Memory Lane Taxonomy
- * 
+ *
  * Defines the types and priorities for persistent memories.
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 
 export const MemoryTypeSchema = z.enum([
-  "correction",    // User behavior correction (High)
-  "decision",      // Explicit choice (High)
-  "commitment",    // User preference/commitment (High)
-  "insight",       // Non-obvious discovery (Medium)
-  "learning",      // New knowledge (Medium)
-  "confidence",    // Strong signal (Medium)
-  "pattern_seed",  // Repeated behavior (Lower)
-  "cross_agent",   // Relevant to other agents (Lower)
-  "workflow_note", // Process observation (Lower)
-  "gap"            // Missing capability (Lower)
+  'correction', // User behavior correction (High)
+  'decision', // Explicit choice (High)
+  'commitment', // User preference/commitment (High)
+  'insight', // Non-obvious discovery (Medium)
+  'learning', // New knowledge (Medium)
+  'confidence', // Strong signal (Medium)
+  'pattern_seed', // Repeated behavior (Lower)
+  'cross_agent', // Relevant to other agents (Lower)
+  'workflow_note', // Process observation (Lower)
+  'gap', // Missing capability (Lower)
 ]);
 
 export type MemoryType = z.infer<typeof MemoryTypeSchema>;
@@ -55,5 +55,5 @@ export const PRIORITY_WEIGHTS: Record<MemoryType, number> = {
   pattern_seed: 0.4,
   cross_agent: 0.4,
   workflow_note: 0.4,
-  gap: 0.4
+  gap: 0.4,
 };

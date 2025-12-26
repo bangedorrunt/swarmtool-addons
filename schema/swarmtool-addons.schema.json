@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opencode.ai/schemas/swarmtool-addons.json",
+  "title": "SwarmToolAddons Plugin Configuration",
+  "description": "Configuration for swarm-tool-addons OpenCode plugin",
+  "type": "object",
+  "properties": {
+    "models": {
+      "description": "Agent model configurations - maps agent paths (e.g., 'swarm/planner', 'librarian') to model overrides",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/ModelOverride"
+      }
+    },
+    "debug": {
+      "description": "Enable debug logging (default: false)",
+      "type": "boolean",
+      "default": false
+    },
+    "logLevel": {
+      "description": "Logging level (default: 'info')",
+      "type": "string",
+      "enum": ["debug", "info", "warn", "error"],
+      "default": "info"
+    }
+  },
+  "required": ["models"],
+  "definitions": {
+    "ModelOverride": {
+      "description": "Model configuration for a single agent",
+      "type": "object",
+      "properties": {
+        "model": {
+          "description": "Model identifier (e.g., 'opencode/big-pickle', 'opencode/glm-4.7-free')",
+          "type": "string"
+        },
+        "temperature": {
+          "description": "Temperature for generation (0.0 - 2.0)",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2
+        }
+      },
+      "required": ["model"]
+    }
+  },
+  "additionalProperties": false
+}

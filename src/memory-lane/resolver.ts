@@ -1,6 +1,6 @@
 /**
  * Memory Lane Entity Resolver
- * 
+ *
  * Provides utilities for extracting entity slugs from text and file paths.
  */
 
@@ -26,7 +26,7 @@ export class EntityResolver {
     while ((match = pattern.exec(text)) !== null) {
       matches.push({
         type: match[1].toLowerCase(),
-        slug: match[2].toLowerCase()
+        slug: match[2].toLowerCase(),
       });
     }
 
@@ -35,8 +35,8 @@ export class EntityResolver {
 
   /**
    * Extract entities from file paths
-   * 
-   * Useful for Hook2 (PostToolUse) and memory-catcher to automatically 
+   *
+   * Useful for Hook2 (PostToolUse) and memory-catcher to automatically
    * detect what feature or project the agent is working on.
    */
   static extractFromPath(path: string): ResolvedEntity[] {
@@ -91,7 +91,7 @@ export class EntityResolver {
    * Convert resolved entities to uniform slugs
    */
   static toSlugs(entities: ResolvedEntity[]): string[] {
-    return entities.map(e => `${e.type}:${e.slug}`);
+    return entities.map((e) => `${e.type}:${e.slug}`);
   }
 
   /**
@@ -112,12 +112,12 @@ export class EntityResolver {
    */
   static async disambiguate(query: string): Promise<string[]> {
     const q = query.toLowerCase().replace(/[^a-z0-9]/g, '');
-    
+
     // 1. Check for exact slug match
     if (query.includes(':')) return [query.toLowerCase()];
 
     // 2. Fuzzy match against known entities
-    const matches = this.KNOWN_ENTITIES.filter(entity => {
+    const matches = this.KNOWN_ENTITIES.filter((entity) => {
       const namePart = entity.slug.split('-').join('');
       return namePart.includes(q) || q.includes(namePart);
     });

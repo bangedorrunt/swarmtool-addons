@@ -34,13 +34,34 @@ describe('triggerMemoryExtraction', () => {
     consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     // Store original Bun.$ and replace with mock
-    originalBunDollar = (global as any).Bun.$;
+    originalBunDollar = (globalThis as any).Bun.$;
   });
+
+  // eslint-disable-next-line no-unused-vars
+  const createMockShell = (captureCallback: (_cmd: string) => void, shouldFail = false) => {
+    const mockFn = (strings: TemplateStringsArray, ...values: any[]) => {
+      const cmd = strings.reduce((acc, str, i) => acc + str + (values[i] || ''), '');
+      captureCallback(cmd);
+
+      const promise = shouldFail
+        ? Promise.reject(new Error('Spawn failed'))
+        : Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
+
+      const chainable = Object.assign(promise, {
+        quiet: () => chainable,
+        nothrow: () => chainable,
+        signal: () => chainable,
+      });
+
+      return chainable;
+    };
+    return vi.fn().mockImplementation(mockFn);
+  };
 
   afterEach(() => {
     // Restore original Bun.$
     if (originalBunDollar) {
-      (global as any).Bun.$ = originalBunDollar;
+      (globalThis as any).Bun.$ = originalBunDollar;
     }
 
     // Clean up test directory
@@ -49,7 +70,7 @@ describe('triggerMemoryExtraction', () => {
       if (existsSync(logFile)) {
         unlinkSync(logFile);
       }
-    } catch (error) {
+    } catch {
       // Ignore cleanup errors
     }
     vi.restoreAllMocks();
@@ -67,12 +88,11 @@ describe('triggerMemoryExtraction', () => {
 
       // Mock Bun.$ to capture command without complex chaining
       let capturedCommand = '';
-      (global as any).Bun.$ = vi.fn().mockImplementation((cmd: string) => {
+      (globalThis as any).Bun.$ = createMockShell((cmd) => {
         capturedCommand = cmd;
-        return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
       });
 
-      await triggerMemoryExtraction(projectPath, outcomeData, (global as any).Bun.$);
+      await triggerMemoryExtraction(projectPath, outcomeData, (globalThis as any).Bun.$);
 
       // Verify logging
       expect(consoleLogSpy).toHaveBeenCalledWith(
@@ -98,12 +118,11 @@ describe('triggerMemoryExtraction', () => {
       };
 
       let capturedCommand = '';
-      (global as any).Bun.$ = vi.fn().mockImplementation((cmd: string) => {
+      (globalThis as any).Bun.$ = createMockShell((cmd) => {
         capturedCommand = cmd;
-        return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
       });
 
-      await triggerMemoryExtraction(projectPath, outcomeData, (global as any).Bun.$);
+      await triggerMemoryExtraction(projectPath, outcomeData, (globalThis as any).Bun.$);
 
       // Should still log extraction trigger (with 'unknown' for missing bead_id)
       expect(consoleLogSpy).toHaveBeenCalledWith(
@@ -128,12 +147,11 @@ describe('triggerMemoryExtraction', () => {
       };
 
       let capturedCommand = '';
-      (global as any).Bun.$ = vi.fn().mockImplementation((cmd: string) => {
+      (globalThis as any).Bun.$ = createMockShell((cmd) => {
         capturedCommand = cmd;
-        return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
       });
 
-      await triggerMemoryExtraction(projectPath, outcomeData, (global as any).Bun.$);
+      await triggerMemoryExtraction(projectPath, outcomeData, (globalThis as any).Bun.$);
 
       expect(capturedCommand).toContain('TRANSCRIPT (TRUNCATED):');
       expect(capturedCommand).toContain('This is a test transcript');
@@ -148,12 +166,11 @@ describe('triggerMemoryExtraction', () => {
       };
 
       let capturedCommand = '';
-      (global as any).Bun.$ = vi.fn().mockImplementation((cmd: string) => {
+      (globalThis as any).Bun.$ = createMockShell((cmd) => {
         capturedCommand = cmd;
-        return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
       });
 
-      await triggerMemoryExtraction(projectPath, outcomeData, (global as any).Bun.$);
+      await triggerMemoryExtraction(projectPath, outcomeData, (globalThis as any).Bun.$);
 
       expect(capturedCommand).toContain('TRANSCRIPT (TRUNCATED):');
       expect(capturedCommand).toContain(
@@ -172,12 +189,11 @@ describe('triggerMemoryExtraction', () => {
       };
 
       let capturedCommand = '';
-      (global as any).Bun.$ = vi.fn().mockImplementation((cmd: string) => {
+      (globalThis as any).Bun.$ = createMockShell((cmd) => {
         capturedCommand = cmd;
-        return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
       });
 
-      await triggerMemoryExtraction(projectPath, outcomeData, (global as any).Bun.$);
+      await triggerMemoryExtraction(projectPath, outcomeData, (globalThis as any).Bun.$);
 
       expect(capturedCommand).toContain('TRANSCRIPT (TRUNCATED):');
       expect(capturedCommand).toContain('a'.repeat(16000)); // Should be truncated
@@ -212,9 +228,9 @@ describe('triggerMemoryExtraction', () => {
         duration_ms: 1000,
       };
 
-      (global as any).Bun.$ = vi.fn().mockRejectedValue(new Error('Spawn failed'));
+      (globalThis as any).Bun.$ = createMockShell(() => {}, true);
 
-      await triggerMemoryExtraction(projectPath, outcomeData, (global as any).Bun.$);
+      await triggerMemoryExtraction(projectPath, outcomeData, (globalThis as any).Bun.$);
 
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         '[memory-lane] Failed to spawn memory-catcher process:',
@@ -233,9 +249,9 @@ describe('triggerMemoryExtraction', () => {
         duration_ms: 1000,
       };
 
-      (global as any).Bun.$ = vi.fn().mockResolvedValue({ exitCode: 0, stdout: '', stderr: '' });
+      (globalThis as any).Bun.$ = createMockShell(() => {});
 
-      await triggerMemoryExtraction(projectPath, outcomeData, (global as any).Bun.$);
+      await triggerMemoryExtraction(projectPath, outcomeData, (globalThis as any).Bun.$);
 
       // Verify log file was created
       const logFile = join(projectPath, '.hive', 'memory-lane.log');
