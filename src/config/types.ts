@@ -9,6 +9,12 @@ export interface ModelOverride {
 
   /** Temperature for generation (0.0 - 2.0), optional */
   temperature?: number;
+
+  /** Disable this agent (optional, default: false) */
+  disable?: boolean;
+
+  /** Force specific skills to be loaded for this agent (optional) */
+  forcedSkills?: string[];
 }
 
 /**
@@ -65,6 +71,7 @@ export const DEFAULT_MODELS = {
   'swarm/planner': 'opencode/big-pickle',
   'swarm/worker': 'opencode/glm-4.7-free',
   'swarm/researcher': 'opencode/grok-code',
+  oracle: 'openai/gpt-5.2',
 } as const;
 
 /**
@@ -172,6 +179,9 @@ export function getDefaultConfig(): SwarmToolAddonsConfig {
       },
       'swarm/researcher': {
         model: DEFAULT_MODELS['swarm/researcher'],
+      },
+      oracle: {
+        model: DEFAULT_MODELS.oracle,
       },
     },
     debug: false,

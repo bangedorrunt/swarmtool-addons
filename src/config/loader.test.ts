@@ -127,6 +127,41 @@ describe('loadConfig', () => {
     expect(config.models['custom/path/agent'].model).toBe('opencode/custom-agent');
     expect(config.models['custom/path/agent'].temperature).toBe(0.5);
   });
+
+  it('should preserve disable and forcedSkills fields from config file', () => {
+    const validConfig = {
+      models: {
+        'swarm/planner': {
+          model: 'opencode/planner',
+          disable: true,
+          forcedSkills: ['system-design', 'swarm-coordination'],
+        },
+        'swarm/worker': {
+          model: 'opencode/worker',
+          disable: false,
+          forcedSkills: [],
+        },
+        oracle: {
+          model: 'openai/gpt-5.2',
+          forcedSkills: ['oracle'],
+        },
+      },
+    };
+
+    writeFileSync(testConfigPath, JSON.stringify(validConfig));
+
+    const config = loadConfig(testConfigPath);
+
+    expect(config.models['swarm/planner'].disable).toBe(true);
+    expect(config.models['swarm/planner'].forcedSkills).toEqual([
+      'system-design',
+      'swarm-coordination',
+    ]);
+    expect(config.models['swarm/worker'].disable).toBe(false);
+    expect(config.models['swarm/worker'].forcedSkills).toEqual([]);
+    expect(config.models.oracle.model).toBe('openai/gpt-5.2');
+    expect(config.models.oracle.forcedSkills).toEqual(['oracle']);
+  });
 });
 
 describe('saveConfig', () => {

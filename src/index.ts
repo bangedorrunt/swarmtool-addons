@@ -10,10 +10,8 @@
  */
 
 import type { Plugin } from '@opencode-ai/plugin';
-import { tool } from '@opencode-ai/plugin';
 import path from 'path';
 import fs from 'node:fs';
-import os from 'node:os';
 import { memoryLaneTools } from './memory-lane/index';
 import { conductorTools, conductorCheckpointHook, conductorVerifyHook } from './conductor/tools';
 import { loadConfig } from './config/loader';
@@ -37,6 +35,9 @@ interface ParsedCommand {
 interface AgentFrontmatter {
   description?: string;
   model?: string;
+  temperature?: number;
+  disable?: boolean;
+  forcedSkills?: string[];
 }
 
 interface ParsedAgent {
@@ -82,6 +83,10 @@ function parseFrontmatter(content: string): { frontmatter: any; body: string } {
     if (key === 'agent') frontmatter.agent = value;
     if (key === 'model') frontmatter.model = value;
     if (key === 'subtask') frontmatter.subtask = value === 'true';
+    if (key === 'temperature') frontmatter.temperature = Number(value);
+    if (key === 'disable') frontmatter.disable = value === 'true';
+    if (key === 'forcedSkills')
+      frontmatter.forcedSkills = value.split(',').map((s: string) => s.trim());
   }
 
   return { frontmatter, body: body.trim() };
@@ -179,15 +184,11 @@ async function loadSkills(): Promise<ParsedSkill[]> {
 }
 
 export const SwarmToolAddons: Plugin = async () => {
-  // Load commands, agents and skills from .md files
-  const [commands, agents, skills] = await Promise.all([
-    loadCommands(),
-    loadAgents(),
-    loadSkills(),
-  ]);
-
   // Load configuration
   const userConfig = loadConfig();
+
+  // Load commands and agents from .md files
+  const [commands, agents] = await Promise.all([loadCommands(), loadAgents(), loadSkills()]);
 
   // Set project path for tool hooks
   const projectPath = process.cwd();
@@ -321,12 +322,51 @@ export const SwarmToolAddons: Plugin = async () => {
         // Get model override from user config if available
         const modelOverride = userConfig.models[agt.name];
         const model = modelOverride?.model ?? agt.frontmatter.model;
-        config.agent[agt.name] = {
+
+        // Build agent configuration with all frontmatter options
+        const agentConfig: any = {
           prompt: agt.prompt,
           description: agt.frontmatter.description,
           model,
         };
+
+        // Add optional frontmatter fields
+        if (agt.frontmatter.temperature !== undefined) {
+          agentConfig.temperature = agt.frontmatter.temperature;
+        }
+
+        if (agt.frontmatter.forcedSkills !== undefined) {
+          agentConfig.forcedSkills = agt.frontmatter.forcedSkills;
+        }
+
+        if (agt.frontmatter.disable !== undefined) {
+          agentConfig.disable = agt.frontmatter.disable;
+        }
+
+        config.agent[agt.name] = agentConfig;
       }
+
+      // Disable 'build' agent
+      config.agent.build = config.agent.build ?? {};
+      config.agent.build.disable = true;
+
+      // Register 'plan' agent with read-only permissions
+      config.agent.plan = config.agent.plan ?? {
+        prompt: 'You are a planning agent. Analyze tasks and provide structured plans.',
+        description: 'Planning agent for task decomposition and analysis',
+        tools: {
+          write: false,
+          edit: false,
+          bash: false,
+        },
+      };
+
+      // Ensure 'oracle' agent is registered and active
+      config.agent.oracle = config.agent.oracle ?? {
+        prompt: 'You are an oracle agent with deep technical expertise.',
+        description: 'Expert technical advisor for architecture and guidance',
+      };
+      config.agent.oracle.disable = false;
 
       // Note: Skills are handled via custom skill tool, not config registration
       // This prevents conflict with swarm-tools internal skill system

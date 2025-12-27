@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { SwarmToolAddonsConfig, parseConfig, validateConfig } from './types';
+import {
+  SwarmToolAddonsConfig,
+  parseConfig,
+  validateConfig,
+  DEFAULT_MODELS,
+  getDefaultConfig,
+} from './types';
 
 describe('SwarmToolAddonsConfig', () => {
   describe('type definitions', () => {
@@ -223,6 +229,143 @@ describe('SwarmToolAddonsConfig', () => {
       const result = validateConfig(config);
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('new fields: disable and forcedSkills', () => {
+    it('should accept disable field in model config', () => {
+      const config: SwarmToolAddonsConfig = {
+        models: {
+          'swarm/planner': {
+            model: 'opencode/model',
+            disable: true,
+          },
+          'swarm/worker': {
+            model: 'opencode/model',
+            disable: false,
+          },
+        },
+      };
+
+      const result = validateConfig(config);
+      expect(result.valid).toBe(true);
+      expect(config.models['swarm/planner'].disable).toBe(true);
+      expect(config.models['swarm/worker'].disable).toBe(false);
+    });
+
+    it('should accept forcedSkills field in model config', () => {
+      const config: SwarmToolAddonsConfig = {
+        models: {
+          'swarm/planner': {
+            model: 'opencode/model',
+            forcedSkills: ['system-design', 'swarm-coordination'],
+          },
+        },
+      };
+
+      const result = validateConfig(config);
+      expect(result.valid).toBe(true);
+      expect(config.models['swarm/planner'].forcedSkills).toEqual([
+        'system-design',
+        'swarm-coordination',
+      ]);
+    });
+
+    it('should accept empty forcedSkills array', () => {
+      const config: SwarmToolAddonsConfig = {
+        models: {
+          'swarm/planner': {
+            model: 'opencode/model',
+            forcedSkills: [],
+          },
+        },
+      };
+
+      const result = validateConfig(config);
+      expect(result.valid).toBe(true);
+      expect(config.models['swarm/planner'].forcedSkills).toEqual([]);
+    });
+
+    it('should accept all optional fields together', () => {
+      const config: SwarmToolAddonsConfig = {
+        models: {
+          'swarm/planner': {
+            model: 'opencode/model',
+            temperature: 0.7,
+            disable: false,
+            forcedSkills: ['system-design'],
+          },
+        },
+      };
+
+      const result = validateConfig(config);
+      expect(result.valid).toBe(true);
+      expect(config.models['swarm/planner'].disable).toBe(false);
+      expect(config.models['swarm/planner'].forcedSkills).toEqual(['system-design']);
+    });
+
+    it('should parse config with disable and forcedSkills from JSON', () => {
+      const jsonStr = JSON.stringify({
+        models: {
+          'swarm/planner': {
+            model: 'opencode/model',
+            disable: true,
+            forcedSkills: ['skill1', 'skill2'],
+          },
+        },
+      });
+
+      const config = parseConfig(jsonStr);
+      expect(config.models['swarm/planner'].disable).toBe(true);
+      expect(config.models['swarm/planner'].forcedSkills).toEqual(['skill1', 'skill2']);
+    });
+
+    it('should preserve disable and forcedSkills when undefined', () => {
+      const config: SwarmToolAddonsConfig = {
+        models: {
+          'swarm/planner': {
+            model: 'opencode/model',
+          },
+        },
+      };
+
+      expect(config.models['swarm/planner'].disable).toBeUndefined();
+      expect(config.models['swarm/planner'].forcedSkills).toBeUndefined();
+    });
+  });
+
+  describe('DEFAULT_MODELS includes oracle', () => {
+    it('should include oracle in DEFAULT_MODELS', () => {
+      expect(DEFAULT_MODELS).toHaveProperty('oracle');
+      expect(DEFAULT_MODELS.oracle).toBe('openai/gpt-5.2');
+    });
+
+    it('should have all required agents in DEFAULT_MODELS', () => {
+      const expectedAgents = ['swarm/planner', 'swarm/worker', 'swarm/researcher', 'oracle'];
+
+      for (const agent of expectedAgents) {
+        expect(DEFAULT_MODELS).toHaveProperty(agent);
+        expect(typeof DEFAULT_MODELS[agent as keyof typeof DEFAULT_MODELS]).toBe('string');
+      }
+    });
+  });
+
+  describe('getDefaultConfig includes oracle', () => {
+    it('should include oracle in default config', () => {
+      const defaultConfig = getDefaultConfig();
+      expect(defaultConfig.models).toHaveProperty('oracle');
+      expect(defaultConfig.models.oracle.model).toBe('openai/gpt-5.2');
+    });
+
+    it('should include all agents with their default models', () => {
+      const defaultConfig = getDefaultConfig();
+      const expectedAgents = ['swarm/planner', 'swarm/worker', 'swarm/researcher', 'oracle'];
+
+      for (const agent of expectedAgents) {
+        expect(defaultConfig.models).toHaveProperty(agent);
+        expect(defaultConfig.models[agent]).toBeDefined();
+        expect(defaultConfig.models[agent].model).toBeDefined();
+      }
     });
   });
 });
