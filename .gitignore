@@ -11,3 +11,5 @@ coverage/
 .bun.lockb
 .memory/
 package-lock.json
+.opencode/eval-data.jsonl
+.opencode/swarm.db
