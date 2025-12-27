@@ -44,9 +44,16 @@ async function getLaneAdapter(): Promise<MemoryLaneAdapter> {
   // This differs from plugin which uses input.directory (OpenCode context)
   // See DATABASE PATH RESOLUTION comment above for details
   const swarmMail = await getSwarmMailLibSQL(process.cwd());
+
+  // ✅ CRITICAL FIX: Run full migration system FIRST
+  // This creates hive tables (beads, bead_*, etc.) and cells view
+  // Without this, "no such table: cells" errors occur
+  await swarmMail.runMigrations();
+
   const db = await swarmMail.getDatabase();
 
-  // Ensure schema is up to date
+  // Ensure Memory Lane schema additions (columns, indexes) are applied
+  // This augments the existing memories table with ML-specific columns
   await ensureSchema(db);
 
   const baseMemory = await createMemoryAdapter(db);
