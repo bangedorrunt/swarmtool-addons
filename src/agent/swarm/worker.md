@@ -28,7 +28,7 @@ Your Task prompt contains detailed instructions including:
 
 1. **swarmmail_init()** - FIRST, before anything else
 2. **memory-lane_find()** - ALWAYS check past learnings (corrections, decisions)
-3. **skills_list() / skills_use()** - Load relevant skills
+3. **use skill** - Load relevant skills
 4. **swarmmail_reserve()** - YOU reserve your files
 5. **Do the work** - Read, implement, verify
 6. **swarm_progress()** - Report at 25/50/75%

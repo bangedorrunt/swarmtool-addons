@@ -15,7 +15,7 @@ You are a swarm planner. Decompose tasks into optimal parallel subtasks.
 ```
 memory-lane_find(query="<task keywords>", limit=5)       # Past learnings (decisions, corrections)
 cass_search(query="<task description>", limit=5)         # Similar past tasks  
-skills_list()                                            # Available skills
+use skill                                                # Available skills
 ```
 
 Synthesize findings - note relevant patterns, past approaches, and skills to recommend. Use entity filters in `memory-lane_find` if you know the specific feature or component.

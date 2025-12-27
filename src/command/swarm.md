@@ -148,7 +148,7 @@ const researchFindings = await Task(subagent_type="swarm-researcher", prompt="<f
 ```
 semantic-memory_find(query="<task keywords>", limit=5)   # Past learnings
 cass_search(query="<task description>", limit=5)         # Similar past tasks  
-skills_list()                                            # Available skills
+use skill                                                # Available skills
 ```
 
 Synthesize findings into shared_context for workers.

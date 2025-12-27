@@ -1,0 +1,52 @@
+{
+  "name": "opencode-plugin",
+  "version": "1.0.0",
+  "description": "Hybrid skill for developing OpenCode plugins - behavioral patterns for agents and technical reference for humans",
+  "category": "plugin-development",
+  "created": "2025-12-26",
+  "last_updated": "2025-12-26",
+  "maintainers": ["OpenCode Community"],
+  "keywords": [
+    "opencode",
+    "plugin",
+    "hooks",
+    "events",
+    "tools",
+    "lifecycle",
+    "agent",
+    "sdk"
+  ],
+  "related_skills": [
+    "skill-creator",
+    "system-design",
+    "testing-patterns",
+    "context-optimization"
+  ],
+  "source_urls": {
+    "official_docs": "https://opencode.ai/docs/plugins/",
+    "ecosystem": "https://opencode.ai/docs/ecosystem/",
+    "github_repo": "https://github.com/sst/opencode",
+    "plugin_template": "https://github.com/zenobi-us/opencode-plugin-template/"
+  },
+  "research_timestamp": "2025-12-26T00:00:00Z",
+  "research_sources": [
+    "https://opencode.ai/docs/plugins/",
+    "https://opencode.ai/docs/ecosystem/",
+    "https://github.com/sst/opencode",
+    "https://github.com/zenobi-us/opencode-plugin-template/",
+    "https://www.youtube.com/watch?v=Wu3G1QwM81M",
+    "https://claude-plugins.dev/skills/@pr-pm/prpm/creating-opencode-plugins"
+  ],
+  "topics_covered": [
+    "plugin-architecture",
+    "event-system",
+    "lifecycle-hooks",
+    "tool-creation",
+    "sdk-client",
+    "security",
+    "permissions",
+    "compaction",
+    "notification-patterns",
+    "testing-patterns"
+  ]
+}

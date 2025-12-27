@@ -246,227 +246,227 @@ Content`;
         expect(result.frontmatter.tags).toEqual(['tag1', 'tag2', 'tag3', 'tag4', 'tag5']);
         expect(duration).toBeLessThan(10); // Should complete in <10ms
       });
-      });
+    });
   });
-  });
+});
 
-  describe('parseCheckboxes', () => {
-    it('should parse various checkbox states', () => {
-      const content = `
+describe('parseCheckboxes', () => {
+  it('should parse various checkbox states', () => {
+    const content = `
 - [ ] Task 1
 - [x] Task 2
 - [~] Task 3
 - [-] Task 4
 Not a task.
 `;
+    const tasks = parseCheckboxes(content);
+
+    expect(tasks).toHaveLength(4);
+    expect(tasks[0]).toEqual({ status: 'pending', description: 'Task 1', raw: '- [ ] Task 1' });
+    expect(tasks[1]).toEqual({ status: 'completed', description: 'Task 2', raw: '- [x] Task 2' });
+    expect(tasks[2]).toEqual({
+      status: 'in_progress',
+      description: 'Task 3',
+      raw: '- [~] Task 3',
+    });
+    expect(tasks[3]).toEqual({ status: 'cancelled', description: 'Task 4', raw: '- [-] Task 4' });
+  });
+
+  describe('Status map coverage', () => {
+    it('should map space to pending', () => {
+      const content = '- [ ] Pending task';
       const tasks = parseCheckboxes(content);
 
-      expect(tasks).toHaveLength(4);
-      expect(tasks[0]).toEqual({ status: 'pending', description: 'Task 1', raw: '- [ ] Task 1' });
-      expect(tasks[1]).toEqual({ status: 'completed', description: 'Task 2', raw: '- [x] Task 2' });
-      expect(tasks[2]).toEqual({
-        status: 'in_progress',
-        description: 'Task 3',
-        raw: '- [~] Task 3',
-      });
-      expect(tasks[3]).toEqual({ status: 'cancelled', description: 'Task 4', raw: '- [-] Task 4' });
+      expect(tasks[0].status).toBe('pending');
     });
 
-    describe('Status map coverage', () => {
-      it('should map space to pending', () => {
-        const content = '- [ ] Pending task';
-        const tasks = parseCheckboxes(content);
+    it('should map x to completed', () => {
+      const content = '- [x] Completed task';
+      const tasks = parseCheckboxes(content);
 
-        expect(tasks[0].status).toBe('pending');
-      });
+      expect(tasks[0].status).toBe('completed');
+    });
 
-      it('should map x to completed', () => {
-        const content = '- [x] Completed task';
-        const tasks = parseCheckboxes(content);
+    it('should map ~ to in_progress', () => {
+      const content = '- [~] In progress task';
+      const tasks = parseCheckboxes(content);
 
-        expect(tasks[0].status).toBe('completed');
-      });
+      expect(tasks[0].status).toBe('in_progress');
+    });
 
-      it('should map ~ to in_progress', () => {
-        const content = '- [~] In progress task';
-        const tasks = parseCheckboxes(content);
+    it('should map - to cancelled', () => {
+      const content = '- [-] Cancelled task';
+      const tasks = parseCheckboxes(content);
 
-        expect(tasks[0].status).toBe('in_progress');
-      });
+      expect(tasks[0].status).toBe('cancelled');
+    });
 
-      it('should map - to cancelled', () => {
-        const content = '- [-] Cancelled task';
-        const tasks = parseCheckboxes(content);
+    it('should default to pending for unknown indicator', () => {
+      const content = '- [?] Unknown status';
+      const tasks = parseCheckboxes(content);
 
-        expect(tasks[0].status).toBe('cancelled');
-      });
+      expect(tasks[0].status).toBe('pending');
+    });
+  });
 
-      it('should default to pending for unknown indicator', () => {
-        const content = '- [?] Unknown status';
-        const tasks = parseCheckboxes(content);
+  describe('Edge cases', () => {
+    it('should handle checkboxes with extra whitespace', () => {
+      const content = `  -   [  ]  Task with spaces  `;
+      const tasks = parseCheckboxes(content);
 
-        expect(tasks[0].status).toBe('pending');
+      expect(tasks[0]).toEqual({
+        status: 'pending',
+        description: 'Task with spaces',
+        raw: '  -   [  ]  Task with spaces  ',
       });
     });
 
-    describe('Edge cases', () => {
-      it('should handle checkboxes with extra whitespace', () => {
-        const content = `  -   [  ]  Task with spaces  `;
-        const tasks = parseCheckboxes(content);
+    it('should handle empty descriptions', () => {
+      const content = '- [ ] ';
+      const tasks = parseCheckboxes(content);
 
-        expect(tasks[0]).toEqual({
-          status: 'pending',
-          description: 'Task with spaces',
-          raw: '  -   [  ]  Task with spaces  ',
-        });
+      expect(tasks[0]).toEqual({
+        status: 'pending',
+        description: '',
+        raw: '- [ ] ',
       });
+    });
 
-      it('should handle empty descriptions', () => {
-        const content = '- [ ] ';
-        const tasks = parseCheckboxes(content);
+    it('should skip lines too short to match pattern (< 5 chars)', () => {
+      const content = '- []\n- [x]';
+      const tasks = parseCheckboxes(content);
 
-        expect(tasks[0]).toEqual({
-          status: 'pending',
-          description: '',
-          raw: '- [ ] ',
-        });
-      });
+      expect(tasks).toHaveLength(0); // Both lines < 5 chars
+    });
 
-      it('should skip lines too short to match pattern (< 5 chars)', () => {
-        const content = '- []\n- [x]';
-        const tasks = parseCheckboxes(content);
-
-        expect(tasks).toHaveLength(0); // Both lines < 5 chars
-      });
-
-      it('should handle content with no checkboxes', () => {
-        const content = `# Heading
+    it('should handle content with no checkboxes', () => {
+      const content = `# Heading
 Some text
 More text`;
-        const tasks = parseCheckboxes(content);
+      const tasks = parseCheckboxes(content);
 
-        expect(tasks).toHaveLength(0);
-      });
+      expect(tasks).toHaveLength(0);
+    });
 
-      it('should handle empty string input', () => {
-        const tasks = parseCheckboxes('');
+    it('should handle empty string input', () => {
+      const tasks = parseCheckboxes('');
 
-        expect(tasks).toHaveLength(0);
-      });
+      expect(tasks).toHaveLength(0);
+    });
 
-      it('should handle mixed content with some checkboxes', () => {
-        const content = `# Heading
+    it('should handle mixed content with some checkboxes', () => {
+      const content = `# Heading
 - [ ] Task 1
 Some text between
 - [x] Task 2
 More text
 - [~] Task 3
 End of file`;
-        const tasks = parseCheckboxes(content);
+      const tasks = parseCheckboxes(content);
 
-        expect(tasks).toHaveLength(3);
-        expect(tasks[0].description).toBe('Task 1');
-        expect(tasks[1].description).toBe('Task 2');
-        expect(tasks[2].description).toBe('Task 3');
-      });
-    });
-
-    describe('Line-by-line processing (memory optimization)', () => {
-      it('should process last line without newline', () => {
-        const content = '- [ ] Task 1';
-        const tasks = parseCheckboxes(content);
-
-        expect(tasks).toHaveLength(1);
-        expect(tasks[0].description).toBe('Task 1');
-      });
-
-      it('should handle content ending with newline', () => {
-        const content = '- [ ] Task 1\n- [x] Task 2\n';
-        const tasks = parseCheckboxes(content);
-
-        expect(tasks).toHaveLength(2);
-      });
-
-      it('should handle content without any newlines', () => {
-        const content = '- [ ] Task 1- [x] Task 2'; // No newline, invalid format
-        const tasks = parseCheckboxes(content);
-
-        expect(tasks).toHaveLength(0); // Won't match because line is too long for first pattern
-      });
-    });
-
-    describe('Performance benchmarks', () => {
-      it('should parse small list of checkboxes quickly', () => {
-        const content = `- [ ] Task 1
-- [x] Task 2
-- [~] Task 3`;
-        const start = performance.now();
-        const tasks = parseCheckboxes(content);
-        const duration = performance.now() - start;
-
-        expect(tasks).toHaveLength(3);
-        expect(duration).toBeLessThan(10); // Should complete in <10ms
-      });
-
-      it('should parse large list of checkboxes efficiently (memory optimization test)', () => {
-        let content = '';
-        for (let i = 0; i < 100; i++) {
-          const statuses = [' ', 'x', '~', '-'];
-          const status = statuses[i % 4];
-          content += `- [${status}] Task ${i}\n`;
-        }
-
-        const start = performance.now();
-        const tasks = parseCheckboxes(content);
-        const duration = performance.now() - start;
-
-        expect(tasks).toHaveLength(100);
-        expect(duration).toBeLessThan(20); // Should complete in <20ms for 100 checkboxes
-      });
-
-      it('should parse mixed content with few checkboxes efficiently', () => {
-        let content = '# Heading\n';
-        for (let i = 0; i < 50; i++) {
-          content += `Paragraph line ${i}\n`;
-        }
-        content += '- [ ] Task 1\n- [x] Task 2\n';
-
-        const start = performance.now();
-        const tasks = parseCheckboxes(content);
-        const duration = performance.now() - start;
-
-        expect(tasks).toHaveLength(2);
-        expect(duration).toBeLessThan(20); // Should complete in <20ms even with extra content
-      });
-    });
-
-    describe('Characterization tests (preserving existing behavior)', () => {
-      it('should preserve raw line including all whitespace', () => {
-        const content = `   -   [  ]  Task description  `;
-        const tasks = parseCheckboxes(content);
-
-        expect(tasks[0].raw).toBe('   -   [  ]  Task description  ');
-      });
-
-      it('should handle tabs in checkbox format', () => {
-        const content = `-\t[\t]\tTask with tabs`;
-        const tasks = parseCheckboxes(content);
-
-        expect(tasks[0].description).toBe('Task with tabs');
-      });
-
-      it('should handle multi-word descriptions', () => {
-        const content = '- [x] This is a task with multiple words in the description';
-        const tasks = parseCheckboxes(content);
-
-        expect(tasks[0].description).toBe('This is a task with multiple words in the description');
-      });
+      expect(tasks).toHaveLength(3);
+      expect(tasks[0].description).toBe('Task 1');
+      expect(tasks[1].description).toBe('Task 2');
+      expect(tasks[2].description).toBe('Task 3');
     });
   });
 
-  describe('Integration tests', () => {
-    it('should parse complete track spec with frontmatter and checkboxes', () => {
-      const md = `---
+  describe('Line-by-line processing (memory optimization)', () => {
+    it('should process last line without newline', () => {
+      const content = '- [ ] Task 1';
+      const tasks = parseCheckboxes(content);
+
+      expect(tasks).toHaveLength(1);
+      expect(tasks[0].description).toBe('Task 1');
+    });
+
+    it('should handle content ending with newline', () => {
+      const content = '- [ ] Task 1\n- [x] Task 2\n';
+      const tasks = parseCheckboxes(content);
+
+      expect(tasks).toHaveLength(2);
+    });
+
+    it('should handle content without any newlines', () => {
+      const content = '- [ ] Task 1- [x] Task 2'; // No newline, invalid format
+      const tasks = parseCheckboxes(content);
+
+      expect(tasks).toHaveLength(0); // Won't match because line is too long for first pattern
+    });
+  });
+
+  describe('Performance benchmarks', () => {
+    it('should parse small list of checkboxes quickly', () => {
+      const content = `- [ ] Task 1
+- [x] Task 2
+- [~] Task 3`;
+      const start = performance.now();
+      const tasks = parseCheckboxes(content);
+      const duration = performance.now() - start;
+
+      expect(tasks).toHaveLength(3);
+      expect(duration).toBeLessThan(10); // Should complete in <10ms
+    });
+
+    it('should parse large list of checkboxes efficiently (memory optimization test)', () => {
+      let content = '';
+      for (let i = 0; i < 100; i++) {
+        const statuses = [' ', 'x', '~', '-'];
+        const status = statuses[i % 4];
+        content += `- [${status}] Task ${i}\n`;
+      }
+
+      const start = performance.now();
+      const tasks = parseCheckboxes(content);
+      const duration = performance.now() - start;
+
+      expect(tasks).toHaveLength(100);
+      expect(duration).toBeLessThan(20); // Should complete in <20ms for 100 checkboxes
+    });
+
+    it('should parse mixed content with few checkboxes efficiently', () => {
+      let content = '# Heading\n';
+      for (let i = 0; i < 50; i++) {
+        content += `Paragraph line ${i}\n`;
+      }
+      content += '- [ ] Task 1\n- [x] Task 2\n';
+
+      const start = performance.now();
+      const tasks = parseCheckboxes(content);
+      const duration = performance.now() - start;
+
+      expect(tasks).toHaveLength(2);
+      expect(duration).toBeLessThan(20); // Should complete in <20ms even with extra content
+    });
+  });
+
+  describe('Characterization tests (preserving existing behavior)', () => {
+    it('should preserve raw line including all whitespace', () => {
+      const content = `   -   [  ]  Task description  `;
+      const tasks = parseCheckboxes(content);
+
+      expect(tasks[0].raw).toBe('   -   [  ]  Task description  ');
+    });
+
+    it('should handle tabs in checkbox format', () => {
+      const content = `-\t[\t]\tTask with tabs`;
+      const tasks = parseCheckboxes(content);
+
+      expect(tasks[0].description).toBe('Task with tabs');
+    });
+
+    it('should handle multi-word descriptions', () => {
+      const content = '- [x] This is a task with multiple words in the description';
+      const tasks = parseCheckboxes(content);
+
+      expect(tasks[0].description).toBe('This is a task with multiple words in the description');
+    });
+  });
+});
+
+describe('Integration tests', () => {
+  it('should parse complete track spec with frontmatter and checkboxes', () => {
+    const md = `---
 name: user-auth
 type: feature
 priority: 2
@@ -487,19 +487,18 @@ tags: [security, auth]
 - [ ] Integration tests
 `;
 
-      const { frontmatter, content } = parseMarkdown(md);
-      const tasks = parseCheckboxes(content);
+    const { frontmatter, content } = parseMarkdown(md);
+    const tasks = parseCheckboxes(content);
 
-      expect(frontmatter.name).toBe('user-auth');
-      expect(frontmatter.type).toBe('feature');
-      expect(frontmatter.priority).toBe(2);
-      expect(frontmatter.tags).toEqual(['security', 'auth']);
+    expect(frontmatter.name).toBe('user-auth');
+    expect(frontmatter.type).toBe('feature');
+    expect(frontmatter.priority).toBe(2);
+    expect(frontmatter.tags).toEqual(['security', 'auth']);
 
-      expect(tasks).toHaveLength(6);
-      expect(tasks[0].description).toBe('Create user model');
-      expect(tasks[1].description).toBe('Design database schema');
-      expect(tasks[2].description).toBe('Implement password hashing');
-      expect(tasks[3].description).toBe('deprecated OAuth approach');
-    });
+    expect(tasks).toHaveLength(6);
+    expect(tasks[0].description).toBe('Create user model');
+    expect(tasks[1].description).toBe('Design database schema');
+    expect(tasks[2].description).toBe('Implement password hashing');
+    expect(tasks[3].description).toBe('deprecated OAuth approach');
   });
 });

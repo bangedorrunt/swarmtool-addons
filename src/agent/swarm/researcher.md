@@ -45,7 +45,7 @@ memory-lane_find(query="<research topic>", limit=5)
 
 ```
 # Check what skills user has installed
-skills_list()
+use skill
 
 # Check for CLI tools if relevant (bd, cass, ubs, ollama)
 # Use Bash tool to check: which <tool-name>
@@ -56,7 +56,7 @@ skills_list()
 Based on research task, load appropriate skills:
 
 ```
-skills_use(name="<skill-name>", context="Researching <topic>")
+use skill <relavant-skill> with "Researching <toppic>"
 ```
 
 ### Step 5: Read Lockfiles (if researching dependencies)
@@ -140,11 +140,11 @@ swarmmail_send(
 ### Skills Discovery
 
 ```
-skills_list()
 # Returns: Available skills from global, project, bundled sources
+use skill
 
 # Load relevant skill for research domain
-skills_use(name="<skill>", context="Researching <topic>")
+use skill <relavant-skill> with "Researching <toppic>"
 ```
 
 ### CLI Tool Detection
