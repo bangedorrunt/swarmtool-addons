@@ -49,13 +49,12 @@ The following tools are **FORBIDDEN** for coordinators to call:
 - `repo-autopsy_*` (all variants)
 - `webfetch`, `fetch_fetch`
 - `context7_resolve-library-id`, `context7_get-library-docs`
-- `pdf-brain_search`, `pdf-brain_read`
 
 **WHY?** These tools dump massive context that exhausts your expensive Sonnet context. Your job is orchestration, not research.
 
 **INSTEAD:** Use `swarm_spawn_researcher` (see Phase 1.5 below) to spawn a researcher worker who:
 - Fetches documentation in disposable context
-- Stores full details in semantic-memory
+- Stores full details in memory-lane and semantic-memory
 - Returns a condensed summary for shared_context
 
 ## Workflow
@@ -135,10 +134,10 @@ const researchFindings = await Task(subagent_type="swarm-researcher", prompt="<f
 **When NOT to spawn a researcher:**
 - Using well-known stable APIs (React hooks, Express middleware)
 - Task is purely refactoring existing code
-- You already have relevant findings from semantic-memory or CASS
+- You already have relevant findings from memory-lane, semantic-memory or CASS
 
 **Researcher output:**
-- Full findings stored in semantic-memory (searchable by future agents)
+- Full findings stored in semantic-memory and memory-lane (searchable by future agents)
 - Condensed 3-5 bullet summary returned for shared_context
 
 ### Phase 2: Knowledge Gathering (MANDATORY)
@@ -146,8 +145,8 @@ const researchFindings = await Task(subagent_type="swarm-researcher", prompt="<f
 **Before decomposing, query ALL knowledge sources:**
 
 ```
-semantic-memory_find(query="<task keywords>", limit=5)   # Past learnings
-cass_search(query="<task description>", limit=5)         # Similar past tasks  
+memory-lane_find(query="<task keywords>", limit=5)       # Past learnings (decisions, corrections)
+cass_search({ query: "<task description>", limit: 5 })         # Similar past tasks  
 use skill                                                # Available skills
 ```
 

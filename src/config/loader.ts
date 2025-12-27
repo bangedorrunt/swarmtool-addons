@@ -3,6 +3,21 @@
  *
  * Reads configuration from JSON file with graceful error handling.
  * Returns default configuration if file is missing or invalid.
+ *
+ * IMPORTANT: This module ONLY handles configuration file paths, NOT database paths.
+ *
+ * Database Path Resolution (separate concern):
+ * - Database (swarm.db) path is determined by swarm-mail via getSwarmMailLibSQL()
+ * - See src/memory-lane/tools.ts:17 for database path resolution logic
+ * - See src/index.ts:194 for projectPath initialization
+ *
+ * Configuration file paths handled here:
+ * - Config directory: ~/.config/opencode/ (macOS/Linux) or %APPDATA%\opencode\ (Windows)
+ * - Config file: ~/.config/opencode/swarmtool-addons.json
+ *
+ * DATABASE vs CONFIG PATHS - They are DIFFERENT:
+ * - Config: Global user settings (models, preferences)
+ * - Database: Project-specific swarm.db located in .hive/ directory
  */
 
 import fs from 'node:fs';

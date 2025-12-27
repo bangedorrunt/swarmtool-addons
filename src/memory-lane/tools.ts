@@ -13,7 +13,36 @@ import { MemoryTypeSchema } from './taxonomy';
 import { EntityResolver } from './resolver';
 import { ensureSchema } from './migration';
 
+/**
+ * DATABASE PATH RESOLUTION - CRITICAL PATH MISMATCH
+ *
+ * PROBLEM: This function uses process.cwd() to determine the database path.
+ *
+ * - swarmtool-addons (this package) uses process.cwd() for database location
+ * - opencode-swarm-plugin uses projectDirectory from OpenCode context (input.directory)
+ *
+ * ROOT CAUSE OF CONNECTION FAILURES:
+ * When running from different directories (e.g., plugin vs standalone), these paths differ,
+ * resulting in SEPARATE swarm.db instances being created in different locations.
+ *
+ * Example scenarios causing separate databases:
+ * 1. Plugin initializes with input.directory = /Users/user/project/swarm-tools
+ *    → Creates database at /Users/user/project/swarm-tools/.hive/swarm.db
+ *
+ * 2. Addon called from /Users/user/project/swarmtool-addons
+ *    → Creates database at /Users/user/project/swarmtool-addons/.hive/swarm.db
+ *
+ * RESULT: Cannot connect to plugin's database - "Could not connect to swarm.db" error
+ *
+ * PROPER SOLUTION (requires coordination with plugin):
+ * - Addon should receive projectDirectory from OpenCode context, not use process.cwd()
+ * - Both plugin and addon should use the same path resolution mechanism
+ * - Consider passing projectPath as parameter or using centralized config
+ */
 async function getLaneAdapter(): Promise<MemoryLaneAdapter> {
+  // CRITICAL: Uses process.cwd() for database path
+  // This differs from plugin which uses input.directory (OpenCode context)
+  // See DATABASE PATH RESOLUTION comment above for details
   const swarmMail = await getSwarmMailLibSQL(process.cwd());
   const db = await swarmMail.getDatabase();
 

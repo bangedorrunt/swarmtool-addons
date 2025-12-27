@@ -14,7 +14,7 @@ You are a swarm planner. Decompose tasks into optimal parallel subtasks.
 
 ```
 memory-lane_find(query="<task keywords>", limit=5)       # Past learnings (decisions, corrections)
-cass_search(query="<task description>", limit=5)         # Similar past tasks  
+cass_search({ query: '<task description>', limit: 5 });
 use skill                                                # Available skills
 ```
 

@@ -190,7 +190,24 @@ export const SwarmToolAddons: Plugin = async () => {
   // Load commands and agents from .md files
   const [commands, agents] = await Promise.all([loadCommands(), loadAgents(), loadSkills()]);
 
-  // Set project path for tool hooks
+  // DATABASE PATH RESOLUTION - CRITICAL CONFIGURATION
+  //
+  // The projectPath is set to process.cwd() which is used for:
+  // - Triggering memory extraction (triggerMemoryExtraction call on line 266)
+  // - SwarmMail initialization (when called from memory-lane/tools.ts)
+  //
+  // PROBLEM: This does NOT match opencode-swarm-plugin's behavior:
+  // - Plugin uses input.directory from OpenCode context
+  // - Addon uses process.cwd() (current working directory)
+  //
+  // PATH MISMATCH SCENARIO:
+  // - OpenCode starts from /Users/user/project (input.directory = /Users/user/project)
+  // - Plugin creates database at /Users/user/project/.hive/swarm.db
+  // - Addon's projectPath = /Users/user/project/swarmtool-addons
+  // - Addon tries to access /Users/user/project/swarmtool-addons/.hive/swarm.db
+  // - Result: "Could not connect to swarm.db" - wrong database path
+  //
+  // See src/memory-lane/tools.ts:17 for detailed path resolution analysis
   const projectPath = process.cwd();
 
   return {
@@ -351,9 +368,7 @@ export const SwarmToolAddons: Plugin = async () => {
       config.agent.build.disable = true;
 
       // Register 'plan' agent with read-only permissions
-      config.agent.plan = config.agent.plan ?? {
-        prompt: 'You are a planning agent. Analyze tasks and provide structured plans.',
-        description: 'Planning agent for task decomposition and analysis',
+      config.agent.plan = config.agent.oracle ?? {
         tools: {
           write: false,
           edit: false,
@@ -362,10 +377,7 @@ export const SwarmToolAddons: Plugin = async () => {
       };
 
       // Ensure 'oracle' agent is registered and active
-      config.agent.oracle = config.agent.oracle ?? {
-        prompt: 'You are an oracle agent with deep technical expertise.',
-        description: 'Expert technical advisor for architecture and guidance',
-      };
+      config.agent.oracle = config.agent.oracle ?? {};
       config.agent.oracle.disable = false;
 
       // Note: Skills are handled via custom skill tool, not config registration

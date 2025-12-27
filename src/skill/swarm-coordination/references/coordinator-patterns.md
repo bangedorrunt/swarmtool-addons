@@ -10,13 +10,13 @@ The coordinator is the orchestration layer that manages the swarm. This document
 
 ```
 # 1. Search semantic memory for past learnings
-semantic-memory_find(query="<task keywords>", limit=5)
+memory_lane_find({ query: '<task keywords>', limit: 5 });
 
 # 2. Search CASS for similar past tasks
-cass_search(query="<task description>", limit=5)
+cass_search({ query: '<task description>', limit: 5 });
 
 # 3. List available skills
-skills_list()
+use skill
 ```
 
 **Why this matters:** From "Patterns for Building AI Agents":
