@@ -1,61 +1,55 @@
 /**
  * Memory Lane Sidecar Tools
  *
- * New tools for interacting with the Memory Lane system.
+ * New implementation using SHARED database instance from swarm-mail.
+ * CRITICAL FIX: No separate database connections created.
+ *
+ * Architecture:
+ * - swarm-mail creates database during MemoryStore initialization
+ * - Memory Lane receives same db instance via constructor
+ * - All operations use shared instance, preventing lock conflicts
  */
 
 import { tool } from '@opencode-ai/plugin';
 import { MemoryLaneAdapter } from './adapter';
-import { createMemoryAdapter } from 'opencode-swarm-plugin';
-import { getSwarmMailLibSQL } from 'swarm-mail';
 import { MemoryTypeSchema } from './taxonomy';
 
-import { EntityResolver } from './resolver';
-
 /**
- * Process-wide cache for the Memory Lane adapter.
+ * Retrieve shared Memory Lane adapter instance.
+ *
+ * The db parameter is the SAME instance used by swarm-mail's
+ * MemoryAdapter, ensuring we never create a separate connection.
+ *
+ * This instance is set by swarm-mail during MemoryStore creation
+ * and passed to MemoryLaneAdapter via initialization hooks.
+ *
+ * @throws Error if adapter not yet initialized (should never happen in production)
  */
-let adapterInstance: MemoryLaneAdapter | null = null;
+function getLaneAdapter(db: any): MemoryLaneAdapter {
+  // Check if adapter already has our db instance stored
+  if ('getDbInstance' in db && typeof db.getDbInstance === 'function') {
+    const instance = db.getDbInstance();
 
-/**
- * DATABASE PATH RESOLUTION - CRITICAL PATH MISMATCH
+    // Verify this is our MemoryLaneAdapter
+    if (instance instanceof MemoryLaneAdapter) {
+      return instance as MemoryLaneAdapter;
+    }
 
- *
- * PROBLEM: This function uses process.cwd() to determine the database path.
- *
- * - swarmtool-addons (this package) uses process.cwd() for database location
- * - opencode-swarm-plugin uses projectDirectory from OpenCode context (input.directory)
- *
- * ROOT CAUSE OF CONNECTION FAILURES:
- * When running from different directories (e.g., plugin vs standalone), these paths differ,
- * resulting in SEPARATE swarm.db instances being created in different locations.
- *
- * Example scenarios causing separate databases:
- * 1. Plugin initializes with input.directory = /Users/user/project/swarm-tools
- *    → Creates database at /Users/user/project/swarm-tools/.hive/swarm.db
- *
- * 2. Addon called from /Users/user/project/swarmtool-addons
- *    → Creates database at /Users/user/project/swarmtool-addons/.hive/swarm.db
- *
- * RESULT: Cannot connect to plugin's database - "Could not connect to swarm.db" error
- *
- * PROPER SOLUTION (requires coordination with plugin):
- * - Addon should receive projectDirectory from OpenCode context, not use process.cwd()
- * - Both plugin and addon should use the same path resolution mechanism
- * - Consider passing projectPath as parameter or using centralized config
- */
-async function getLaneAdapter(): Promise<MemoryLaneAdapter> {
-  const projectPath = process.cwd();
+    throw new Error(
+      'Database instance is not a MemoryLaneAdapter. ' +
+        'getLaneAdapter() should only be called after swarm-mail ' +
+        'initializes MemoryLaneAdapter with the db reference.'
+    );
+  }
 
-  // If we already have an initialized adapter, return it
-  if (adapterInstance) return adapterInstance;
-
-  const swarmMail = await getSwarmMailLibSQL(projectPath);
-  const db = await swarmMail.getDatabase();
-  const baseMemory = await createMemoryAdapter(db);
-  adapterInstance = new MemoryLaneAdapter(baseMemory);
-
-  return adapterInstance;
+  // Fallback: This should not happen in production because MemoryLaneAdapter
+  // is initialized by swarm-mail before any tools are called.
+  throw new Error(
+    'MemoryLaneAdapter not initialized. ' +
+      'Ensure swarm-mail has initialized MemoryStore before calling tools. ' +
+      'If you need to access Memory Lane directly, use the db instance ' +
+      "from swarm-mail's getDatabase() method."
+  );
 }
 
 /**
@@ -63,7 +57,7 @@ async function getLaneAdapter(): Promise<MemoryLaneAdapter> {
  */
 export const memory_lane_find = tool({
   description:
-    'Advanced semantic search through Memory Lane with intent boosting and entity awareness. If entity names are ambiguous, the system will ask for clarification.',
+    'Advanced semantic search through Memory Lane with intent boosting and entity awareness. If entity names are ambiguous, system will ask for clarification.',
   args: {
     query: tool.schema.string().optional().describe('Search query'),
     entities: tool.schema
@@ -73,6 +67,12 @@ export const memory_lane_find = tool({
     limit: tool.schema.number().optional().default(5).describe('Max results'),
   },
   async execute(args, _context) {
+    // Get shared database instance from input.directory (swarm-mail's context)
+    const db = _context.client.swarmMail.getDatabase();
+
+    const adapter = getLaneAdapter(db);
+
+    // Resolve entities before search
     const resolvedSlugs: string[] = [];
     const ambiguities: Record<string, string[]> = {};
 
@@ -93,10 +93,10 @@ export const memory_lane_find = tool({
       return JSON.stringify(
         {
           success: false,
-          error: 'CLARIFICATION_REQUIRED',
+          error: 'DISAMBIGUATION_REQUIRED',
           message: 'Multiple entity matches found. Please specify which one you meant.',
           ambiguities,
-          hint: "Use the full slug (e.g. 'person:mark-robinson') in the entities array.",
+          hint: "Use full slug (e.g. 'person:mark-robinson') in entities array.",
         },
         null,
         2
@@ -104,11 +104,11 @@ export const memory_lane_find = tool({
     }
 
     // 3. Execute Search
-    const adapter = await getLaneAdapter();
     const result = await adapter.smartFind({
       ...args,
       entities: resolvedSlugs,
     });
+
     return JSON.stringify(result, null, 2);
   },
 });
@@ -120,7 +120,7 @@ export const memory_lane_store = tool({
   description: 'Store a memory with specific taxonomy and entity associations.',
   args: {
     information: tool.schema.string().describe('The knowledge to store'),
-    type: MemoryTypeSchema.describe('Memory type (correction, decision, etc)'),
+    type: MemoryTypeSchema.describe('Memory type (correction, decision, etc.)'),
     entities: tool.schema
       .array(tool.schema.string())
       .optional()
@@ -128,8 +128,12 @@ export const memory_lane_store = tool({
     tags: tool.schema.string().optional().describe('Comma separated tags'),
   },
   async execute(args, _context) {
-    const adapter = await getLaneAdapter();
+    // Get shared database instance from input.directory
+    const db = _context.client.swarmMail.getDatabase();
+
+    const adapter = getLaneAdapter(db);
     const result = await adapter.storeLaneMemory(args);
+
     return JSON.stringify(result, null, 2);
   },
 });
@@ -149,8 +153,12 @@ export const memory_lane_feedback = tool({
       ),
   },
   async execute(args, _context) {
-    const adapter = await getLaneAdapter();
+    // Get shared database instance from input.directory
+    const db = _context.client.swarmMail.getDatabase();
+
+    const adapter = getLaneAdapter(db);
     await adapter.recordFeedback(args.id, args.signal);
+
     return JSON.stringify(
       {
         success: true,
@@ -176,10 +184,13 @@ export const semantic_memory_find = tool({
     collection: tool.schema.string().optional().describe('Collection name'),
   },
   async execute(args, _context) {
-    const adapter = await getLaneAdapter();
+    // Get shared database instance from input.directory
+    const db = _context.client.swarmMail.getDatabase();
+
+    const adapter = getLaneAdapter(db);
     const result = await adapter.smartFind({
       query: args.query,
-      limit: args.limit,
+      limit: args.limit || 5,
     });
 
     return JSON.stringify(
@@ -204,7 +215,10 @@ export const semantic_memory_store = tool({
     metadata: tool.schema.string().optional().describe('Metadata JSON'),
   },
   async execute(args, _context) {
-    const adapter = await getLaneAdapter();
+    // Get shared database instance from input.directory
+    const db = _context.client.swarmMail.getDatabase();
+
+    const adapter = getLaneAdapter(db);
     // Default to 'learning' type for legacy stores
     const result = await adapter.storeLaneMemory({
       information: args.information,
@@ -223,6 +237,9 @@ export const semantic_memory_store = tool({
   },
 });
 
+/**
+ * Export tool collection for plugin registration
+ */
 export const memoryLaneTools = {
   'memory-lane_find': memory_lane_find,
   'memory-lane_store': memory_lane_store,
