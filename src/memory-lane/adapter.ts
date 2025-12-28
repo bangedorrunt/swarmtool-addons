@@ -110,9 +110,12 @@ export class MemoryLaneAdapter {
     // Insert memory using libSQL client (raw SQL for full schema access)
     // Using raw SQL allows access to temporal validity fields not in MemoryStore interface
     await this.client.execute(
-      `INSERT INTO memories (id, content, metadata, collection, tags, embedding, decay_factor, valid_from, valid_until, superseded_by, auto_tags, keywords, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT(id) DO UPDATE SET
+      `INSERT INTO memories (
+        id, content, metadata, collection, tags, 
+        embedding, decay_factor, valid_from, valid_until, 
+        superseded_by, auto_tags, keywords, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
                content = excluded.content,
                metadata = excluded.metadata,
                tags = excluded.tags,

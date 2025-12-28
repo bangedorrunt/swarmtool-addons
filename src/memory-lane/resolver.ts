@@ -97,6 +97,11 @@ export class EntityResolver {
         }
       }
 
+      // If no entities found, use fallback
+      if (entities.size === 0) {
+        return EntityResolver.FALLBACK_ENTITIES;
+      }
+
       // Convert slugs to ResolvedEntity format
       return Array.from(entities).map((slug) => {
         const [type, name] = slug.split(':');
@@ -104,6 +109,7 @@ export class EntityResolver {
       });
     } catch (error) {
       // Log error but return fallback entities (graceful degradation)
+      // eslint-disable-next-line no-console - Error logging is important for debugging database issues
       console.warn(
         '[EntityResolver] Failed to load entities from database, using fallback:',
         error
@@ -206,10 +212,12 @@ export class EntityResolver {
    * @returns Array of matching entity slugs
    */
   async disambiguate(query: string): Promise<string[]> {
-    const q = query.toLowerCase().replace(/[^a-z0-9]/g, '');
+    // Normalize query: lowercase, keep hyphens and colons
+    const q = query.toLowerCase();
 
     // 1. Check for exact slug match (fast path)
     if (query.includes(':')) {
+      console.log('[EntityResolver] Exact slug match, returning:', query.toLowerCase());
       return [query.toLowerCase()];
     }
 
@@ -231,9 +239,14 @@ export class EntityResolver {
    *
    * @deprecated Use instance-based disambiguate for better performance
    */
-  static async disambiguate(query: string): Promise<string[]> {
+  static async disambiguateStatic(query: string): Promise<string[]> {
     const resolver = new EntityResolver();
     return resolver.disambiguate(query);
+  }
+
+  // Alias for backward compatibility (test uses EntityResolver.disambiguate)
+  static async disambiguate(query: string): Promise<string[]> {
+    return EntityResolver.disambiguateStatic(query);
   }
 
   /**

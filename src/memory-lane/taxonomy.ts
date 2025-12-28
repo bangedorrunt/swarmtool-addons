@@ -84,12 +84,12 @@ export const MemoryLaneMetadataSchema = z.object({
   feedback_count: z.number().optional().default(0),
 
   // Temporal validity (aligned with Drizzle schema)
-  valid_from: z.string().optional(), // ISO 8601 timestamp
-  valid_until: z.string().optional(), // ISO 8601 timestamp
+  valid_from: z.string().nullable(), // ISO 8601 timestamp
+  valid_until: z.string().nullable(), // ISO 8601 timestamp
 
   // Supersession chains (knowledge evolution)
-  supersedes: z.array(z.string()).optional(), // Array of memory IDs this memory replaces
-  superseded_by: z.string().optional(), // Memory ID that replaces this memory
+  supersedes: z.array(z.string()).nullable(), // Array of memory IDs this memory replaces
+  superseded_by: z.string().nullable(), // Memory ID that replaces this memory
 
   // Observation tracking (aligned with core schema)
   times_observed: z.number().optional().default(1),
@@ -97,8 +97,8 @@ export const MemoryLaneMetadataSchema = z.object({
   last_observed_at: z.string().optional(), // ISO 8601 timestamp
 
   // Access tracking (for decay calculations)
-  access_count: z.number().optional().default(0),
-  last_accessed_at: z.string().optional(), // ISO 8601 timestamp
+  access_count: z.number().nullable().default(0),
+  last_accessed_at: z.string().nullable(), // ISO 8601 timestamp
 });
 
 export type MemoryLaneMetadata = z.infer<typeof MemoryLaneMetadataSchema>;
@@ -155,11 +155,11 @@ export function createMemoryMetadata(
 
     // Temporal validity (default: valid from now, no expiration)
     valid_from: base.valid_from ?? now,
-    valid_until: base.valid_until,
+    valid_until: base.valid_until ?? null,
 
     // Supersession (default: no supersession)
     supersedes: base.supersedes ?? [],
-    superseded_by: base.superseded_by,
+    superseded_by: base.superseded_by ?? null,
 
     // Observation tracking (default: first observation now)
     times_observed: base.times_observed ?? 1,
@@ -168,7 +168,7 @@ export function createMemoryMetadata(
 
     // Access tracking (default: no access)
     access_count: base.access_count ?? 0,
-    last_accessed_at: base.last_accessed_at,
+    last_accessed_at: base.last_accessed_at ?? null,
   };
 }
 
