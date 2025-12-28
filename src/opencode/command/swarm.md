@@ -177,20 +177,20 @@ swarm_validate_decomposition(response="<CellTree JSON>")
 ```
 // Single message with multiple Task calls
 swarm_spawn_subtask(bead_id_1, epic_id, title_1, files_1, shared_context, project_path="$PWD")
-Task(subagent_type="swarm-worker", prompt="<from above>")
+Task(subagent_type="swarm/worker", prompt="<from above>")
 swarm_spawn_subtask(bead_id_2, epic_id, title_2, files_2, shared_context, project_path="$PWD")
-Task(subagent_type="swarm-worker", prompt="<from above>")
+Task(subagent_type="swarm/worker", prompt="<from above>")
 ```
 
 **For sequential work:**
 ```
 // Spawn worker 1, wait for completion
 swarm_spawn_subtask(bead_id_1, ...)
-const result1 = await Task(subagent_type="swarm-worker", prompt="<from above>")
+const result1 = await Task(subagent_type="swarm/worker", prompt="<from above>")
 
 // THEN spawn worker 2 with context from worker 1
 swarm_spawn_subtask(bead_id_2, ..., shared_context="Worker 1 completed: " + result1)
-const result2 = await Task(subagent_type="swarm-worker", prompt="<from above>")
+const result2 = await Task(subagent_type="swarm/worker", prompt="<from above>")
 ```
 
 **NEVER do the work yourself.** Even if it seems faster, spawn a worker.

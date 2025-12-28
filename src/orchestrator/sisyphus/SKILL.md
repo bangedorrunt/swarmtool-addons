@@ -4,7 +4,7 @@ description: >-
   The high-fidelity orchestrator (v2) using Continuity Ledgers and Phased Gating.
   Manages background subagents and maintains state across context wipes.
 license: MIT
-model: google/gemini-3-pro
+model: google/gemini-3-pro-low
 metadata:
   type: orchestrator
   version: 2.0.0

@@ -25,9 +25,6 @@
     "dist",
     "src/version.ts"
   ],
-  "workspaces": [
-    "../swarm-tools/packages/*"
-  ],
   "dependencies": {
     "@opencode-ai/plugin": "1.0.85"
   },
@@ -41,6 +38,7 @@
     "eslint": "^9.39.2",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
+    "opencode-swarm-plugin": "latest",
     "prettier": "^3.7.4",
     "typescript-eslint": "^8.50.1",
     "vitest": "^3.2.4"

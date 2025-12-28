@@ -1,7 +1,7 @@
 ---
 name: sisyphus/planner
 description: Strategic design agent focused on codebase research and implementation blueprinting.
-model: google/gemini-3-pro
+model: google/gemini-3-flash
 metadata:
   type: planner
   parent: sisyphus

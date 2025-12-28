@@ -1,7 +1,7 @@
 ---
 name: sisyphus/validator
 description: Quality gate agent that verifies plans against project history and architectural constraints.
-model: google/gemini-3-flash
+model: opencode/grok-code
 metadata:
   type: validator
   parent: sisyphus
