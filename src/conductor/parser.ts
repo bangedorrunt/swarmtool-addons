@@ -19,7 +19,7 @@ export interface TaskItem {
 // Constants for YAML parsing
 const YAML_SEPARATOR = ':';
 const YAMLFRONTMATTER_REGEX = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
-const CHECKBOX_REGEX = /^\s*-\s*\[([ x~-])\]\s*(.+)$/;
+const CHECKBOX_REGEX = /^\s*-\s*\[([^\]]+)\]\s*(.*)$/;
 
 // Type detection constants
 const BOOLEAN_TRUE = 'true';
@@ -95,7 +95,14 @@ export function parseMarkdown(text: string): ParsedMarkdown {
       continue;
     }
 
-    const key = line.slice(0, separatorIndex).trim();
+    let key = line.slice(0, separatorIndex).trim();
+
+    // If key contains spaces, use only the first word
+    const spaceIndex = key.indexOf(' ');
+    if (spaceIndex !== -1) {
+      key = key.slice(0, spaceIndex);
+    }
+
     const valueStr = line.slice(separatorIndex + 1);
 
     // Skip empty keys
@@ -113,7 +120,13 @@ export function parseMarkdown(text: string): ParsedMarkdown {
  * Determine status from checkbox indicator character
  */
 function getCheckboxStatus(indicator: string): TaskItem['status'] {
-  return STATUS_MAP[indicator] || 'pending';
+  // Trim whitespace from indicator
+  const trimmed = indicator.trim();
+
+  // If indicator has multiple characters (e.g., "  " from " [  ]"), use first character
+  const singleChar = trimmed.length > 1 ? trimmed[0] : trimmed;
+
+  return STATUS_MAP[singleChar] || 'pending';
 }
 
 /**
@@ -139,14 +152,18 @@ export function parseCheckboxes(content: string): TaskItem[] {
       const match = line.match(CHECKBOX_REGEX);
 
       if (match) {
-        const indicator = match[1];
-        const description = match[2];
+        // Reject lines with multiple checkbox patterns (invalid format)
+        const afterFirstCheckbox = line.slice(line.indexOf('- [') + 3);
+        if (!afterFirstCheckbox.includes('- [')) {
+          const indicator = match[1];
+          const description = match[2].trim();
 
-        tasks.push({
-          status: getCheckboxStatus(indicator),
-          description,
-          raw: line,
-        });
+          tasks.push({
+            status: getCheckboxStatus(indicator),
+            description,
+            raw: line,
+          });
+        }
       }
     }
 
