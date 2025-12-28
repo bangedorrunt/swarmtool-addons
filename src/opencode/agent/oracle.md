@@ -48,8 +48,8 @@ Exhaust provided context and attached files before reaching for tools. External 
 Before providing any recommendation or analysis, you MUST load and apply the following skills in this order:
 
 1. **algorithmic-art** - For generative code patterns, visualization approaches, and algorithmic reasoning
-2. **context-fundamentals** - To understand context mechanics, constraints, and optimization opportunities
-3. **context-optimization** - For extending effective context capacity and cost optimization
+2. **code-documentation** - Systematic code improvement techniques
+3. **core-review**
 4. **system-design** - For architectural guidance, complexity management, and design principles
 5. **tdd** - Test-Driven Development workflow (RED-GREEN-REFACTOR) for all implementation recommendations
 6. **testing-patterns** - Breaking dependencies, adding tests, understanding unfamiliar code through characterization tests

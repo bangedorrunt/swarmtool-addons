@@ -12,17 +12,17 @@ import path from 'path';
 import fs from 'node:fs';
 import { memoryLaneTools } from './memory-lane/index';
 import { conductorTools, conductorCheckpointHook, conductorVerifyHook } from './conductor/tools';
-import { loadConfig } from './config/loader';
-import { loadLocalAgents, loadSkillAgents, loadCommands } from './agent/loader';
-import { createSkillAgentTools } from './agent/tools';
+import { loadConfig } from './opencode/config/loader';
+import { loadLocalAgents, loadSkillAgents, loadCommands } from './opencode/agent/loader';
+import { createSkillAgentTools } from './opencode/agent/tools';
 
 export const SwarmToolAddons: Plugin = async (input) => {
   // Load configuration
   const userConfig = loadConfig();
 
   // Load commands and agents from .md files
-  const agentDir = path.join(import.meta.dir, 'agent');
-  const commandDir = path.join(import.meta.dir, 'command');
+  const agentDir = path.join(import.meta.dir, 'opencode', 'agent');
+  const commandDir = path.join(import.meta.dir, 'opencode', 'command');
 
   const [commands, localAgents, skillAgents] = await Promise.all([
     loadCommands(commandDir),
@@ -159,6 +159,9 @@ export const SwarmToolAddons: Plugin = async (input) => {
       config.agent.build = config.agent.build ?? {};
       config.agent.build.disable = true;
 
+      config.agent.oracle = config.agent.oracle ?? {};
+      config.agent.oracle.disable = false;
+
       config.agent.plan = config.agent.oracle ?? {
         tools: {
           write: false,
@@ -166,9 +169,6 @@ export const SwarmToolAddons: Plugin = async (input) => {
           bash: false,
         },
       };
-
-      config.agent.oracle = config.agent.oracle ?? {};
-      config.agent.oracle.disable = false;
     },
   };
 };

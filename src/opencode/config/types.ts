@@ -65,7 +65,7 @@ export interface ConfigValidationResult {
 /**
  * Default model identifiers for agent paths
  *
- * Maps agent paths (from src/agent/*.md) to default models
+ * Maps agent paths (from src/opencode/agent/*.md and src/orchestrator subdirectories) to default models
  */
 export const DEFAULT_MODELS = {
   'swarm/planner': 'opencode/big-pickle',

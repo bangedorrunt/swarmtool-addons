@@ -253,7 +253,7 @@ export const conductor_init = tool({
       .describe('Type of the track'),
     description: tool.schema.string().describe('Brief description of the track'),
   },
-  async execute(args) {
+  async execute(args, _context) {
     const fileAdapter = new FileAdapter();
     const trackMetadata = new TrackMetadataAdapter(fileAdapter);
 
@@ -308,7 +308,7 @@ export const conductor_verify = tool({
       .optional()
       .describe('Custom lint command (defaults to bun x eslint .)'),
   },
-  async execute(args) {
+  async execute(args, _context) {
     const qualityGate = new QualityGateAdapter();
 
     try {
@@ -342,7 +342,7 @@ export const conductor_checkpoint = tool({
     message: tool.schema.string().describe('Commit message description'),
     files: tool.schema.array(tool.schema.string()).describe('Files to stage'),
   },
-  async execute(args) {
+  async execute(args, _context) {
     const gitAdapter = new GitAdapter();
 
     try {
@@ -385,7 +385,7 @@ export const conductor_read_track = tool({
     track: tool.schema.string().describe('Track name'),
     file: tool.schema.enum(['spec.md', 'plan.md', 'metadata.json']).describe('File to read'),
   },
-  async execute(args) {
+  async execute(args, _context) {
     const fileAdapter = new FileAdapter();
     const filePath = path.join(args.track, args.file);
 

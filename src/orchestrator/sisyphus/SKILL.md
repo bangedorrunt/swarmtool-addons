@@ -4,7 +4,7 @@ description: >-
   The main orchestrator that manages background Skills, classifies requests, delegates tasks,
   and enforces todo completion. Treats main LLM as a Kernel and sub-agents as isolated threads.
 license: MIT
-model: anthropic/claude-opus-4-5
+model: google/gemini-3-pro
 metadata:
   type: orchestrator
   tool_access: [background_task, read, write, edit, task, semantic-memory_find, todowrite, todoread, bash, lsp_diagnostics, ast_grep_search, lsp_hover, lsp_goto_definition, lsp_find_references, lsp_document_symbols, lsp_workspace_symbols, lsp_prepare_rename, lsp_rename, lsp_code_actions, lsp_code_action_resolve, lsp_servers]

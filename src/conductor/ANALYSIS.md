@@ -76,11 +76,11 @@ The modern Conductor workflow follows an **Agentic Flywheel** that iterates unti
 
 ### Step 1: Codify the Protocol (`SKILL.md`)
 
-Create `src/skill/conductor/SKILL.md` to define the SDD rules. This skill will be injected into agents to enforce the TDD discipline.
+Create `src/opencode/skill/conductor/SKILL.md` to define the SDD rules. This skill will be injected into agents to enforce the TDD discipline.
 
 ### Step 2: Implement the "Specifier" Agent
 
-Create `src/agent/conductor/specifier.md`. This agent needs `repo-crawl` tools and a high-temperature prompt for Socratic requirement gathering.
+Create `src/orchestrator/conductor/specifier.md`. This agent needs `repo-crawl` tools and a high-temperature prompt for Socratic requirement gathering.
 
 ### Step 3: Tool Implementation (The "Glue")
 
@@ -94,7 +94,7 @@ Implement the following TypeScript tools in `src/conductor/tools.ts`:
 
 Update `src/index.ts` to:
 
-1.  Load `.md` files from `src/agent/conductor/`.
+1.  Load `.md` files from `src/orchestrator/conductor/`.
 2.  Register the `/track` slash command.
 3.  Add a `tool.execute.before` hook to inject the `conductor` skill when the active project has a `tracks/` directory.
 

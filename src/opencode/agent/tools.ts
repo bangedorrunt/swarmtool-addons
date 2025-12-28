@@ -21,7 +21,7 @@ export function createSkillAgentTools(client: any) {
           .optional()
           .describe('Whether to run the agent in the background (defaults to false)'),
       },
-      async execute(args) {
+      async execute(args, _context) {
         const { skill_name, agent_name, prompt, run_in_background } = args;
         const fullName = `${skill_name}/${agent_name}`;
 

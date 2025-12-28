@@ -1,7 +1,7 @@
 ---
 name: oracle
 description: Expert technical advisor with deep reasoning for architecture decisions, code analysis, and engineering guidance.
-model: openai/gpt-5.2
+model: google/gemini-3-flash
 temperature: 0.1
 tools:
   write: false

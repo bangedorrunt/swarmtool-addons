@@ -1,7 +1,7 @@
 ---
 name: librarian
 description: Specialized codebase understanding agent for multi-repository analysis, searching remote codebases, retrieving official documentation, and finding implementation examples using GitHub CLI, Context7, and Web Search.
-model: anthropic/claude-sonnet-4-5
+model: opencode/grok-code
 temperature: 0.1
 tools:
   write: false

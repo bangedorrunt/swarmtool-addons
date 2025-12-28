@@ -119,7 +119,7 @@ export const memory_lane_find = tool({
       .describe("Entity slugs or raw names (e.g. ['project:swarm', 'Mark'])"),
     limit: tool.schema.number().optional().default(5).describe('Max results'),
   },
-  async execute(args) {
+  async execute(args, _context) {
     const resolvedSlugs: string[] = [];
     const ambiguities: Record<string, string[]> = {};
 
@@ -174,7 +174,7 @@ export const memory_lane_store = tool({
       .describe('Entity slugs associated with this memory'),
     tags: tool.schema.string().optional().describe('Comma separated tags'),
   },
-  async execute(args) {
+  async execute(args, _context) {
     const adapter = await getLaneAdapter();
     const result = await adapter.storeLaneMemory(args);
     return JSON.stringify(result, null, 2);
@@ -195,7 +195,7 @@ export const memory_lane_feedback = tool({
         'Feedback type: helpful (increases future relevance) or harmful (decreases future relevance)'
       ),
   },
-  async execute(args) {
+  async execute(args, _context) {
     const adapter = await getLaneAdapter();
     await adapter.recordFeedback(args.id, args.signal);
     return JSON.stringify(
@@ -222,7 +222,7 @@ export const semantic_memory_find = tool({
     limit: tool.schema.number().optional().default(5).describe('Max results'),
     collection: tool.schema.string().optional().describe('Collection name'),
   },
-  async execute(args) {
+  async execute(args, _context) {
     const adapter = await getLaneAdapter();
     const result = await adapter.smartFind({
       query: args.query,
@@ -250,7 +250,7 @@ export const semantic_memory_store = tool({
     information: tool.schema.string().describe('The knowledge to store'),
     metadata: tool.schema.string().optional().describe('Metadata JSON'),
   },
-  async execute(args) {
+  async execute(args, _context) {
     const adapter = await getLaneAdapter();
     // Default to 'learning' type for legacy stores
     const result = await adapter.storeLaneMemory({

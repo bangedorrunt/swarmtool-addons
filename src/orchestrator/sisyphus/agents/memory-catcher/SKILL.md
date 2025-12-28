@@ -4,7 +4,7 @@ description: >-
   Post-session analysis agent that extracts learnings, decisions, user preferences, and "surprise moments"
   from conversation transcripts. Stores insights in Memory Lane with vector embeddings for future retrieval.
 license: MIT
-model: anthropic/claude-sonnet-4-5
+model: google/gemini-3-flash
 metadata:
   type: extraction
   tool_access: [semantic-memory_store, semantic-memory_find, semantic-memory_list, semantic-memory_validate]
