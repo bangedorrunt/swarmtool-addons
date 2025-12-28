@@ -91,9 +91,9 @@ Memory Lane integrates with the core through **four key interfaces**:
    - Enable retry/resilience patterns
 
 3. **Shared Storage (libSQL)**
-   - Core memory store: Simple vector embeddings
-   - Memory Lane: Enhanced metadata (Schema Virtualization), entity tags, feedback scores
-   - Logical separation: All Memory Lane specific fields reside within the `metadata` JSONB column.
+   - **swarm.db (Primary)**: Core memory store containing simple vector embeddings, enhanced metadata (Schema Virtualization), entity tags, and feedback scores.
+   - **swarm-mail.db (Secondary)**: Event bus storage for inter-agent communication and task outcome logs.
+   - Logical separation: All Memory Lane specific knowledge resides within the `metadata` JSONB column of `swarm.db`.
    - Zero Schema Bloat: No `ALTER TABLE` calls on core `memories` table.
 
 4. **Tool API (Direct)**

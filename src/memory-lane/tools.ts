@@ -11,45 +11,40 @@
  */
 
 import { tool } from '@opencode-ai/plugin';
+import { createMemoryAdapter } from 'opencode-swarm-plugin';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { existsSync } from 'node:fs';
 import { MemoryLaneAdapter } from './adapter';
 import { MemoryTypeSchema } from './taxonomy';
+import { EntityResolver } from './resolver';
 
 /**
- * Retrieve shared Memory Lane adapter instance.
- *
- * The db parameter is the SAME instance used by swarm-mail's
- * MemoryAdapter, ensuring we never create a separate connection.
- *
- * This instance is set by swarm-mail during MemoryStore creation
- * and passed to MemoryLaneAdapter via initialization hooks.
- *
- * @throws Error if adapter not yet initialized (should never happen in production)
+ * Resolve database path with centralized preference
+ * - swarm.db: Primary knowledge base (memories, entities)
+ * - swarm-mail.db: Event bus / message log
  */
-function getLaneAdapter(db: any): MemoryLaneAdapter {
-  // Check if adapter already has our db instance stored
-  if ('getDbInstance' in db && typeof db.getDbInstance === 'function') {
-    const instance = db.getDbInstance();
+function getDatabasePath(): string {
+  const centralized = join(homedir(), '.config', 'swarm-tools', 'swarm.db');
+  if (existsSync(centralized)) return centralized;
 
-    // Verify this is our MemoryLaneAdapter
-    if (instance instanceof MemoryLaneAdapter) {
-      return instance as MemoryLaneAdapter;
-    }
+  const projectLocal = join(process.cwd(), '.opencode', 'swarm.db');
+  if (existsSync(projectLocal)) return projectLocal;
 
-    throw new Error(
-      'Database instance is not a MemoryLaneAdapter. ' +
-        'getLaneAdapter() should only be called after swarm-mail ' +
-        'initializes MemoryLaneAdapter with the db reference.'
-    );
-  }
+  // Fallback to project-local (will be created if missing)
+  return projectLocal;
+}
 
-  // Fallback: This should not happen in production because MemoryLaneAdapter
-  // is initialized by swarm-mail before any tools are called.
-  throw new Error(
-    'MemoryLaneAdapter not initialized. ' +
-      'Ensure swarm-mail has initialized MemoryStore before calling tools. ' +
-      'If you need to access Memory Lane directly, use the db instance ' +
-      "from swarm-mail's getDatabase() method."
-  );
+/**
+ * Get MemoryLaneAdapter instance
+ *
+ * MemoryLaneAdapter now creates its own database connection,
+ * bypassing the MemoryAdapter wrapper and getClient() error.
+ */
+async function getAdapter(_context: any): Promise<MemoryLaneAdapter> {
+  // MemoryLaneAdapter creates its own connection directly
+  // No need to pass database adapter - just instantiate
+  return new MemoryLaneAdapter();
 }
 
 /**
@@ -67,10 +62,7 @@ export const memory_lane_find = tool({
     limit: tool.schema.number().optional().default(5).describe('Max results'),
   },
   async execute(args, _context) {
-    // Get shared database instance from input.directory (swarm-mail's context)
-    const db = _context.client.swarmMail.getDatabase();
-
-    const adapter = getLaneAdapter(db);
+    const adapter = await getAdapter(_context);
 
     // Resolve entities before search
     const resolvedSlugs: string[] = [];
@@ -128,10 +120,7 @@ export const memory_lane_store = tool({
     tags: tool.schema.string().optional().describe('Comma separated tags'),
   },
   async execute(args, _context) {
-    // Get shared database instance from input.directory
-    const db = _context.client.swarmMail.getDatabase();
-
-    const adapter = getLaneAdapter(db);
+    const adapter = await getAdapter(_context);
     const result = await adapter.storeLaneMemory(args);
 
     return JSON.stringify(result, null, 2);
@@ -153,10 +142,7 @@ export const memory_lane_feedback = tool({
       ),
   },
   async execute(args, _context) {
-    // Get shared database instance from input.directory
-    const db = _context.client.swarmMail.getDatabase();
-
-    const adapter = getLaneAdapter(db);
+    const adapter = await getAdapter(_context);
     await adapter.recordFeedback(args.id, args.signal);
 
     return JSON.stringify(
@@ -184,10 +170,7 @@ export const semantic_memory_find = tool({
     collection: tool.schema.string().optional().describe('Collection name'),
   },
   async execute(args, _context) {
-    // Get shared database instance from input.directory
-    const db = _context.client.swarmMail.getDatabase();
-
-    const adapter = getLaneAdapter(db);
+    const adapter = await getAdapter(_context);
     const result = await adapter.smartFind({
       query: args.query,
       limit: args.limit || 5,
@@ -215,10 +198,7 @@ export const semantic_memory_store = tool({
     metadata: tool.schema.string().optional().describe('Metadata JSON'),
   },
   async execute(args, _context) {
-    // Get shared database instance from input.directory
-    const db = _context.client.swarmMail.getDatabase();
-
-    const adapter = getLaneAdapter(db);
+    const adapter = await getAdapter(_context);
     // Default to 'learning' type for legacy stores
     const result = await adapter.storeLaneMemory({
       information: args.information,

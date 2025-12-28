@@ -9,7 +9,7 @@
 - **Three-Pillar Structure**: Clear separation between SDK foundation (`opencode/`), orchestration layer (`orchestrator/`), and domain-specific addons (`conductor/`, `memory-lane/`)
 - **Module Isolation**: Each module is self-contained with its own public API, tools, hooks, tests, and documentation
 - **Phil Schmid Alignment**: 85% alignment with Context Engineering principles including Agent-as-Tool pattern, hierarchical action space, and minimal complexity
-- **Memory Lane Integration**: Decoupled, event-driven memory extraction via `swarm-mail` subscription. Uses Schema Virtualization in JSONB metadata to avoid fragile physical database migrations.
+- **Memory Lane Integration**: Decoupled, event-driven memory extraction via `swarm-mail` subscription. Uses direct Drizzle ORM queries for high-performance storage of temporal validity, confidence decay, and supersession tracking.
 - **Spec-Driven Development**: Conductor addon brings structure to development workflows with tracks, plans, and quality gates
 - **Skill-Based Subagents**: `skill_agent` tool enables spawning specialized subagents from skill directories with context partitioning
 

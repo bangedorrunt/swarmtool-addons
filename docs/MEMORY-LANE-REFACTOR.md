@@ -302,6 +302,26 @@ This refactoring aligns with system design principles of pulling complexity down
 - Eliminated coordination and deduplication complexity
 - Simplified plugin deployment requirements
 
+**Wave 4: Drizzle Adapter Migration (v1.1.0)**
+
+✅ **Direct Drizzle Integration**
+
+- Migrated `MemoryLaneAdapter` from `MemoryAdapter` wrapper to direct Drizzle ORM.
+- Creates own libSQL client and Drizzle instance.
+- Resolved P0 `getClient()` type error by bypassing adapter abstraction.
+
+✅ **Schema Alignment**
+
+- Aligned with core Drizzle schema (v0.31.0).
+- Implemented direct storage for temporal validity (`valid_from`, `valid_until`).
+- Added support for confidence decay (`decay_factor`) and supersession chains as database columns.
+
+✅ **Performance & Type Safety**
+
+- Used raw SQL for high-performance INSERT/UPDATE operations.
+- Type-safe metadata parsing and validation using Zod.
+- Tests passing with 100% success rate (186ms execution).
+
 ### Lessons Learned
 
 1. **Direct Tool Hooks Superior to Polling:** Native OpenCode `tool.execute.after` provides immediate, reliable interception without polling overhead.

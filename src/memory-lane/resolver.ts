@@ -2,14 +2,116 @@
  * Memory Lane Entity Resolver
  *
  * Provides utilities for extracting entity slugs from text and file paths.
+ * Migrated to use Drizzle ORM for database-backed entity disambiguation.
  */
+
+import { createClient, type Client } from '@libsql/client';
+import { drizzle } from 'drizzle-orm/libsql';
+import type { LibSQLDatabase } from 'drizzle-orm/libsql';
+import { join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import path from 'node:path';
 
 export interface ResolvedEntity {
   type: string;
   slug: string;
 }
 
+// Re-export SwarmDb type for compatibility
+export type SwarmDb = LibSQLDatabase<any>;
+
 export class EntityResolver {
+  private readonly db: SwarmDb;
+  private readonly client: Client;
+
+  constructor() {
+    // Get database path with centralized preference (same as adapter.ts)
+    const dbPath = this.getDatabasePath();
+
+    // Create libSQL client
+    this.client = createClient({ url: dbPath });
+
+    // Create Drizzle ORM instance
+    this.db = drizzle(this.client);
+  }
+
+  /**
+   * Resolve database path with centralized preference
+   * - swarm.db: Primary knowledge base (memories, entities)
+   * - .opencode/swarm.db: Project-local fallback
+   */
+  private getDatabasePath(): string {
+    const centralized = join(homedir(), '.config', 'swarm-tools', 'swarm.db');
+    if (existsSync(centralized)) {
+      return `file:${centralized}`;
+    }
+
+    const projectLocal = join(process.cwd(), '.opencode', 'swarm.db');
+    return `file:${projectLocal}`;
+  }
+
+  /**
+   * Mock registry of known entities for backward compatibility and testing
+   * Used as fallback when database is empty or unavailable
+   */
+  private static readonly FALLBACK_ENTITIES: ResolvedEntity[] = [
+    { type: 'person', slug: 'mark-robinson' },
+    { type: 'person', slug: 'mark-zuckerberg' },
+    { type: 'project', slug: 'swarm-tools' },
+    { type: 'project', slug: 'swarm-ui' },
+    { type: 'business', slug: 'indy-hall' },
+  ];
+
+  /**
+   * Load unique entities from database
+   * Queries all memories and extracts entity_slugs from metadata
+   *
+   * @returns Array of unique entity slugs
+   */
+  private async loadEntitiesFromDatabase(): Promise<ResolvedEntity[]> {
+    try {
+      // Query all memories to extract entity slugs from metadata
+      const result = await this.client.execute(
+        'SELECT metadata FROM memories WHERE collection = ?',
+        ['memory-lane']
+      );
+
+      const entities = new Set<string>();
+
+      for (const row of result.rows as any[]) {
+        try {
+          const metadata =
+            typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
+
+          if (metadata.entity_slugs && Array.isArray(metadata.entity_slugs)) {
+            for (const slug of metadata.entity_slugs) {
+              if (typeof slug === 'string' && slug.includes(':')) {
+                entities.add(slug);
+              }
+            }
+          }
+        } catch {
+          // Skip malformed metadata
+          continue;
+        }
+      }
+
+      // Convert slugs to ResolvedEntity format
+      return Array.from(entities).map((slug) => {
+        const [type, name] = slug.split(':');
+        return { type, slug: name || '' };
+      });
+    } catch (error) {
+      // Log error but return fallback entities (graceful degradation)
+      console.warn(
+        '[EntityResolver] Failed to load entities from database, using fallback:',
+        error
+      );
+      return EntityResolver.FALLBACK_ENTITIES;
+    }
+  }
+
   /**
    * Extract entities from raw text using regex patterns
    * Matches patterns like:
@@ -95,33 +197,50 @@ export class EntityResolver {
   }
 
   /**
-   * Mock registry of known entities for disambiguation testing.
-   * In production, this would be queried from a database.
-   */
-  private static readonly KNOWN_ENTITIES: ResolvedEntity[] = [
-    { type: 'person', slug: 'mark-robinson' },
-    { type: 'person', slug: 'mark-zuckerberg' },
-    { type: 'project', slug: 'swarm-tools' },
-    { type: 'project', slug: 'swarm-ui' },
-    { type: 'business', slug: 'indy-hall' },
-  ];
-
-  /**
    * Disambiguate fuzzy entity names
    * Returns a list of potential slug matches.
+   *
+   * Migrated to use database queries instead of static KNOWN_ENTITIES mock.
+   *
+   * @param query - Fuzzy entity name or full slug
+   * @returns Array of matching entity slugs
    */
-  static async disambiguate(query: string): Promise<string[]> {
+  async disambiguate(query: string): Promise<string[]> {
     const q = query.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-    // 1. Check for exact slug match
-    if (query.includes(':')) return [query.toLowerCase()];
+    // 1. Check for exact slug match (fast path)
+    if (query.includes(':')) {
+      return [query.toLowerCase()];
+    }
 
-    // 2. Fuzzy match against known entities
-    const matches = this.KNOWN_ENTITIES.filter((entity) => {
+    // 2. Load entities from database
+    const knownEntities = await this.loadEntitiesFromDatabase();
+
+    // 3. Fuzzy match against known entities
+    const matches = knownEntities.filter((entity) => {
       const namePart = entity.slug.split('-').join('');
       return namePart.includes(q) || q.includes(namePart);
     });
 
-    return this.toSlugs(matches);
+    return EntityResolver.toSlugs(matches);
+  }
+
+  /**
+   * Static helper for backward compatibility
+   * Creates an instance and calls disambiguate
+   *
+   * @deprecated Use instance-based disambiguate for better performance
+   */
+  static async disambiguate(query: string): Promise<string[]> {
+    const resolver = new EntityResolver();
+    return resolver.disambiguate(query);
+  }
+
+  /**
+   * Close the database connection
+   * Call when done using the resolver
+   */
+  async close(): Promise<void> {
+    this.client.close();
   }
 }

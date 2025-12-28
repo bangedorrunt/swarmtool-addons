@@ -311,36 +311,37 @@ const results = await memory_lane_find.execute({
 
 ### Schema Integration
 
-Memory Lane uses standard swarm-mail database (`swarm.db`) with extended schema:
+Memory Lane integrates with the standard swarm-tools databases:
 
-**Standard Tables:**
+**1. swarm.db (Primary Knowledge Base)**
 
-- `memories`: Core memory storage (from opencode-swarm-plugin)
-- `memories_embed`: Embedding vectors for semantic search
+- Location: `~/.config/swarm-tools/swarm.db`
+- `memories`: Core memory storage with enhanced metadata
+- **Drizzle-Aligned Columns**: Direct storage for temporal validity (`valid_from`, `valid_until`), confidence decay (`decay_factor`), and supersession chains (`superseded_by`).
+- `memories_embed`: Embedding vectors for semantic search (F32_BLOB)
 
-**Memory Lane Extensions** (via `migration.ts`):
+**2. swarm-mail.db (Event Bus)**
 
-- `entity_slugs` column for entity filtering
-- `valid_from`, `valid_until` columns for temporal validity
-- Entity resolution tables for disambiguation
-- Feedback tracking columns for adaptive learning
+- Location: `~/.config/swarm-tools/swarm-mail.db`
+- `hive_events`: Outcome logs used for memory extraction
+- `hive_messages`: Inter-agent communication log
 
-**No Separate Database:**
-Memory Lane extends the existing swarm-mail database rather than creating a separate one.
+**Drizzle Migration (v1.1.0):**
+Memory Lane has been migrated to use direct Drizzle ORM and libSQL client. This resolves the P0 `getClient()` type error by bypassing brittle adapter wrappers and communicating directly with the database via type-safe Drizzle queries.
 
 ## Design Principles
 
 **Non-Invasive Sidecar:**
 
-- Extends swarm-mail database schema via migrations
-- Uses tool hooks for automatic extraction
+- Extends `swarm.db` metadata schema via Schema Virtualization
+- Uses tool hooks to extract data from `swarm-mail.db` events
 - Does not modify swarm-tools core behavior
 
 **Event-Driven Architecture:**
 
-- Async memory extraction via tool execution hooks
+- Async memory extraction triggered by `swarm-mail.db` events
 - Background spawning of memory-catcher subagent
-- Eventual consistency in memory storage
+- Eventual consistency in memory storage (stored to `swarm.db`)
 
 **Adaptive Learning:**
 
@@ -366,13 +367,15 @@ The Memory Lane module integrates with:
 
 ## Database Path Resolution
 
-**Important**: Memory Lane uses `process.cwd()` to determine database path. This must match the swarm-tools database location to avoid creating separate databases.
+**Important**: Memory Lane automatically resolves the database path with the following priority:
+
+1.  **Centralized**: `~/.config/swarm-tools/swarm.db`
+2.  **Project-Local**: `.opencode/swarm.db`
+
+This ensures that persisted learning is shared across tools while maintaining a project-specific fallback if needed.
 
 **Scenario to Avoid:**
-
-- Plugin initializes at `/Users/user/project/swarm-tools/.hive/swarm.db`
-- Addon called from `/Users/user/project/swarmtool-addons`
-- Result: Two separate databases → Connection failures
+Manual hardcoding of database paths in tools. Always use the `getDatabasePath()` helper in `tools.ts` to maintain consistency with the swarm-tools ecosystem.
 
 ## Testing
 
