@@ -1,33 +1,35 @@
-# Conductor - Spec-Driven Development Framework
+# Conductor Module
 
-Conductor is a spec-driven development framework that brings structure and process discipline to the Gemini CLI workflow. It converts ad-hoc development into tracked, test-driven work using **tracks**, **plans**, and **specs**.
+The Conductor module implements a spec-driven development (SDD) framework that brings structure and process discipline to development workflows. It converts ad-hoc development into tracked, test-driven work using tracks, plans, and specs.
 
 ## Overview
 
-Conductor organizes development work into **tracks** (units of work) that follow a disciplined workflow from inception through completion. Each track contains:
+The Conductor module is responsible for:
+
+- **Track Management**: Creating, reading, and updating development tracks
+- **Markdown Parsing**: Parsing track specs and plans with task checkboxes
+- **Quality Gates**: Running verification before phase completion
+- **Checkpointing**: Creating git commits with phase-prefixed messages
+- **OpenCode Integration**: Exporting tools and hooks for swarm-tools coordination
+
+A track is a unit of work that follows a disciplined workflow from inception through completion. Each track contains:
 
 - **`metadata.json`**: Track metadata (type, status, description)
 - **`spec.md`**: Specification of what needs to be built
 - **`plan.md`**: Execution plan with tasks organized by phases
 
-## Architecture
+## Module Structure
 
 ```
-conductor/
-├── product.md              # Product vision and goals
-├── product-guidelines.md    # Product principles and constraints
-├── tech-stack.md          # Technology stack decisions
-├── workflow.md            # Development workflow and protocols
-├── setup_state.json       # Setup progress tracking
-├── code_styleguides/      # Code style guidelines by language
-│   ├── general.md
-│   ├── javascript.md
-│   └── typescript.md
-└── tracks/               # Active and completed tracks
-    └── <track_id>/
-        ├── metadata.json   # Track metadata
-        ├── spec.md       # Specification
-        └── plan.md       # Execution plan
+src/conductor/
+├── tools.ts               # Conductor tool implementations
+├── parser.ts              # Markdown and checkbox parsing
+├── parser.test.ts         # Parser tests
+├── index.ts              # Module exports
+└── README.md             # This file
+
+Note: Track files (metadata.json, spec.md, plan.md) are stored
+in a tracks/ directory at project root (outside src/conductor/).
 ```
 
 ### Track Types

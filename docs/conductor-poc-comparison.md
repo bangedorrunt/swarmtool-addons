@@ -6,7 +6,7 @@ This document evaluates the existing "Gemini CLI POC" for Conductor against the 
 
 ### 1.1 Gemini CLI POC (Current)
 
-- **Logic Location**: Primarily in `src/agent/conductor/` as standalone Markdown files for `specifier.md` and `planner.md`.
+- **Logic Location**: Primarily in `src/orchestrator/conductor/` as standalone Markdown files for `specifier.md` and `planner.md`.
 - **Execution Model**: Task-based subagents. The coordinator calls `Task(subagent="specifier")`.
 - **Tools**: Hardcoded TypeScript tools in `src/conductor/tools.ts`.
 - **State**: Filesystem-based tracking in the `tracks/` directory.
@@ -14,7 +14,7 @@ This document evaluates the existing "Gemini CLI POC" for Conductor against the 
 
 ### 1.2 Markdown/Skill-Driven (Proposed)
 
-- **Logic Location**: Reusable Skills in `src/skill/` (e.g., `conductor-core`, `tdd-workflow`) and Slash Commands in `src/command/`.
+- **Logic Location**: Reusable Skills in `src/opencode/skill/` (e.g., `conductor-core`, `tdd-workflow`) and Slash Commands in `src/command/`.
 - **Execution Model**: Skill injection. Any agent (Planner, Worker, Researcher) can be augmented with Conductor-specific behaviors.
 - **Tools**: Modular tools with a robust Markdown parser (`src/conductor/parser.ts`) to automate metadata and task extraction.
 - **State**: Hybrid. Markdown files for human visibility, Hive beads for agentic orchestration and swarm synchronization.

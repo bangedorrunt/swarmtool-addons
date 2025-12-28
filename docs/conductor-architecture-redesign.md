@@ -7,7 +7,7 @@ The redesigned Conductor framework moves away from TOML-based configurations to 
 ### 1.1 Core Components
 
 - **Commands (`src/command/*.md`)**: Entry points for user-facing actions.
-- **Skills (`src/skill/**/SKILL.md`)\*\*: Reusable agent behaviors and orchestration logic.
+- **Skills (`src/opencode/skill/**/SKILL.md`)\*\*: Reusable agent behaviors and orchestration logic.
 - **Hive beads**: Persistent state for individual tasks.
 - **Markdown State**: Files in the repository (`tracks/`) for human visibility and audit.
 

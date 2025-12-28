@@ -1,11 +1,17 @@
 import { tool } from '@opencode-ai/plugin';
-import { loadSkillAgents } from '../loader';
+import { loadSkillAgents, type ParsedAgent } from '../opencode/loader';
 
 /**
- * Skill-Based Subagent Tools
+ * Orchestrator Tool Suite
  *
  * Provides tools for spawning specialized subagents defined within skills.
- * Follows Approach 3 (Hybrid Delegator Pattern) from RESEARCH.md.
+ * This is the orchestrator-specific implementation, decoupled from
+ * opencode/agent to maintain module isolation.
+ *
+ * Follows the Hybrid Delegator Pattern:
+ * - Tool-based delegation to agents
+ * - Context isolation for each spawned agent
+ * - Supports both markdown and TypeScript agent definitions
  */
 
 export function createSkillAgentTools(client: any) {
@@ -27,13 +33,13 @@ export function createSkillAgentTools(client: any) {
 
         // Discover all agents (including skill-based ones)
         const allAgents = await loadSkillAgents();
-        const agent = allAgents.find((a) => a.name === fullName);
+        const agent = allAgents.find((a: ParsedAgent) => a.name === fullName);
 
         if (!agent) {
           // Find available agents for this skill for better error message
           const skillAgents = allAgents
-            .filter((a) => a.name.startsWith(`${skill_name}/`))
-            .map((a) => a.name.split('/')[1]);
+            .filter((a: ParsedAgent) => a.name.startsWith(`${skill_name}/`))
+            .map((a: ParsedAgent) => a.name.split('/')[1]);
 
           return JSON.stringify({
             success: false,
@@ -66,7 +72,7 @@ export function createSkillAgentTools(client: any) {
           return JSON.stringify({
             success: false,
             error: 'SPAWN_FAILED',
-            message: error.message || String(error),
+            message: error instanceof Error ? error.message : String(error),
           });
         }
       },

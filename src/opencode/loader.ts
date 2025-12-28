@@ -94,8 +94,12 @@ export function parseAgentMarkdown(content: string, name: string): AgentConfig {
   };
 }
 
-const HOME = process.env.HOME || '/Users/bangedorrunt';
-const SKILL_DIR = path.join(HOME, '.config', 'opencode', 'skill');
+const SKILL_DIR = path.join(
+  process.env.HOME ?? process.env.USERPROFILE ?? '.',
+  '.config',
+  'opencode',
+  'skill'
+);
 
 /**
  * Loads all agent .md files from the local agent directory

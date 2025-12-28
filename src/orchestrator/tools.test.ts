@@ -1,24 +1,20 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createSkillAgentTools } from './tools';
-import { loadSkillAgents } from '../loader';
-import * as loader from '../loader';
+import { loadSkillAgents } from '../opencode/loader';
+import * as loader from '../opencode/loader';
 
 /**
- * Unit Tests for Skill Agent Tools
+ * Unit Tests for Orchestrator Skill Agent Tools
  *
  * Tests prompt generation, argument validation, and error handling
- * for skill_agent tool. Follows TDD principles: RED → GREEN → REFACTOR
+ * for skill_agent tool in the orchestrator module.
+ * This mirrors the opencode/agent/tests but validates orchestrator's
+ * own implementation, ensuring it's decoupled from opencode/agent.
  */
 
-describe('createSkillAgentTools', () => {
+describe('orchestrator/createSkillAgentTools', () => {
   let mockClient: any;
   let loadSkillAgentsMock: any;
-  const mockContext = {
-    sessionID: 'test-session',
-    messageID: 'test-message',
-    agent: 'test-agent',
-    abort: new AbortController().signal,
-  };
 
   beforeEach(() => {
     vi.restoreAllMocks();

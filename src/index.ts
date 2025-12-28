@@ -10,11 +10,11 @@
 import type { Plugin } from '@opencode-ai/plugin';
 import path from 'path';
 import fs from 'node:fs';
-import { memoryLaneTools } from './memory-lane/index';
-import { conductorTools, conductorCheckpointHook, conductorVerifyHook } from './conductor/tools';
-import { loadConfig } from './opencode/config/loader';
-import { loadLocalAgents, loadSkillAgents, loadCommands } from './opencode/agent/loader';
-import { createSkillAgentTools } from './opencode/agent/tools';
+import { memoryLaneTools, triggerMemoryExtraction } from './memory-lane';
+import { conductorTools, conductorCheckpointHook, conductorVerifyHook } from './conductor';
+import { loadConfig } from './opencode';
+import { loadLocalAgents, loadSkillAgents, loadCommands } from './opencode';
+import { createSkillAgentTools } from './opencode';
 
 export const SwarmToolAddons: Plugin = async (input) => {
   // Load configuration
@@ -87,8 +87,6 @@ export const SwarmToolAddons: Plugin = async (input) => {
 
         if (input.tool === 'swarm_complete') {
           try {
-            const { triggerMemoryExtraction } = await import('./memory-lane/hooks');
-
             const outcomeData = {
               bead_id: input.args.bead_id,
               summary: input.args.summary,

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createSkillAgentTools } from './tools';
+import { createSkillAgentTools } from './agent/tools';
 import * as loader from './loader';
 
 // Get __dirname in ES module

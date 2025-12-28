@@ -2,16 +2,18 @@
 
 ## Executive Summary
 
-**Memory Lane is now integrated with swarm workflows via an event-driven hook pattern using swarm-mail.** We implemented `createSwarmCompletionHook()` to automatically invoke memory-catcher when subtasks complete, enabling continuous learning from swarm work.
+**Swarm-tool-addons extends joelhooks/swarm-tools as an OpenCode plugin with a three-pillar architecture:** Native SDK (`opencode/`), Custom Orchestration (`orchestrator/`), and Domain Extensions (`conductor/`, `memory-lane/`). Each module is isolated with its own `index.ts` and `README.md`, following a non-invasive sidecar design.
 
-**Architectural Alignment:** This plan reflects **Phil Schmid's Context Engineering principles** with **85% alignment** across core patterns:
+**Key Architectural Features:**
 
-- **Agent-as-Tool Pattern**: Sub-agents treated as deterministic tools with structured output, avoiding "org chart of agents chatting"
-- **Context Engineering Strategy**: Compaction hierarchy (Raw > Compaction > Summarization) with Pre-Rot Threshold (~128k tokens)
-- **Hierarchical Action Space**: Three-level tool hierarchy (Atomic, Sandbox, Code/Packages) managing ~20-25 tools per agent
-- **Minimal Complexity Principle**: Implicit feedback scoring, confidence decay, and anti-pattern detection align with "remove over add" mindset
+- **Three-Pillar Structure**: Clear separation between SDK foundation (`opencode/`), orchestration layer (`orchestrator/`), and domain-specific addons (`conductor/`, `memory-lane/`)
+- **Module Isolation**: Each module is self-contained with its own public API, tools, hooks, tests, and documentation
+- **Phil Schmid Alignment**: 85% alignment with Context Engineering principles including Agent-as-Tool pattern, hierarchical action space, and minimal complexity
+- **Memory Lane Integration**: Event-driven memory extraction via `createSwarmCompletionHook()` automatically captures learnings from completed swarm tasks
+- **Spec-Driven Development**: Conductor addon brings structure to development workflows with tracks, plans, and quality gates
+- **Skill-Based Subagents**: `skill_agent` tool enables spawning specialized subagents from skill directories with context partitioning
 
-**Project Purpose:** This fork extends **joelhooks/swarm-tools** with minimal/no-conflict integrations for **OpenCode plugin**. Each feature is implemented as a **skill-based agent** following OpenCode standards.
+**Project Purpose:** This fork extends **joelhooks/swarm-tools** with minimal/no-conflict integrations for **OpenCode plugin**. Each pillar is implemented as a self-contained module following OpenCode standards, with clear boundaries and public APIs.
 
 **Event-Driven Hook Pattern (Option C) ✅ CHOSEN**
 
@@ -23,23 +25,43 @@
 
 ## Design Philosophy
 
-**3-Pronged Integration Approach:**
+**Three-Pillar Architecture:**
 
-1. **Hijack swarm-tools hooks** - Modify existing swarm-coordination workflow at key points
-2. **Hijack SKILL.md files** - Update documentation to reflect new capabilities
-3. **Isolated feature directories** - Each feature in `packages/opencode-swarm-plugin/src/{feature}/`
+The project organizes functionality into three pillars with clear separation of concerns:
 
-**Clarification on File Modifications:**
+1. **opencode/** - Native SDK Infrastructure
+   - Agent loading and discovery from local and skill sources
+   - Command parsing and frontmatter extraction
+   - Configuration management with variable substitution
+   - `skill_agent` tool for spawning specialized subagents
+   - Type-safe schemas and runtime validation
 
-- **Feature Logic:** MUST be in `packages/opencode-swarm-plugin/src/memory-lane/` (hooks, tools, adapter).
-- **Integration Points:** CAN and MUST be modified in the main plugin files (e.g., `src/index.ts`, `src/swarm-orchestrate.ts`) to connect the feature to the system.
+2. **orchestrator/** - Custom Orchestration
+   - Re-exports OpenCode SDK for coordination patterns
+   - Implements Sisyphus (main orchestrator) pattern
+   - Supports Conductor-level planning workflows
+   - Research documentation for coordination strategies
 
-**Why This Approach:**
+3. **addons/** - Domain-Specific Extensions
+   - **conductor/**: Spec-driven development (SDD) framework with quality gates
+   - **memory-lane/**: Event-driven memory extraction and semantic storage
+   - Each addon has isolated `index.ts` for its public API
+   - Self-contained with tools, hooks, and documentation
 
-- Zero merge conflicts with upstream
-- Features can be disabled/removed independently
-- Follows OpenCode standard (`tool/` and `skill/` directories)
-- Each feature is a self-contained "skill-based agent"
+**Module Isolation Principles:**
+
+- **Feature Logic:** Each module in `src/{module}/` is completely isolated
+- **OpenCode SDK:** Native infrastructure in `src/opencode/` for other modules to use
+- **Entry Point:** `src/index.ts` connects all modules via their public APIs
+- **No Cross-Module Dependencies:** Modules only depend on OpenCode SDK, not each other
+
+**Why This Architecture:**
+
+- Zero merge conflicts with upstream (swarm-tools)
+- Modules can be enabled/disabled independently
+- Clear boundaries: SDK foundation → orchestration → domain extensions
+- Each module is a self-contained sidecar
+- Follows OpenCode plugin standards
 
 ### Skill-Based Agent Pattern
 
@@ -293,17 +315,23 @@ const combined = aggregateLearnings(results);
 
 ## Research Context
 
-This plan refines Memory Lane integration based on:
+This plan reflects the **three-pillar architecture refactoring** based on:
 
-1. **Existing implementation** in `packages/opencode-swarm-plugin/src/memory-lane/`
-2. **Swarm-coordination patterns** from our agent ecosystem
-3. **OpenCode standard** (singular `tool/` and `skill/` directories)
+1. **Native SDK Implementation** in `src/opencode/` - Agent loading, command parsing, configuration management, and `skill_agent` tool
+2. **Orchestration Patterns** in `src/orchestrator/` - Sisyphus main orchestrator and Conductor-level planning workflows
+3. **Domain Extensions** as isolated addons:
+   - `src/conductor/` - Spec-driven development (SDD) with quality gates and checkpointing
+   - `src/memory-lane/` - Event-driven memory extraction with semantic storage and entity awareness
 4. **Phil Schmid's Context Engineering** principles (85% alignment)
-   - Agent-as-Tool pattern
-   - Context Compaction hierarchy
-   - Hierarchical Action Space (~20 tools)
-   - Minimal Complexity principle
+   - Agent-as-Tool pattern (skill_agent spawning)
+   - Context Compaction hierarchy (Raw > Compaction > Summarization)
+   - Hierarchical Action Space (~20-25 tools per agent)
+   - Minimal Complexity principle (implicit feedback, confidence decay)
    - See `.hive/research/context-engineering-phil-schmid.md` and `.hive/analysis/codebase-pattern-alignment.md`
+5. **Hybrid Delegator Pattern** for skill-based subagents:
+   - Coordinator → `skill_agent` tool → Background/Task Native Tool → Specialized Subagent
+   - Context partitioning for reduced noise in coordinator
+   - Standardized interface via skill directories (`.config/opencode/skill/<name>/agents/`)
 
 ---
 
@@ -348,36 +376,168 @@ swarm_coordinator → swarmmail_send("memory-catcher-extract", {outcome data})
 
 ## Project Architecture
 
-### Directory Structure
+### Three-Pillar Directory Structure
 
-```
-packages/opencode-swarm-plugin/
-├── src/
-│   ├── memory-lane/
-│   │   ├── index.ts                    # Exports: find, store, feedback
-│   │   ├── adapter.ts                   # MemoryLaneAdapter with smartFind/recordFeedback
-│   │   ├── taxonomy.ts                  # Memory types & priorities
-│   │   ├── resolver.ts                  # EntityResolver for file paths
-│   │   ├── hooks.ts                    # createSwarmCompletionHook()
-│   │   ├── hooks.test.ts               # 15/15 tests passing
-│   │   └── tools.ts                    # Tool definitions (find, store, feedback)
-│   └── memory.ts                     # Base MemoryAdapter (semantic-memory_*)
+```text
+src/
+├── opencode/              # Pillar 1: Native SDK Infrastructure
+│   ├── index.ts           # SDK Public API (module exports)
+│   ├── loader.ts          # Agent and command loading
+│   ├── integration.test.ts # SDK integration tests
+│   ├── README.md          # SDK documentation
+│   ├── agent/            # Agent loading and discovery
+│   │   ├── index.ts      # Agent module entry
+│   │   └── tools.ts     # skill_agent tool implementation
+│   ├── command/          # Command parsing from markdown
+│   │   ├── index.ts
+│   │   └── loader.ts     # Frontmatter extraction
+│   ├── config/           # Configuration management
+│   │   ├── index.ts
+│   │   ├── loader.ts     # Config loading
+│   │   ├── types.ts      # Type definitions
+│   │   └── substitutor.ts # Variable substitution
+│   └── skill/           # Skill discovery infrastructure
+│       └── index.ts
 │
-└── global-skills/
-    ├── swarm-coordination/
-    │   └── SKILL.md                  # Updated with memory-catcher events
-    └── learning-systems/
-        └── SKILL.md                  # Pattern maturity, confidence decay
-    └── memory-catcher/
-        └── SKILL.md                  # Swarm-based learning extraction
+├── orchestrator/          # Pillar 2: Custom Orchestration
+│   ├── index.ts           # Orchestrator Public API (re-exports)
+│   ├── tools.ts          # skill_agent tool (re-exported)
+│   ├── tools.test.ts     # Tool tests
+│   ├── PLAN.md           # Orchestrator research & planning
+│   ├── RESEARCH.md       # Detailed research documentation
+│   ├── README.md         # Orchestrator documentation
+│   ├── sisyphus/         # Main orchestrator pattern
+│   │   ├── index.ts
+│   │   └── tools.ts
+│   └── conductor/        # Orchestration-level planning
+│       ├── index.ts
+│       └── tools.ts
+│
+├── conductor/            # Pillar 3a: Spec-Driven Development (Addon)
+│   ├── index.ts          # Conductor Public API
+│   ├── tools.ts          # Conductor tool implementations
+│   ├── parser.ts         # Track spec/plan parsing
+│   ├── parser.test.ts     # Parser tests
+│   ├── README.md         # Conductor documentation
+│   ├── ARCHITECTURE.md   # Detailed architecture
+│   └── ANALYSIS.md      # Architecture analysis
+│
+├── memory-lane/         # Pillar 3b: Memory & Learning (Addon)
+│   ├── index.ts          # Memory Lane Public API
+│   ├── tools.ts          # Memory tools (find, store, feedback)
+│   ├── adapter.ts        # MemoryLaneAdapter for storage
+│   ├── hooks.ts          # Event-driven extraction
+│   ├── resolver.ts       # EntityResolver for entities
+│   ├── taxonomy.ts       # Memory types and schemas
+│   ├── migration.ts      # Database migrations
+│   ├── memory-lane.test.ts # Core tests
+│   ├── hooks.test.ts     # Hook tests
+│   ├── README.md         # Memory Lane documentation
+│   └── GAP-ANALYSIS.md  # Gap analysis
+│
+└── index.ts              # Plugin Entry Point (Unified Imports)
+```
+
+### Module Index Structure
+
+Each pillar exposes its public API through a dedicated `index.ts`:
+
+| Module            | Exports (via index.ts)                                                                      | Purpose                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| **opencode/**     | `loadLocalAgents`, `loadSkillAgents`, `loadCommands`, `createSkillAgentTools`, `loadConfig` | Foundation for agent discovery, command parsing, configuration |
+| **orchestrator/** | `createSkillAgentTools` (re-export), `loadSkillAgents`, `loadLocalAgents` (re-export)       | Coordination patterns and agent spawning                       |
+| **conductor/**    | `conductorTools`, `conductorCheckpointHook`, `conductorVerifyHook`                          | Spec-driven development workflows                              |
+| **memory-lane/**  | `memoryLaneTools`, `triggerMemoryExtraction`                                                | Event-driven memory extraction and storage                     |
+
+### Entry Point Architecture
+
+`src/index.ts` unifies all pillars into the OpenCode plugin:
+
+```typescript
+// Plugin bootstrap
+export const SwarmToolAddons: Plugin = async (input) => {
+  // Load configuration from opencode/
+  const userConfig = loadConfig();
+
+  // Load agents/commands from opencode/
+  const [commands, localAgents, skillAgents] = await Promise.all([
+    loadCommands(commandDir),
+    loadLocalAgents(agentDir),
+    loadSkillAgents(),
+  ]);
+
+  // Create tools from all pillars
+  const skillAgentTools = createSkillAgentTools(input.client);
+
+  return {
+    tool: {
+      ...memoryLaneTools, // from memory-lane/
+      ...conductorTools, // from conductor/
+      ...skillAgentTools, // from opencode/
+    },
+    hook: {
+      /* Event-driven hooks */
+    },
+    config: {
+      /* Agent/command config */
+    },
+  };
+};
 ```
 
 **Why This Works:**
 
-- **Tools = building blocks** - Simple, composable, testable
-- **Skills = orchestration** - Domain logic for when/why to call tools
-- **Swarm Mail = coordination** - Work tracking, outcome recording
-- **Hive = work storage** - Separate concern from memory storage
+- **Pillars = separation of concerns** - SDK, orchestration, domains isolated
+- **Module indices = clean boundaries** - Each pillar exposes public API via index.ts
+- **Entry point = unification** - src/index.ts coordinates all pillars
+- **Addons = independent extensions** - conductor/ and memory-lane/ can be removed independently
+- **OpenCode SDK = foundation** - All modules build on SDK infrastructure
+
+### Module Integration Patterns
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     src/index.ts (Plugin Entry)               │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │  Unified Imports from All Three Pillars                   │  │
+│  │                                                        │  │
+│  │  import { loadLocalAgents, loadCommands, ... }          │  │
+│  │    from './opencode';                                  │  │
+│  │  import { createSkillAgentTools } from './opencode';       │  │
+│  │  import { memoryLaneTools } from './memory-lane';         │  │
+│  │  import { conductorTools } from './conductor';            │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+              ┌──────────────────────────┐
+              │  OpenCode Runtime      │
+              │  (Plugin System)      │
+              └──────────────────────────┘
+                            │
+          ┌───────────┼───────────┐
+          │           │           │
+          ▼           ▼           ▼
+    ┌───────────┐ ┌──────────┐ ┌──────────┐
+    │ opencode/ │ │orchestrator│ │conductor/ │
+    │ (SDK)     │ │/memory-   │ │memory-    │
+    │           │ │lane       │ │lane       │
+    │           │ │(Addons)   │ │(Addons)   │
+    └───────────┘ └──────────┘ └──────────┘
+```
+
+**Dependency Flow:**
+
+1. **opencode/** - Zero external dependencies (pure SDK)
+2. **orchestrator/** - Depends on opencode/ (re-exports)
+3. **conductor/** - Depends on opencode/ for agents
+4. **memory-lane/** - No direct module dependencies (standalone addon)
+
+**No Cross-Addon Dependencies:**
+
+- conductor/ and memory-lane/ do not import each other
+- Both communicate via swarm-mail event bus
+- Each addon operates independently with graceful degradation
 
 ---
 

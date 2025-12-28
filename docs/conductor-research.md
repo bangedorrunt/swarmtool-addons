@@ -19,7 +19,7 @@ The goal is to move towards "Prompts as Code" where orchestration logic and comm
 ### 3.1 Prompts as First-Class Citizens (Markdown)
 
 - **Command Definitions**: Instead of TOML, use Markdown files in `src/command/`. These files use YAML frontmatter for metadata and Markdown for the prompt body.
-- **Skills**: Specialized behaviors (like memory extraction or TDD) are encapsulated as Skills in `src/skill/`.
+- **Skills**: Specialized behaviors (like memory extraction or TDD) are encapsulated as Skills in `src/opencode/skill/`.
 - **Templates**: Use Markdown for all templates (spec.md, plan.md), allowing agents to easily read, modify, and act upon them.
 
 ### 3.2 Skill-Based Orchestration
@@ -37,6 +37,7 @@ The goal is to move towards "Prompts as Code" where orchestration logic and comm
 ## 4. Key Implementation Patterns
 
 1. **Markdown Commands**:
+
    ```markdown
    ---
    name: new-track
@@ -48,6 +49,7 @@ The goal is to move towards "Prompts as Code" where orchestration logic and comm
 
    Decompose the user request into a spec...
    ```
+
 2. **Skill Integration**:
    - `conductor-lifecycle` skill to manage the state machine (spec -> plan -> execute).
    - `tdd-workflow` skill to enforce the Red-Green-Refactor cycle.

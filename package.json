@@ -26,7 +26,7 @@
     "src/version.ts"
   ],
   "workspaces": [
-    "../swarm-tools/feat-native-opencode-skill/packages/*"
+    "../swarm-tools/packages/*"
   ],
   "dependencies": {
     "@opencode-ai/plugin": "1.0.85"

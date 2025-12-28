@@ -2,7 +2,16 @@
 
 ## Overview
 
-This plan outlines the implementation of a skill-based subagent system that allows skills to define and spawn their own specialized subagents. This bridges the gap between existing skill infrastructure and agent spawning capabilities.
+This plan documents the implementation of a skill-based subagent system that allows skills to define and spawn their own specialized subagents. This plan documents the research, implementation, and architectural decisions behind the Hybrid Delegator Pattern.
+
+**Status:** Implementation Complete (Phases 1-4) ✅
+
+The implementation successfully bridges the gap between existing skill infrastructure and agent spawning capabilities through:
+
+- **Hybrid Delegator Pattern**: Tool-based delegation for spawning skill-defined subagents
+- **Module Isolation**: Orchestrator addon maintains its own `skill_agent` implementation in `src/orchestrator/tools.ts`
+- **Sisyphus Migration**: Self-contained orchestration pattern in `src/orchestrator/sisyphus/`
+- **Comprehensive Testing**: 57 tests covering unit and integration scenarios
 
 ## Context
 
@@ -11,10 +20,12 @@ Current state analysis:
 - **OpenCode** has native skill support with automatic discovery from `~/.opencode/skill/` paths
 - **Skills** can bundle resources (scripts, references, assets) but currently cannot define spawnable agents
 - **oh-my-opencode** implements TypeScript agents registered via plugin system
-- **swarmtool-addons** uses markdown-based agent definitions in `src/opencode/agent/` and `src/orchestrator/` directories
-- **sisyphus skill** exists with `agents/` subdirectory containing SKILL.md files (unclear if actually spawnable)
+- **orchestrator** (this module) implements high-level orchestration patterns like Sisyphus and Conductor
+- **opencode** (core module) handles native agent infrastructure in `src/opencode/agent/`
+- **sisyphus** now resides in `src/orchestrator/sisyphus/` as a self-contained orchestration pattern
+- **orchestrator** module provides its own `skill_agent` tool implementation in `src/orchestrator/tools.ts` to maintain module isolation from `src/opencode/agent/`
 
-**Goal**: Enable skills to define subagents that can be discovered and spawned by OpenCode, supporting both markdown and TypeScript agent definitions.
+**Goal**: Enable skills to define subagents that can be discovered and spawned by OpenCode, supporting both markdown and TypeScript agent definitions, while maintaining clear module boundaries between core agent infrastructure and orchestration patterns.
 
 ## Three Viable Approaches
 
@@ -87,33 +98,75 @@ config.agent = {
 - ❌ Requires build step
 - ❌ Coupling (agents depend on plugin)
 
-### Approach 3: Hybrid Delegator Pattern (Recommended)
+### Approach 3: Hybrid Delegator Pattern (Implemented ✅)
 
 ```typescript
-// Tool-based delegation
-tool({
-  name: 'skill_agent',
-  args: {
-    skill_name: string, // "sisyphus"
-    agent_name: string, // "oracle"
-    prompt: string, // Task description
-    run_in_background: boolean,
-  },
-  execute: async ({ skill_name, agent_name, prompt, run_in_background }) => {
-    // 1. Resolve agent path
-    const agentPath = resolveAgentPath(skill_name, agent_name);
+// src/orchestrator/tools.ts - Orchestrator-specific implementation
+export function createSkillAgentTools(client: any) {
+  return {
+    skill_agent: tool({
+      description: 'Spawn a specialized subagent defined by a skill.',
+      args: {
+        skill_name: tool.schema.string().describe('Name of the skill that defines the agent.'),
+        agent_name: tool.schema.string().describe('Name of the subagent to spawn.'),
+        prompt: tool.schema.string().describe('Task description for the subagent.'),
+        run_in_background: tool.schema
+          .boolean()
+          .optional()
+          .describe('Whether to run the agent in the background (defaults to false)'),
+      },
+      async execute(args, _context) {
+        const { skill_name, agent_name, prompt, run_in_background } = args;
+        const fullName = `${skill_name}/${agent_name}`;
 
-    // 2. Load agent config (supports .md and .ts)
-    const config = await loadAgentConfig(agentPath);
+        // Discover all agents (including skill-based ones)
+        const allAgents = await loadSkillAgents();
+        const agent = allAgents.find((a: ParsedAgent) => a.name === fullName);
 
-    // 3. Spawn agent via OpenCode SDK
-    if (run_in_background) {
-      return spawnBackgroundAgent(config, prompt, context);
-    } else {
-      return spawnSyncAgent(config, prompt, context);
-    }
-  },
-});
+        if (!agent) {
+          // Find available agents for this skill for better error message
+          const skillAgents = allAgents
+            .filter((a: ParsedAgent) => a.name.startsWith(`${skill_name}/`))
+            .map((a: ParsedAgent) => a.name.split('/')[1]);
+
+          return JSON.stringify({
+            success: false,
+            error: 'AGENT_NOT_FOUND',
+            message:
+              `Agent '${agent_name}' not found in skill '${skill_name}'. ` +
+              (skillAgents.length > 0
+                ? `Available agents in this skill: ${skillAgents.join(', ')}`
+                : `No agents found for skill '${skill_name}'.`),
+          });
+        }
+
+        // Prepare spawn arguments
+        const spawnArgs = {
+          description: prompt,
+          agent: agent.name,
+        };
+
+        try {
+          if (run_in_background) {
+            // Use background_task native tool
+            const result = await client.call('background_task', spawnArgs);
+            return JSON.stringify({ success: true, taskId: result });
+          } else {
+            // Use task native tool
+            const result = await client.call('task', spawnArgs);
+            return JSON.stringify({ success: true, output: result });
+          }
+        } catch (error: any) {
+          return JSON.stringify({
+            success: false,
+            error: 'SPAWN_FAILED',
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    }),
+  };
+}
 ```
 
 ```
@@ -125,6 +178,13 @@ skill-name/
 └── references/
 ```
 
+**Implementation Notes:**
+
+- **Location**: `src/orchestrator/tools.ts` (orchestrator-specific implementation)
+- **Shared Infrastructure**: Uses `loadSkillAgents()` from `src/opencode/loader.ts` for discovery
+- **Module Isolation**: Separate implementation in orchestrator allows decoupling from `src/opencode/agent/tools.ts`
+- **Native Integration**: Delegates to OpenCode's `background_task` and `task` tools for actual spawning
+
 **Pros:**
 
 - ✅ Loose coupling (delegation via tools)
@@ -133,6 +193,7 @@ skill-name/
 - ✅ Flexible (can ship incrementally)
 - ✅ Context isolation (each agent gets fresh context)
 - ✅ Skill-native (agents live in skill directories)
+- ✅ Module isolation (orchestrator maintains its own implementation)
 
 **Cons:**
 
@@ -140,10 +201,11 @@ skill-name/
 - ❌ Tool dependency (requires plugin with delegation tools)
 - ❌ Runtime errors only (no build-time validation)
 - ❌ Discovery complexity (custom logic to map skill+agent → config)
+- ❌ Duplication risk (orchestrator and opencode both maintain skill_agent implementations)
 
 ## Decision
 
-**Recommended: Approach 3 (Hybrid Delegator Pattern)**
+**Selected: Approach 3 (Hybrid Delegator Pattern) - IMPLEMENTED ✅**
 
 **Rationale:**
 
@@ -152,79 +214,172 @@ skill-name/
 3. Flexibility (supports current agents AND new skill-based agents)
 4. Progressive (can ship MVP, iterate based on usage)
 5. Context isolation (each spawned agent gets fresh context via delegation)
+6. **Module Isolation**: `src/orchestrator/tools.ts` maintains its own implementation to decouple the orchestrator addon from `src/opencode/agent/` internals, enabling the orchestrator to function as a standalone module
+7. **Sisyphus Migration**: The sisyphus pattern is now a self-contained orchestration pattern in `src/orchestrator/sisyphus/`, demonstrating modular orchestration design
 
-**Fallback:** If research shows OpenCode supports automatic agent discovery from skill directories, pivot to Approach 1.
+**Implementation Architecture:**
+
+```
+src/orchestrator/
+├── tools.ts              # skill_agent tool (orchestrator-specific implementation)
+├── tools.test.ts         # Comprehensive test suite (57 tests)
+├── index.ts              # Module exports (re-exports shared infrastructure)
+├── PLAN.md               # This document
+├── RESEARCH.md           # Detailed research documentation
+├── README.md            # Orchestrator module documentation
+├── conductor/           # Conductor orchestration pattern
+└── sisyphus/           # Sisyphus orchestration pattern
+    ├── SKILL.md         # Sisyphus orchestration logic
+    └── agents/          # Sisyphus subagents
+```
+
+**Module Responsibilities:**
+
+- **Orchestrator (`src/orchestrator/`)**: High-level coordination patterns and orchestration-specific tool implementations
+- **OpenCode (`src/opencode/`)**: Core agent infrastructure, skill discovery, and shared agent loading (`loadSkillAgents()`)
+- **Shared Interface**: Both modules use `skill_agent` tool pattern, but maintain separate implementations for module isolation
+
+This architecture enables:
+
+- Orchestrator to evolve independently of core agent infrastructure
+- Clear separation of concerns (patterns vs. infrastructure)
+- Non-invasive addon behavior (sidecar pattern)
+- Future modularity (other orchestration patterns can follow same structure)
+
+## Module Architecture
+
+The orchestrator module is designed as a self-contained addon that provides orchestration patterns while maintaining clear boundaries from core OpenCode infrastructure.
+
+### Architectural Principles
+
+**Module Isolation:**
+
+- The orchestrator module maintains its own `skill_agent` tool implementation in `src/orchestrator/tools.ts`
+- This allows the orchestrator addon to function without direct dependencies on `src/opencode/agent/` internals
+- Shared infrastructure (agent loading, discovery) is accessed through well-defined interfaces from `src/opencode/loader.ts`
+
+**Non-Invasive Sidecar Design:**
+
+- The orchestrator operates as a sidecar on top of swarm-tools
+- Does not modify core agent behavior or infrastructure
+- Provides additional capabilities (coordination patterns) without breaking changes
+
+**Clear Responsibility Boundaries:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                 swarmtool-addons                                │
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │  src/orchestrator/ (This Module)                        ││
+│  │                                                          ││
+│  │  ┌──────────────┐  ┌──────────────┐  ┌────────────┐   ││
+│  │  │  sisyphus/   │  │  conductor/  │  │ tools.ts  │   ││
+│  │  │  Pattern     │  │  Pattern     │  │  (skill_   │   ││
+│  │  │              │  │              │  │   agent)   │   ││
+│  │  └──────────────┘  └──────────────┘  └────────────┘   ││
+│  └─────────────────────────────────────────────────────────────┘│
+│                           │                                   │
+│                           │ Shared Interface                  │
+│                           │ (loadSkillAgents())             │
+│                           ▼                                   │
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │  src/opencode/ (Core Module)                            ││
+│  │                                                          ││
+│  │  ┌──────────────┐  ┌──────────────┐                    ││
+│  │  │  loader.ts   │  │ agent/       │                    ││
+│  │  │  (Discovery) │  │ (Core Infra) │                    ││
+│  │  └──────────────┘  └──────────────┘                    ││
+│  └─────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Data Flow:**
+
+1. Orchestrator's `skill_agent` tool (in `src/orchestrator/tools.ts`) receives a delegation request
+2. Tool calls `loadSkillAgents()` from `src/opencode/loader.ts` to discover all available agents
+3. Tool resolves the requested agent (e.g., `sisyphus/oracle`) and prepares spawn arguments
+4. Tool delegates to OpenCode's native `background_task` or `task` tools for actual spawning
+5. Native tools spawn the subagent with isolated context
+
+**Benefits of This Architecture:**
+
+- **Independent Evolution**: Orchestrator can add new patterns (Conductor, etc.) without affecting core agent infrastructure
+- **Clear Testing**: Each module has its own test suite focused on its responsibilities
+- **Flexible Integration**: Other modules can use orchestrator patterns without understanding implementation details
+- **Maintainable**: Changes to core agent infrastructure don't require changes to orchestrator (and vice versa)
 
 ## Implementation Phases
 
-### Phase 1: Research & Validation (Quick, <1h)
+### Phase 1: Research & Validation (Completed ✅)
 
-**Objective:** Verify OpenCode SDK capabilities and validate approach feasibility
+**Objective:** Research OpenCode SDK capabilities and validate approach viability
 
 **Tasks:**
 
-1. [x] Research OpenCode SDK for agent registration APIs
-   - Check `@opencode-ai/sdk` documentation
-   - Verify if plugins can register subagents dynamically
-   - Document all available AgentConfig options
+1. [x] Analyze OpenCode agent lifecycle and spawning capabilities
+2. [x] Research oh-my-opencode plugin architecture
+3. [x] Evaluate three approaches for skill-based subagents
+4. [x] Prototype Hybrid Delegator Pattern feasibility
+5. [x] Document findings in `RESEARCH.md`
 
-2. [x] Analyze sisyphus pattern in depth
-   - Test if OpenCode discovers agents in `skill/agents/` directories
-   - Verify agent SKILL.md frontmatter parsing
-   - Confirm if these agents are actually spawnable
+**Deliverable:**
 
-3. [x] Review existing delegation mechanisms
-   - Document `call-omo-agent` tool implementation
-   - Analyze `background_task` vs `Task` tool patterns
-   - Map swarm-coordination's spawning workflow
+- `RESEARCH.md` (comprehensive research documentation)
+- Approach comparison with pros/cons
+- Prototype demonstrating tool-based delegation
 
-4. [x] Create validation prototype
-   - Test skill with `agent/` directory
-   - Verify agent discovery and spawning
-   - Document any limitations found
+**Success Criteria:**
 
-**Deliverable:** Research findings report in `RESEARCH.md` (Completed)
+- ✅ Research documented and validated
+- ✅ Approach decision justified
+- ✅ Prototype demonstrates feasibility
 
-### Phase 2: Core Implementation (Short, 1-2h)
+### Phase 2: Core Implementation (Completed ✅)
 
 **Objective:** Build delegation infrastructure and agent loading
 
 **Tasks:**
 
-1. [x] Create agent loader module (Completed)
-2. [x] Implement skill-to-agent resolution (Completed)
-3. [x] Create `skill_agent` delegation tool (Completed)
-4. [x] Extend skill discovery (Completed)
+1. [x] Create agent loader module (In `src/opencode/loader.ts`)
+2. [x] Implement skill-to-agent resolution
+3. [x] Create `skill_agent` delegation tool (In `src/orchestrator/tools.ts`)
+4. [x] Extend skill discovery (In `src/opencode/index.ts`)
+5. [x] Module isolation: Implement orchestrator-specific `skill_agent` tool to decouple from `src/opencode/agent/tools.ts`
 
 **Deliverable:**
 
-- `src/opencode/agent/loader.ts` (agent loading infrastructure)
-- `src/opencode/agent/tools.ts` (delegation tool)
-- Updated `src/opencode/agent/loader.ts` (skill discovery with agent support)
+- `src/opencode/loader.ts` (agent loading infrastructure)
+- `src/orchestrator/tools.ts` (orchestration-specific delegation tool, 82 lines)
+- `src/opencode/agent/tools.ts` (core agent infrastructure's skill_agent tool, 76 lines)
+- `src/orchestrator/index.ts` (orchestrator module exports)
 
 **Success Criteria:**
 
-- Tool can spawn agents from skill directories
-- Both markdown and TypeScript agents work
-- Error messages clear and actionable
-- Performance acceptable (<500ms delegation overhead)
+- ✅ Tool can spawn agents from skill directories
+- ✅ Both markdown and TypeScript agents work
+- ✅ Error messages clear and actionable (with available agent suggestions)
+- ✅ Performance acceptable (<500ms delegation overhead)
+- ✅ Module isolation achieved (orchestrator maintains its own implementation)
+- ✅ Sisyphus pattern migrated to `src/orchestrator/sisyphus/`
 
 ### Phase 3: Integration & Testing (Completed) ✅
 
-**Objective:** Integrate with swarmtool-addons and test functionality
+**Objective:** Integrate with orchestrator and test functionality
 
 **Tasks:**
 
-1. [x] Register delegation tool in plugin
+1. [x] Register delegation tool in orchestrator module
 2. [x] Create example skill with agents
-3. [x] Write comprehensive tests
-4. [x] Test with real use cases
+3. [x] Write comprehensive tests in `src/orchestrator/tools.test.ts`
+4. [x] Test with real orchestration use cases
+5. [x] Validate module isolation (orchestrator tool operates independently)
 
 **Deliverable:**
 
 - Working example skill fixture
 - Test suite with 57 passing tests (Unit + Integration)
 - `src/opencode/agent/integration.test.ts` verifying end-to-end flows
+- `src/orchestrator/tools.test.ts` (14,113 bytes, comprehensive orchestrator-specific tests)
 
 **Success Criteria:**
 
@@ -232,6 +387,8 @@ skill-name/
 - ✅ Example agents spawnable and functional
 - ✅ Performance meets requirements
 - ✅ Error paths tested
+- ✅ Module isolation verified (orchestrator tool operates without opencode/agent internals)
+- ✅ Sisyphus pattern functional in new location
 
 ### Phase 4: Documentation (Completed) ✅
 
@@ -381,19 +538,67 @@ skill-name/
 
 ## Timeline
 
-- **Phase 1:** Today (research & validation)
-- **Phase 2:** Tomorrow (core implementation)
-- **Phase 3:** Tomorrow (integration & testing)
-- **Phase 4:** Tomorrow (documentation)
-- **Phase 5:** As needed (iteration)
+- **Phase 1:** Completed ✅ (research & validation)
+- **Phase 2:** Completed ✅ (core implementation)
+- **Phase 3:** Completed ✅ (integration & testing)
+- **Phase 4:** Completed ✅ (documentation)
+- **Phase 5:** Ongoing (iteration based on usage)
 
-Total estimated time: **1-2 days** (phases 1-4) + ongoing (phase 5)
+Total actual time: **Completed** (phases 1-4) + ongoing (phase 5)
 
 ## Next Steps
 
-1. Start Phase 1: Research OpenCode SDK capabilities
-2. Create `RESEARCH.md` documenting findings
-3. Validate sisyphus pattern feasibility
-4. Begin Phase 2: Build agent loader
-5. Create delegation tool implementation
-6. Test with example skills
+**Completed:**
+
+1. ✅ Phase 1: Research OpenCode SDK capabilities
+2. ✅ Created `RESEARCH.md` documenting findings
+3. ✅ Validated sisyphus pattern feasibility
+4. ✅ Phase 2: Build agent loader
+5. ✅ Created delegation tool implementation (orchestrator-specific)
+6. ✅ Test with example skills
+7. ✅ Write comprehensive documentation
+
+**Ongoing (Phase 5):**
+
+- Monitor usage patterns for optimization opportunities
+- Evaluate performance as more skill-based agents are created
+- Consider build-time validation for TypeScript agents
+- Explore tool bundling capabilities for agents with custom tools
+- Track performance metrics (<500ms delegation overhead threshold)
+
+## Migration Notes
+
+### For Existing Orchestrator Patterns
+
+**Sisyphus Migration:**
+
+- Previously: May have been part of a different module structure
+- Now: Self-contained pattern in `src/orchestrator/sisyphus/`
+- Contains: `SKILL.md` with orchestration logic and `agents/` directory with subagents
+- Benefit: Clear module boundaries, easier testing, independent evolution
+
+### For Skill Authors
+
+**Adding Subagents to Skills:**
+
+1. Create `agents/` directory in your skill
+2. Add agent definitions as either `.md` (with frontmatter) or `.ts` (exporting AgentConfig)
+3. Use `skill_agent` tool from orchestrator to spawn agents:
+   ```typescript
+   await skill_agent({
+     skill_name: 'your-skill',
+     agent_name: 'your-agent',
+     prompt: 'Task description',
+   });
+   ```
+4. Both orchestrator and opencode modules support the same delegation pattern
+
+### For Module Maintainers
+
+**Adding New Orchestration Patterns:**
+
+1. Create new directory under `src/orchestrator/` (e.g., `your-pattern/`)
+2. Add pattern implementation with `SKILL.md` and optional `agents/`
+3. Optionally add pattern-specific tools in `src/orchestrator/tools.ts`
+4. Export pattern through `src/orchestrator/index.ts` if needed
+5. Follow module isolation principle (don't depend on `src/opencode/agent/` internals)
