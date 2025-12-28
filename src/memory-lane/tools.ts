@@ -11,16 +11,15 @@ import { getSwarmMailLibSQL } from 'swarm-mail';
 import { MemoryTypeSchema } from './taxonomy';
 
 import { EntityResolver } from './resolver';
-import { ensureSchema } from './migration';
 
 /**
- * Process-wide cache for the Memory Lane adapter and migration status.
+ * Process-wide cache for the Memory Lane adapter.
  */
 let adapterInstance: MemoryLaneAdapter | null = null;
-let migrationPromise: Promise<void> | null = null;
 
 /**
  * DATABASE PATH RESOLUTION - CRITICAL PATH MISMATCH
+
  *
  * PROBLEM: This function uses process.cwd() to determine the database path.
  *
@@ -51,57 +50,11 @@ async function getLaneAdapter(): Promise<MemoryLaneAdapter> {
   // If we already have an initialized adapter, return it
   if (adapterInstance) return adapterInstance;
 
-  // Use a shared promise to ensure migrations run only once even if called concurrently
-  if (!migrationPromise) {
-    migrationPromise = (async () => {
-      const swarmMail = await getSwarmMailLibSQL(projectPath);
+  const swarmMail = await getSwarmMailLibSQL(projectPath);
+  const db = await swarmMail.getDatabase();
+  const baseMemory = await createMemoryAdapter(db);
+  adapterInstance = new MemoryLaneAdapter(baseMemory);
 
-      try {
-        // ✅ CRITICAL FIX: Run full migration system
-        // We wrap this in a more robust handler to catch "cannot rollback" errors
-        // which occur in swarm-mail when SQLite automatically rolls back a failed transaction.
-        await swarmMail.runMigrations();
-      } catch (error: any) {
-        // If the error is "cannot rollback", it means a real error happened
-        // and SQLite already rolled back. We check if the database is actually functional.
-        if (
-          error.message?.includes('cannot rollback') ||
-          error.message?.includes('no transaction is active')
-        ) {
-          // eslint-disable-next-line no-console
-          console.warn(
-            '[memory-lane] Swarm-mail migration encountered a rollback state. Checking database integrity...'
-          );
-          const db = await swarmMail.getDatabase();
-          try {
-            // Simple sanity check - if this works, the database is functional enough
-            await db.query('SELECT 1 FROM schema_version LIMIT 1');
-            // eslint-disable-next-line no-console
-            console.log('[memory-lane] Database seems functional, continuing...');
-          } catch {
-            // If even this fails, then we have a real problem
-            throw new Error(
-              `Database initialization failed and integrity check failed: ${error.message}`
-            );
-          }
-        } else {
-          throw error;
-        }
-      }
-
-      const db = await swarmMail.getDatabase();
-
-      // Ensure Memory Lane schema additions (columns, indexes) are applied
-      // This function already has its own internal try-catch
-      await ensureSchema(db);
-
-      const baseMemory = await createMemoryAdapter(db);
-      adapterInstance = new MemoryLaneAdapter(baseMemory);
-    })();
-  }
-
-  await migrationPromise;
-  if (!adapterInstance) throw new Error('Failed to initialize Memory Lane adapter');
   return adapterInstance;
 }
 

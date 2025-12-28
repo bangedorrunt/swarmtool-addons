@@ -40,11 +40,11 @@ export class MemoryLaneAdapter {
       lane_version: this.LANE_VERSION,
       memory_type: args.type,
       entity_slugs: args.entities || [],
-      entities: [], // Would be populated by an entity resolver
+      entities: [],
       confidence_score: args.confidence_score ?? 70,
-      tags: args.tags ? args.tags.split(',').map((t) => t.trim()) : [],
-      feedback_score: 1.0, // Initial neutral score
+      feedback_score: 1.0,
       feedback_count: 0,
+      tags: args.tags ? args.tags.split(',').map((t) => t.trim()) : [],
     };
 
     return this.baseAdapter.store({

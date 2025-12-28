@@ -58,17 +58,15 @@ Research reveals that `swarm_complete` is a core OpenCode tool, not an MCP tool,
 
 **Complexity Impact:** Low - removes polling infrastructure entirely
 
-## Decision: Complete Replacement with tool.execute.after (Option B)
+## Decision: Logical Decoupling & Schema Virtualization (Option C)
 
-**Primary and Only Interception:** `tool.execute.after` for swarm_complete
+**Strategy:** Remove physical migrations and use logical schema virtualization.
 
 ### Rationale
 
-1. **Performance:** Eliminates 5s polling latency completely
-2. **Reliability:** Immediate access to execution results without fallback complexity
-3. **Simplicity:** Single interception path reduces coordination overhead
-4. **Architecture:** Cleaner design with direct OpenCode integration
-5. **Maintainability:** Less code, fewer edge cases, easier testing
+1. **Information Hiding**: Memory Lane specific fields (taxonomy, temporal validity) are encapsulated in the `metadata` JSONB blob.
+2. **Maintenance Zero**: No risk of breaking core `swarm-tools` migrations or causing SQLite lock contention during `ALTER TABLE`.
+3. **Event-Sourced Recovery**: If state is lost, learnings can be re-played from the durable `swarm-mail` log.
 
 ## Implementation Plan
 

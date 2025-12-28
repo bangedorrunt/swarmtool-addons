@@ -92,8 +92,9 @@ Memory Lane integrates with the core through **four key interfaces**:
 
 3. **Shared Storage (libSQL)**
    - Core memory store: Simple vector embeddings
-   - Memory Lane: Enhanced metadata, entity tags, feedback scores
-   - Co-located but logically separated
+   - Memory Lane: Enhanced metadata (Schema Virtualization), entity tags, feedback scores
+   - Logical separation: All Memory Lane specific fields reside within the `metadata` JSONB column.
+   - Zero Schema Bloat: No `ALTER TABLE` calls on core `memories` table.
 
 4. **Tool API (Direct)**
    - `memory-lane_find`: Entity-aware retrieval
