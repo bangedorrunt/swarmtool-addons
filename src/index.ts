@@ -10,9 +10,7 @@
 
 import type { Plugin } from '@opencode-ai/plugin';
 import path from 'path';
-import fs from 'node:fs';
 import { memoryLaneTools, triggerMemoryExtraction } from './memory-lane';
-import { conductorTools, conductorCheckpointHook, conductorVerifyHook } from './conductor';
 import { loadConfig } from './opencode';
 import { loadLocalAgents, loadSkillAgents, loadCommands } from './opencode';
 import { createSkillAgentTools } from './opencode';
@@ -57,7 +55,6 @@ export const SwarmToolAddons: Plugin = async (input) => {
     // Register custom tools
     tool: {
       ...memoryLaneTools,
-      ...conductorTools,
       ...skillAgentTools,
     },
 
@@ -73,15 +70,6 @@ export const SwarmToolAddons: Plugin = async (input) => {
             'When searching for behavioral context (corrections, decisions, preferences), ' +
             "ALWAYS prioritize 'memory-lane_find' over 'semantic-memory_find'.\n" +
             "Memory Lane provides intent boosting and entity filtering which 'semantic-memory_find' lacks."
-          );
-        }
-
-        if (input.tool === 'swarmmail_init' && fs.existsSync(path.join(process.cwd(), 'tracks'))) {
-          output.context.push(
-            'SYSTEM: Conductor SDD Protocol Active\n' +
-            'This project is managed by Conductor. You MUST follow the Spec-Driven Development (SDD) protocol.\n' +
-            "Use 'conductor_verify' to check quality gates and 'conductor_checkpoint' to commit task completions.\n" +
-            "Never implement without a verified spec and plan in the 'tracks/' directory."
           );
         }
       },
@@ -117,24 +105,6 @@ export const SwarmToolAddons: Plugin = async (input) => {
             console.warn('[memory-lane] Failed to trigger immediate extraction:', error);
           }
         }
-
-        if (input.tool === 'conductor_checkpoint') {
-          try {
-            await conductorCheckpointHook(input, output);
-          } catch (error) {
-            // eslint-disable-next-line no-console
-            console.warn('[conductor] Failed to trigger checkpoint hook:', error);
-          }
-        }
-
-        if (input.tool === 'conductor_verify') {
-          try {
-            await conductorVerifyHook(input, output);
-          } catch (error) {
-            // eslint-disable-next-line no-console
-            console.warn('[conductor] Failed to trigger verify hook:', error);
-          }
-        }
       },
 
       // Session learning hook - handles session.created, message.created, session.idle, session.deleted
@@ -168,19 +138,6 @@ export const SwarmToolAddons: Plugin = async (input) => {
         config.agent[agt.name] = agentConfig;
       }
 
-      config.agent.build = config.agent.build ?? {};
-      config.agent.build.disable = true;
-
-      config.agent.oracle = config.agent.oracle ?? {};
-      config.agent.oracle.disable = false;
-
-      config.agent.plan = config.agent.oracle ?? {
-        tools: {
-          write: false,
-          edit: false,
-          bash: false,
-        },
-      };
     },
   };
 };
