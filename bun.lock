@@ -631,7 +631,7 @@
 
     "once": ["once@1.4.0", "", { "dependencies": { "wrappy": "1" } }, "sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w=="],
 
-    "opencode-swarm-plugin": ["opencode-swarm-plugin@0.45.6", "", { "dependencies": { "@clack/prompts": "^0.11.0", "@opencode-ai/plugin": "^1.0.134", "effect": "^3.19.12", "gray-matter": "^4.0.3", "ioredis": "^5.4.1", "minimatch": "^10.1.1", "pino": "^9.6.0", "pino-roll": "^1.3.0", "swarm-mail": "1.6.2", "yaml": "^2.8.2", "zod": "4.1.8" }, "bin": { "swarm": "dist/bin/swarm.js" } }, "sha512-FL3lVwvC02/E8sG5KUIdWAnMsfCQ+8cBoEmB3wyCeDtHvvLdbqE7Isy+IH1xjOgON7MCm6xYZXPa7p1TPBWeBA=="],
+    "opencode-swarm-plugin": ["opencode-swarm-plugin@0.45.7", "", { "dependencies": { "@clack/prompts": "^0.11.0", "@opencode-ai/plugin": "^1.0.134", "effect": "^3.19.12", "gray-matter": "^4.0.3", "ioredis": "^5.4.1", "minimatch": "^10.1.1", "pino": "^9.6.0", "pino-roll": "^1.3.0", "swarm-mail": "1.6.2", "yaml": "^2.8.2", "zod": "4.1.8" }, "bin": { "swarm": "dist/bin/swarm.js" } }, "sha512-luAgO1oMmvbGYDYczGmzfyJxI1fj9PcCe8psCkrVe2OWh1/caSTXDL7mpjcaSedX6/lkoZ9ayfrBIGPbGNQS7Q=="],
 
     "optionator": ["optionator@0.9.4", "", { "dependencies": { "deep-is": "^0.1.3", "fast-levenshtein": "^2.0.6", "levn": "^0.4.1", "prelude-ls": "^1.2.1", "type-check": "^0.4.0", "word-wrap": "^1.2.5" } }, "sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g=="],
 
