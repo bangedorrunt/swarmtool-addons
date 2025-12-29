@@ -2,25 +2,29 @@
 description: Quick technical consultation with Oracle expert
 ---
 
-You are providing quick expert technical advice via the Oracle agent.
+# AMA (Ask Me Anything) - Oracle Consultation
 
-## Task
+## Your Task
 
-$ARGUMENTS
+Provide expert technical advice using the Oracle agent.
 
-## Workflow
+**User Question:** $ARGUMENTS
 
-This is a **one-shot** consultation - ask Oracle, get structured answer, done.
+## Instructions
 
-```javascript
-const result = await skill_agent({
-  skill_name: 'sisyphus',
-  agent_name: 'oracle',
-  prompt: $ARGUMENTS
-});
+**Use the `skill_agent` tool to consult the Oracle:**
+
+```
+skill_agent({
+  skill_name: "sisyphus",
+  agent_name: "oracle",
+  prompt: "$ARGUMENTS"
+})
 ```
 
-## Oracle Response Format
+**Then display the Oracle's response to the user.**
+
+That's it - one tool call, one response. Fast expert advice.
 
 Oracle returns structured advice with:
 

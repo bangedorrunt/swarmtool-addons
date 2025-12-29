@@ -2,56 +2,47 @@
 description: Interactive Spec-Driven Development workflow with dialogue mode
 ---
 
-You are orchestrating the **Spec-Driven Development (SDD)** pipeline with user approval checkpoints.
+# SDD (Spec-Driven Development) - Interactive Workflow
 
-## Task
+## Your Task
 
-$ARGUMENTS
+Orchestrate the Spec-Driven Development pipeline for: **$ARGUMENTS**
 
-## Workflow Overview
+## Workflow Steps
+
+Follow these phases **in order**, using the `skill_agent` tool:
+
+### Phase 1: Interview (Dialogue Mode - REQUIRED)
+
+**Use dialogue mode to clarify requirements:**
 
 ```
-Interview (dialogue) → Spec → Plan → Validate → Execute
-     ↓                   ↓      ↓        ↓          ↓
-  Clarify           Document Design  Quality   Implementation
-  requirements                       Gate
+skill_agent({
+  skill_name: "sisyphus",
+  agent_name: "interviewer",
+  interaction_mode: "dialogue",
+  prompt: "Clarify requirements for: $ARGUMENTS"
+})
 ```
 
-## Phase 1: Interactive Requirement Clarification
-
-**Use dialogue mode for multi-turn conversation until user approves.**
-
-```javascript
-// Spawn Interviewer in dialogue mode
-const interviewResult = await skill_agent({
-  skill_name: 'sisyphus',
-  agent_name: 'interviewer',
-  interaction_mode: 'dialogue',  // ⭐ KEY: Multi-turn interaction
-  prompt: `Clarify requirements for: ${ARGUMENTS}`
-});
-```
-
-**Dialogue Loop:**
-
-1. Check `interviewResult.output.dialogue_state.status`
+**IMPORTANT:** This returns a `dialogue_state` object. You MUST:
+1. Check `dialogue_state.status`
 2. If `needs_input`:
-   - Display `dialogue_state.message_to_user`
-   - Display `dialogue_state.pending_questions`
-   - **WAIT for user response**
-   - Continue with user's answer in next prompt
+   - Show `dialogue_state.message_to_user` to the user
+   - Show `dialogue_state.pending_questions`
+   - **WAIT** for user response
+   - Call skill_agent again with user's answer and previous `dialogue_state` in context
 3. If `needs_approval`:
-   - Display clarified requirements summary
-   - Ask: "Ready to proceed with this direction?"
-   - **WAIT for user confirmation**
-4. If `approved`:
+   - Show summary to user
+   - Ask "Ready to proceed?"
+   - **WAIT** for user confirmation
+4. Only when status is `approved`:
    - Extract `dialogue_state.output.explicit_direction`
    - Proceed to Phase 2
 
-**CRITICAL:** Do NOT proceed until status is `approved`. Loop until user explicitly approves.
+**DO NOT skip the dialogue loop. DO NOT assume. WAIT for user approval.**
 
----
-
-## Phase 2: Specification Creation
+### Phase 2: Create Specification
 
 **Create structured requirements document.**
 
