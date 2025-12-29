@@ -33,6 +33,53 @@ Parses YAML frontmatter from markdown files with the following fields:
 - `disable`: Boolean flag to disable agent
 - `forcedSkills`: Comma-separated list of required skills
 
+## Available Commands
+
+The module includes pre-built commands for common workflows:
+
+### `sdd` - Spec-Driven Development
+
+Interactive workflow with dialogue mode for building features from requirements to implementation.
+
+```bash
+sdd "Build user authentication with OAuth"
+```
+
+**What it does:**
+1. **Interview** (dialogue) - Clarifies requirements with multi-turn Q&A
+2. **Spec** - Creates structured specification document
+3. **Plan** - Generates implementation blueprint
+4. **Validate** - Quality gate against best practices
+5. **Execute** - Phased implementation with checkpoints
+
+**Key Features:**
+- Interactive approval loops (no assumptions without confirmation)
+- Checkpoints before each phase
+- Assumption tracking and verification
+- Chief-of-Staff coordination
+
+### `ama` - Ask Me Anything (Oracle)
+
+Quick expert consultation for technical decisions.
+
+```bash
+ama "Should I use PostgreSQL or MongoDB for analytics?"
+```
+
+**What it does:**
+- One-shot consultation (fast, ~10-30 seconds)
+- Structured recommendation with trade-offs
+- Action plan and effort estimate
+- No implementation (advice only)
+
+**Use when:**
+- Need quick technical decision
+- Comparing technologies/libraries
+- Getting architecture advice
+- Code review recommendations
+
+---
+
 ### Skill-Based Agent Tools
 
 Provides the `skill_agent` tool for spawning specialized subagents defined within skills. This follows the Hybrid Delegator Pattern:
