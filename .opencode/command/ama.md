@@ -12,16 +12,13 @@ Get expert technical advice from the Oracle.
 
 ## Instructions
 
-Use the `skill_agent` tool to consult the Oracle:
+Use OpenCode's native `skill()` tool to load the Oracle skill:
 
 ```
-skill_agent({
-  skill_name: "sisyphus/oracle",
-  prompt: "$ARGUMENTS"
-})
+skill({ name: "sisyphus-oracle" })
 ```
 
-Display the Oracle's structured recommendation to the user.
+The skill's instructions will be loaded into your context. Follow them to provide expert technical advice on: $ARGUMENTS
 
 ---
 
