@@ -11,7 +11,7 @@ import {
   getConfigPath,
 } from './loader';
 
-const testDir = join(process.cwd(), '.sisyphus-test');
+const testDir = join(process.cwd(), '.opencode-test');
 
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => { });
@@ -146,10 +146,6 @@ describe('loadConfig', () => {
           model: 'opencode/worker',
           disable: false,
           forcedSkills: [],
-        },
-        oracle: {
-          model: 'openai/gpt-5.2',
-          forcedSkills: ['oracle'],
         },
       },
     };

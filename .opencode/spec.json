@@ -1,0 +1,142 @@
+{
+  "title": "Sisyphus v2 Durable Stream",
+  "version": "1.0.0",
+  "created_at": "2025-12-30T10:00:00Z",
+  "summary": "Implementation of a durable, event-sourced stream system for Sisyphus using PGLite. It provides reliable event storage, sequential reading, and checkpointing mechanisms to support persistent agent workflows and projection rebuilding.",
+  "requirements": {
+    "functional": [
+      {
+        "id": "FR-001",
+        "priority": "must-have",
+        "description": "Append events to the durable stream with automatic sequencing.",
+        "acceptance_criteria": [
+          "GIVEN a valid event payload WHEN append is called THEN the event is stored in sisyphus_events table with a unique ID and sequential sequence number",
+          "GIVEN an event WHEN stored THEN it includes the correct project_key for isolation"
+        ]
+      },
+      {
+        "id": "FR-002",
+        "priority": "must-have",
+        "description": "Read events from the stream sequentially or from a specific offset.",
+        "acceptance_criteria": [
+          "GIVEN a sequence number WHEN read is called THEN return all events starting from that sequence",
+          "GIVEN criteria (type, project_key) WHEN read is called THEN return filtered events matching the criteria"
+        ]
+      },
+      {
+        "id": "FR-003",
+        "priority": "must-have",
+        "description": "Manage durable cursors for tracking reading progress (checkpoints).",
+        "acceptance_criteria": [
+          "GIVEN a cursor ID and sequence number WHEN saveCursor is called THEN the checkpoint is persisted",
+          "GIVEN a cursor ID WHEN getCursor is called THEN return the last saved sequence number"
+        ]
+      },
+      {
+        "id": "FR-004",
+        "priority": "should-have",
+        "description": "Replay events from the beginning of the stream to rebuild projections.",
+        "acceptance_criteria": [
+          "GIVEN a handler function WHEN replay is called THEN the handler is executed for every event in the stream in chronological order"
+        ]
+      },
+      {
+        "id": "FR-005",
+        "priority": "must-have",
+        "description": "Support multi-project isolation within the same database.",
+        "acceptance_criteria": [
+          "GIVEN events from different projects WHEN queried by project_key THEN only relevant events are returned"
+        ]
+      }
+    ],
+    "non_functional": [
+      {
+        "id": "NFR-001",
+        "category": "reliability",
+        "description": "Crash recovery capability using DurableCursor checkpointing.",
+        "measurement": "System resumes from last saved sequence after restart"
+      },
+      {
+        "id": "NFR-002",
+        "category": "maintainability",
+        "description": "Type-safe event system with discriminated unions for payloads.",
+        "measurement": "Zero TypeScript errors when handling SisyphusEventPayload"
+      },
+      {
+        "id": "NFR-003",
+        "category": "testability",
+        "description": "Comprehensive TDD coverage including schema migrations.",
+        "measurement": "Unit tests, integration tests, and migration tests pass"
+      }
+    ]
+  },
+  "constraints": [
+    "Must use PGLite (PGlite-based storage)",
+    "Must follow swarm-tools event sourcing patterns",
+    "No new external dependencies outside the existing stack (TypeScript, Bun, PGLite)"
+  ],
+  "out_of_scope": [
+    "External message broker integration (Redis, RabbitMQ)",
+    "Real-time websocket broadcasting (v1)",
+    "Historical event deletion/pruning"
+  ],
+  "entities": {
+    "SisyphusEvent": {
+      "fields": [
+        { "name": "id", "type": "uuid", "required": true },
+        { "name": "sequence", "type": "bigint", "required": true },
+        { "name": "type", "type": "string", "required": true },
+        { "name": "payload", "type": "jsonb", "required": true },
+        { "name": "project_key", "type": "string", "required": true },
+        { "name": "created_at", "type": "datetime", "required": true }
+      ],
+      "indexes": ["sequence", "project_key", "type"]
+    },
+    "SisyphusAgent": {
+      "fields": [
+        { "name": "id", "type": "string", "required": true },
+        { "name": "metadata", "type": "jsonb" },
+        { "name": "status", "type": "string" }
+      ]
+    },
+    "SisyphusCursor": {
+      "fields": [
+        { "name": "id", "type": "string", "required": true },
+        { "name": "last_sequence", "type": "bigint", "required": true },
+        { "name": "updated_at", "type": "datetime", "required": true }
+      ]
+    }
+  },
+  "api_surface": {
+    "DurableSisyphusStream": {
+      "methods": {
+        "append": {
+          "params": { "event": "SisyphusEventInput" },
+          "returns": "Promise<SisyphusEvent>"
+        },
+        "read": {
+          "params": { "criteria": "ReadCriteria" },
+          "returns": "Promise<SisyphusEvent[]>"
+        },
+        "saveCursor": {
+          "params": { "id": "string", "sequence": "bigint" },
+          "returns": "Promise<void>"
+        },
+        "getCursor": {
+          "params": { "id": "string" },
+          "returns": "Promise<bigint | null>"
+"        },
+        "replay": {
+          "params": { "handler": "(event: SisyphusEvent) => Promise<void>" },
+          "returns": "Promise<void>"
+        }
+      }
+    }
+  },
+  "success_metrics": [
+    "All functional acceptance criteria verified by integration tests",
+    "Database schema matches the PGLite specification",
+    "Event payload type-safety enforced at compile-time",
+    "Successful migration test from empty state to v1 schema"
+  ]
+}

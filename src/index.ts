@@ -10,24 +10,81 @@
 
 import type { Plugin } from '@opencode-ai/plugin';
 import path from 'path';
+import fs from 'node:fs';
 import { memoryLaneTools, triggerMemoryExtraction } from './memory-lane';
-import { loadConfig } from './opencode';
+import { loadConfig, DEFAULT_MODELS } from './opencode';
 import { loadLocalAgents, loadSkillAgents, loadCommands } from './opencode';
-import { createSkillAgentTools } from './opencode';
+import { createSkillAgentTools } from './orchestrator/tools'; // Changed from './opencode'
 import { createOpenCodeSessionLearningHook } from './orchestrator/hooks';
+import { loadChiefOfStaffSkills } from './opencode/config/skill-loader';
+import { createAgentTools } from './agent-spawn';
+import { createEventLogTools } from './event-log';
+
+/**
+ * Auto-migrate chief-of-staff skills to .opencode/skill/ if not found.
+ * Ensures OpenCode can discover our skills.
+ */
+async function ensureChiefOfStaffSkills(): Promise<void> {
+  const projectRoot = process.cwd();
+  const targetDir = path.join(projectRoot, '.opencode', 'skill');
+  const sourceDir = path.join(import.meta.dir, 'orchestrator', 'chief-of-staff');
+
+  // Check if already migrated by looking for chief-of-staff/oracle
+  const oracleSkill = path.join(targetDir, 'chief-of-staff', 'agents', 'oracle', 'SKILL.md');
+  if (fs.existsSync(oracleSkill)) {
+    return; // Already migrated
+  }
+
+  // Ensure target directory exists
+  if (!fs.existsSync(targetDir)) {
+    fs.mkdirSync(targetDir, { recursive: true });
+  }
+
+  // Copy parent chief-of-staff skill
+  const chiefOfStaffTarget = path.join(targetDir, 'chief-of-staff');
+  if (!fs.existsSync(chiefOfStaffTarget)) {
+    fs.mkdirSync(chiefOfStaffTarget, { recursive: true });
+  }
+  const chiefOfStaffSource = path.join(sourceDir, 'SKILL.md');
+  if (fs.existsSync(chiefOfStaffSource)) {
+    fs.copyFileSync(chiefOfStaffSource, path.join(chiefOfStaffTarget, 'SKILL.md'));
+  }
+
+  // Copy all agent skills as flat chief-of-staff-* directories
+  const agentsDir = path.join(sourceDir, 'agents');
+  if (fs.existsSync(agentsDir)) {
+    const agents = fs.readdirSync(agentsDir);
+    for (const agentName of agents) {
+      const agentPath = path.join(agentsDir, agentName);
+      if (fs.statSync(agentPath).isDirectory()) {
+        const skillMd = path.join(agentPath, 'SKILL.md');
+        if (fs.existsSync(skillMd)) {
+          // Keep hierarchical structure: .opencode/skill/chief-of-staff/agents/{agent}/SKILL.md
+          const targetAgentDir = path.join(chiefOfStaffTarget, 'agents', agentName);
+          fs.mkdirSync(targetAgentDir, { recursive: true });
+          fs.copyFileSync(skillMd, path.join(targetAgentDir, 'SKILL.md'));
+        }
+      }
+    }
+  }
+}
 
 export const SwarmToolAddons: Plugin = async (input) => {
   // Load configuration
   const userConfig = loadConfig();
 
+  // Ensure chief-of-staff skills are migrated to .opencode/skill/
+  await ensureChiefOfStaffSkills();
+
   // Load commands and agents from .md files
   const agentDir = path.join(import.meta.dir, 'opencode', 'agent');
   const commandDir = path.join(import.meta.dir, 'opencode', 'command');
 
-  const [commands, localAgents, skillAgents] = await Promise.all([
+  const [commands, localAgents, skillAgents, chiefOfStaffSkills] = await Promise.all([
     loadCommands(commandDir),
     loadLocalAgents(agentDir),
     loadSkillAgents(),
+    loadChiefOfStaffSkills(),
   ]);
 
   const agents = [...localAgents, ...skillAgents];
@@ -37,81 +94,110 @@ export const SwarmToolAddons: Plugin = async (input) => {
 
   // Create tools with client access
   const skillAgentTools = createSkillAgentTools(input.client);
+  const agentTools = createAgentTools(input.client);
+  const eventLogTools = createEventLogTools();
 
   // Create session learning hook with skill_agent integration
   const sessionLearningHook = createOpenCodeSessionLearningHook(input, {
     maxMemories: 10,
     captureEnabled: true,
     captureDelay: 2000,
-    skillAgent: async (args) => {
+    skillAgent: async (args: any) => {
       // Use the skill_agent tool for spawning memory-catcher
-      // Note: Context is constructed internally, we just need to satisfy the type
-      const result = await skillAgentTools.skill_agent.execute(args, {} as any);
+      const result = await skillAgentTools.skill_agent.execute({ ...args, async: true }, {} as any);
       return JSON.parse(result);
     },
   });
 
   return {
-    // Register custom tools
+    // 1. Register custom tools
     tool: {
       ...memoryLaneTools,
       ...skillAgentTools,
+      ...agentTools,
+      ...eventLogTools,
     },
 
-    // OpenCode Hooks
-    hook: {
-      // Synchronous context injection
-      'tool.execute.before': async (input: { tool: string }, output: { context: string[] }) => {
-        const memoryTools = ['semantic-memory_find', 'memory-lane_find'];
+    // 2. OpenCode Hooks (must be flat on this object)
 
-        if (memoryTools.includes(input.tool)) {
-          output.context.push(
-            'SYSTEM: Memory Lane Guidance\n' +
-            'When searching for behavioral context (corrections, decisions, preferences), ' +
-            "ALWAYS prioritize 'memory-lane_find' over 'semantic-memory_find'.\n" +
-            "Memory Lane provides intent boosting and entity filtering which 'semantic-memory_find' lacks."
-          );
-        }
-      },
+    // Synchronous context injection
+    'tool.execute.before': async (
+      hookInput: { tool: string; sessionID: string; callID: string },
+      hookOutput: { args: any }
+    ) => {
+      // Logic for context injection or logging before tool starts
+    },
 
-      // Post-tool execution hooks
-      'tool.execute.after': async (
-        input: { tool: string; args: any },
-        output: { context: string[] }
-      ) => {
-        if (input.tool === 'swarmmail_init') {
-          output.context.push(
-            'SYSTEM: Memory Lane System Active\n' +
-            "You have access to 'memory-lane_find' and 'memory-lane_store'.\n" +
-            "ALWAYS use these instead of 'semantic-memory_*' tools. Memory Lane provides " +
-            'superior high-integrity search, intent boosting, and entity filtering.'
-          );
-        }
+    // Post-tool execution hooks - CRITICAL for Lifecycle Handoff 2.0
+    'tool.execute.after': async (
+      hookInput: { tool: string; sessionID: string; callID: string },
+      hookOutput: { title: string; output: string; metadata: any }
+    ) => {
 
-        if (input.tool === 'swarm_complete') {
-          try {
-            const outcomeData = {
-              bead_id: input.args.bead_id,
-              summary: input.args.summary,
-              files_touched: input.args.files_touched || [],
-              success: true,
-              duration_ms: 0,
-              agent_name: input.args.agent_name,
-            };
-
-            triggerMemoryExtraction(projectPath, outcomeData, Bun.$);
-          } catch (error) {
-            // eslint-disable-next-line no-console
-            console.warn('[memory-lane] Failed to trigger immediate extraction:', error);
+      // Swarm Complete Handoff (Memory Extraction)
+      if (hookInput.tool === 'swarm_complete') {
+        try {
+          if (hookOutput.metadata?.outcome) {
+            triggerMemoryExtraction(projectPath, hookOutput.metadata.outcome, input.$);
           }
+        } catch (error) {
+          // Learning injection failed - continue without learnings
         }
-      },
+      }
 
-      // Session learning hook - handles session.created, message.created, session.idle, session.deleted
-      event: sessionLearningHook,
+      // Agent Lifecycle Handoff 2.0 (Detected via metadata or output)
+      let handoffData = null;
+      let isHandoffIntent = false;
+
+      // 1. Check Metadata for explicit HANDOOF_INTENT
+      if (hookOutput.metadata?.handoff) {
+        handoffData = hookOutput.metadata.handoff;
+        isHandoffIntent = hookOutput.metadata.status === 'HANDOFF_INTENT';
+      } else if (typeof hookOutput.output === 'string') {
+        // 2. Fallback to parsing text for legacy or dynamic handoffs
+        try {
+          const parsed = JSON.parse(hookOutput.output);
+          if (parsed.metadata?.handoff) {
+            handoffData = parsed.metadata.handoff;
+            isHandoffIntent = parsed.status === 'HANDOFF_INTENT';
+          }
+        } catch {
+          // Not JSON or missing handoff, ignore
+        }
+      }
+
+      // ONLY trigger if HANDOFF_INTENT is true. 
+      // Synchronous tools return raw text/JSON without this intent to avoid duplicate prompts.
+      if (handoffData && isHandoffIntent) {
+        const { target_agent, prompt, session_id } = handoffData;
+
+        if (target_agent && prompt && session_id) {
+
+          // Defer to ensure the current tool turn is fully settled in the SDK
+          setTimeout(async () => {
+            try {
+              await input.client.session.promptAsync({
+                path: { id: session_id },
+                body: {
+                  agent: target_agent,
+                  parts: [{ type: 'text', text: prompt }]
+                }
+              });
+            } catch (err: any) {
+              // Error handling for failed prompt, removed console.error
+            }
+          }, 800); // 800ms for extra safety
+        } else {
+        }
+      }
     },
 
-    // Config Hook
+    // Session learning hook (unified event handler)
+    event: async (eventInput: { event: any }) => {
+      await sessionLearningHook(eventInput);
+    },
+
+    // 3. Config Hook - Apply model overrides
     async config(config) {
       config.command = config.command ?? {};
       config.agent = config.agent ?? {};
@@ -126,18 +212,43 @@ export const SwarmToolAddons: Plugin = async (input) => {
         };
       }
 
+      // 1. Register local and skill-based agents with model overrides
       for (const agt of agents) {
         const modelOverride = userConfig.models[agt.name];
-        const model = modelOverride?.model ?? agt.config.model;
-
-        const agentConfig: any = {
+        const model = modelOverride?.model ?? agt.config.model ?? 'opencode/grok-code';
+        config.agent[agt.name] = {
           ...agt.config,
           model,
+          metadata: agt.config.metadata,
         };
-
-        config.agent[agt.name] = agentConfig;
       }
 
+      // 2. Register chief-of-staff sub-agents (internal)
+      for (const skill of chiefOfStaffSkills) {
+        const modelOverride = userConfig.models[skill.name];
+        const model = modelOverride?.model ?? skill.model ?? 'opencode/grok-code';
+        config.agent[skill.name] = {
+          mode: 'subagent',
+          model,
+          prompt: skill.prompt,
+          description: skill.description,
+          tools: skill.tools,
+          temperature: skill.temperature,
+          metadata: { ...skill.metadata, visibility: 'internal' }, // Force hidden
+        };
+      }
+
+      // 3. Apply DEFAULT_MODELS fallback for built-in or missing agents
+      for (const [name, model] of Object.entries(DEFAULT_MODELS)) {
+        if (!config.agent[name]) {
+          config.agent[name] = { model };
+        } else if (!config.agent[name].model || config.agent[name].model === 'opencode/grok-code') {
+          // If it's a built-in like 'build' or 'plan', use the llama3.2 default
+          if (['Build', 'build', 'Plan', 'plan', 'Explore', 'explore', 'General', 'general', 'swarm/planner', 'swarm/worker', 'swarm/researcher'].includes(name)) {
+            config.agent[name].model = model;
+          }
+        }
+      }
     },
   };
 };

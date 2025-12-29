@@ -24,6 +24,3 @@ export type { AgentConfig, ParsedAgent } from './loader';
 
 // Configuration module
 export * from './config';
-
-// Skill-based agent tools
-export { createSkillAgentTools } from './agent/tools';

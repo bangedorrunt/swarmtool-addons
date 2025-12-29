@@ -50,7 +50,6 @@ export class MemoryLaneAdapter {
   constructor() {
     // Get database path with centralized preference
     const dbPath = this.getDatabasePath();
-    console.log(`[MemoryLaneAdapter] Using database: ${dbPath}`);
 
     // Create libSQL client
     this.client = createClient({ url: dbPath });
@@ -236,13 +235,13 @@ export class MemoryLaneAdapter {
     // Vector search
     const searchResults = await store.search(queryEmbedding, {
       limit: limit * 3,
-      threshold: 0.3,
+      threshold: 0.1, // Lowered from 0.3 - too strict was filtering everything
       collection: this.COLLECTION,
     });
 
     // 3. Re-Ranking & Filtering
     const isEntityFiltered = args.entities && args.entities.length > 0;
-    const minScoreThreshold = isEntityFiltered ? 0.4 : 0.5;
+    const minScoreThreshold = isEntityFiltered ? 0.15 : 0.2; // Lowered - was filtering too aggressively
 
     // Process and score results
     const scoredResults: Array<{
@@ -346,6 +345,9 @@ export class MemoryLaneAdapter {
    * Private helper method for embedding generation.
    */
   private async generateEmbedding(text: string): Promise<number[]> {
+    // 1. Ensure Ollama is running
+    await this.ensureOllama();
+
     const { getDefaultConfig, makeOllamaLive, Ollama } = await import('swarm-mail');
     const { Effect: EffectNs } = await import('effect');
 
@@ -360,6 +362,40 @@ export class MemoryLaneAdapter {
 
     return EffectNs.runPromise(program.pipe(EffectNs.provide(ollamaLayer)));
   }
+
+  /**
+   * Ensure Ollama is running, attempt to start on Mac if missing
+   */
+  private async ensureOllama(): Promise<void> {
+    const checkOllama = async () => {
+      try {
+        const response = await fetch('http://127.0.0.1:11434/api/tags');
+        return response.ok;
+      } catch {
+        return false;
+      }
+    };
+
+    // Mac-specific auto-start
+    if (process.platform === 'darwin') {
+      try {
+        const { exec } = await import('node:child_process');
+        exec('open -a Ollama');
+
+        // Poll for up to 30 seconds
+        for (let i = 0; i < 15; i++) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          if (await checkOllama()) {
+            return;
+          }
+        }
+      } catch (err: any) {
+      }
+    }
+
+    // If we reach here, either not Mac or failed to start
+  }
+
 
   /**
    * Scan query for intent keywords to boost specific memory types

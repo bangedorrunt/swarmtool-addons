@@ -32,20 +32,34 @@ export function parseFrontmatter(content: string): { frontmatter: any; body: str
 
   // Simple YAML parsing for key: value pairs
   for (const line of yamlContent.split('\n')) {
-    const colonIndex = line.indexOf(':');
+    const trimmedLine = line.trim();
+    if (!trimmedLine || trimmedLine.startsWith('#')) continue;
+
+    const colonIndex = trimmedLine.indexOf(':');
     if (colonIndex === -1) continue;
 
-    const key = line.slice(0, colonIndex).trim();
-    const value = line.slice(colonIndex + 1).trim();
+    const key = trimmedLine.slice(0, colonIndex).trim();
+    const value = trimmedLine.slice(colonIndex + 1).trim();
 
-    if (key === 'description') frontmatter.description = value;
-    if (key === 'agent') frontmatter.agent = value;
-    if (key === 'model') frontmatter.model = value;
-    if (key === 'subtask') frontmatter.subtask = value === 'true';
-    if (key === 'temperature') frontmatter.temperature = Number(value);
-    if (key === 'disable') frontmatter.disable = value === 'true';
-    if (key === 'forcedSkills')
+    // Special handling for specific types
+    if (key === 'subtask') {
+      frontmatter.subtask = value === 'true';
+    } else if (key === 'temperature') {
+      frontmatter.temperature = Number(value);
+    } else if (key === 'disable') {
+      frontmatter.disable = value === 'true';
+    } else if (key === 'forcedSkills') {
       frontmatter.forcedSkills = value.split(',').map((s: string) => s.trim());
+    } else if (key === 'agent') {
+      frontmatter.agent = value === 'true' ? true : value;
+    } else if (key === 'metadata') {
+      // Very basic metadata parsing (for simple key: value nested one level)
+      // Note: This is a fallback since we aren't using a full YAML parser here
+      frontmatter.metadata = frontmatter.metadata || {};
+    } else {
+      // Default: store as string
+      frontmatter[key] = value;
+    }
   }
 
   return { frontmatter, body: body.trim() };
@@ -129,53 +143,89 @@ export async function loadLocalAgents(agentDir: string): Promise<ParsedAgent[]> 
 }
 
 /**
- * Discovers and loads all skill-based agents
+ * Discovers and loads all skill-based agents from local and global directories.
+ *
+ * Search priority:
+ * 1. .opencode/skill (local project)
+ * 2. .claude/skills (local compatibility)
+ * 3. ~/.config/opencode/skill (global)
  */
 export async function loadSkillAgents(): Promise<ParsedAgent[]> {
   const agents: ParsedAgent[] = [];
+  const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '.';
 
-  if (!fs.existsSync(SKILL_DIR)) {
-    return agents;
-  }
+  const searchPaths = [
+    // Local project directories
+    path.join(process.cwd(), '.opencode', 'skill'),
+    path.join(process.cwd(), '.claude', 'skills'),
+    // Global config directory
+    path.join(homeDir, '.config', 'opencode', 'skill')
+  ];
 
-  const skills = fs.readdirSync(SKILL_DIR);
-  for (const skillName of skills) {
-    const skillPath = path.join(SKILL_DIR, skillName);
-    if (!fs.statSync(skillPath).isDirectory()) continue;
+  for (const skillBaseDir of searchPaths) {
+    if (!fs.existsSync(skillBaseDir)) continue;
 
-    const agentDirs = ['agent', 'agents'];
-    for (const dirName of agentDirs) {
-      const agentPath = path.join(skillPath, dirName);
-      if (fs.existsSync(agentPath) && fs.statSync(agentPath).isDirectory()) {
-        const subDirs = fs.readdirSync(agentPath);
-        for (const agentName of subDirs) {
-          const subAgentPath = path.join(agentPath, agentName);
-          const fullName = `${skillName}/${agentName}`;
+    const skills = fs.readdirSync(skillBaseDir);
+    for (const skillName of skills) {
+      const skillPath = path.join(skillBaseDir, skillName);
+      if (!fs.statSync(skillPath).isDirectory()) continue;
 
-          if (fs.statSync(subAgentPath).isDirectory()) {
-            // Check for SKILL.md
-            const skillMdPath = path.join(subAgentPath, 'SKILL.md');
-            if (fs.existsSync(skillMdPath)) {
-              const content = await Bun.file(skillMdPath).text();
-              const config = parseAgentMarkdown(content, fullName);
-              agents.push({ name: fullName, config });
-            }
-          } else if (agentName.endsWith('.md')) {
-            const content = await Bun.file(subAgentPath).text();
-            const name = agentName.replace(/\.md$/, '');
-            const config = parseAgentMarkdown(content, `${skillName}/${name}`);
-            agents.push({ name: `${skillName}/${name}`, config });
-          } else if (agentName.endsWith('.ts')) {
-            // TypeScript agents would be dynamically imported
-            // For now, we'll just note them
-            try {
-              const module = await import(subAgentPath);
-              if (module.default || module.agent) {
-                const config = module.default || module.agent;
-                agents.push({ name: fullName, config: { ...config, name: fullName } });
+      // 1. Check for flattened skill (SKILL.md in root)
+      const rootSkillMdPath = path.join(skillPath, 'SKILL.md');
+      if (fs.existsSync(rootSkillMdPath)) {
+        const content = await Bun.file(rootSkillMdPath).text();
+        const { frontmatter } = parseFrontmatter(content);
+
+        // ONLY treat as agent if specifically marked as one
+        if (frontmatter.agent) {
+          // Use name from frontmatter or directory name
+          const agentName = frontmatter.name ? String(frontmatter.name) : skillName;
+
+          if (!agents.some((a) => a.name === agentName)) {
+            const config = parseAgentMarkdown(content, agentName);
+            // Pass along the metadata for visibility control
+            config.metadata = frontmatter.metadata;
+            agents.push({ name: agentName, config });
+          }
+        }
+      }
+
+      // 2. Check for nested agents in agent/agents subdirectories
+      const agentDirs = ['agent', 'agents'];
+      for (const dirName of agentDirs) {
+        const agentPath = path.join(skillPath, dirName);
+        if (fs.existsSync(agentPath) && fs.statSync(agentPath).isDirectory()) {
+          const subDirs = fs.readdirSync(agentPath);
+          for (const agentName of subDirs) {
+            const subAgentPath = path.join(agentPath, agentName);
+            const fullName = `${skillName}/${agentName}`;
+
+            if (fs.statSync(subAgentPath).isDirectory()) {
+              // Check for SKILL.md
+              const skillMdPath = path.join(subAgentPath, 'SKILL.md');
+              if (fs.existsSync(skillMdPath)) {
+                const content = await Bun.file(skillMdPath).text();
+                const { frontmatter } = parseFrontmatter(content);
+                // Use name from frontmatter or constructed name
+                const finalName = frontmatter.name ? String(frontmatter.name) : fullName;
+
+                if (!agents.some(a => a.name === finalName)) {
+                  const config = parseAgentMarkdown(content, finalName);
+                  agents.push({ name: finalName, config });
+                }
               }
-            } catch (e) {
-              // Failed to load TS agent - silent skip or log elsewhere
+            } else if (agentName.endsWith('.md')) {
+              const content = await Bun.file(subAgentPath).text();
+              const name = agentName.replace(/\.md$/, '');
+              const fullAgentName = `${skillName}/${name}`;
+
+              const { frontmatter } = parseFrontmatter(content);
+              const finalName = frontmatter.name ? String(frontmatter.name) : fullAgentName;
+
+              if (!agents.some(a => a.name === finalName)) {
+                const config = parseAgentMarkdown(content, finalName);
+                agents.push({ name: finalName, config });
+              }
             }
           }
         }

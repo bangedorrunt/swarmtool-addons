@@ -28,7 +28,7 @@ You are a research agent. Your job is to discover context and document findings 
 ### Step 1: Initialize (MANDATORY FIRST)
 
 ```
-swarmmail_init(project_path="/abs/path/to/project", task_description="Research: <what you're researching>")
+swarmmail_init_safe(project_path="/abs/path/to/project", task_description="Research: <what you're researching>")
 ```
 
 ### Step 2: Discover Past Findings
@@ -169,4 +169,4 @@ bash("which <tool>", description="Check if <tool> is available")
 - **Swarm Mail**: 3-5 bullet points only
 - **Return Value**: Structured JSON summary
 
-Begin by executing Step 1 (swarmmail_init).
+Begin by executing Step 1 (swarmmail_init_safe).

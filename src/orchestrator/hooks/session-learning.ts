@@ -33,7 +33,7 @@ interface LearningInjectorOptions {
     maxMemories?: number;
     /** Memory Lane query function */
     memoryLaneFind: (args: { query: string; limit: number }) => Promise<{ memories: Memory[] }>;
-    /** Path to project ledger. Default: .sisyphus/SISYPHUS_LEDGER.md */
+    /** Path to project ledger. Default: .opencode/LEDGER.md */
     ledgerPath?: string;
 }
 
@@ -45,7 +45,7 @@ interface LearningCaptureOptions {
         prompt: string;
         context?: any;
     }) => Promise<any>;
-    /** Path to project ledger. Default: .sisyphus/SISYPHUS_LEDGER.md */
+    /** Path to project ledger. Default: .opencode/LEDGER.md */
     ledgerPath?: string;
     /** Max learnings to capture per session. Default: 10 */
     maxLearnings?: number;
@@ -156,8 +156,8 @@ function buildLearningContext(memories: Memory[], ledger: string | null): string
 
     if (ledger) {
         sections.push('## 📋 Continuity State\n');
-        sections.push('Previous work detected. Resume from SISYPHUS_LEDGER.md.\n');
-        sections.push('Run `read .sisyphus/SISYPHUS_LEDGER.md` to see current state.\n');
+        sections.push('Previous work detected. Resume from LEDGER.md.\n');
+        sections.push('Run `read .opencode/LEDGER.md` to see current state.\n');
     }
 
     return sections.join('\n');
@@ -172,7 +172,7 @@ export function createSessionLearningInjector(options: LearningInjectorOptions) 
     const {
         maxMemories = 10,
         memoryLaneFind,
-        ledgerPath = '.sisyphus/SISYPHUS_LEDGER.md',
+        ledgerPath = '.opencode/LEDGER.md',
     } = options;
 
     return {
@@ -215,7 +215,6 @@ export function createSessionLearningInjector(options: LearningInjectorOptions) 
 
                 return { systemPromptAddition: injection };
             } catch (error) {
-                console.error('[session-learning-injector] Error:', error);
                 return {};
             }
         },
@@ -230,7 +229,7 @@ export function createSessionLearningInjector(options: LearningInjectorOptions) 
 export function createSessionLearningCapture(options: LearningCaptureOptions) {
     const {
         skillAgent,
-        ledgerPath = '.sisyphus/SISYPHUS_LEDGER.md',
+        ledgerPath = '.opencode/LEDGER.md',
         maxLearnings = 10,
     } = options;
 
@@ -269,7 +268,7 @@ export function createSessionLearningCapture(options: LearningCaptureOptions) {
 
                 // 4. Load Chief-of-Staff assumptions if available
                 let workerAssumptions: any[] = [];
-                const assumptionsPath = join(process.cwd(), '.sisyphus', 'assumptions.json');
+                const assumptionsPath = join(process.cwd(), '.opencode', 'assumptions.json');
                 if (existsSync(assumptionsPath)) {
                     try {
                         const content = await readFile(assumptionsPath, 'utf-8');
@@ -281,7 +280,7 @@ export function createSessionLearningCapture(options: LearningCaptureOptions) {
 
                 // 5. Spawn memory-catcher with context
                 const result = await skillAgent({
-                    skill_name: 'sisyphus',
+                    skill_name: 'chief-of-staff',
                     agent_name: 'memory-catcher',
                     prompt: `Extract learnings from this completed session.
           
@@ -307,7 +306,6 @@ Max ${maxLearnings} learnings.`,
 
                 return { learnings_captured: true };
             } catch (error) {
-                console.error('[session-learning-capture] Error:', error);
                 return { learnings_captured: false };
             }
         },
@@ -317,7 +315,7 @@ Max ${maxLearnings} learnings.`,
 /**
  * Assumption Tracker for Chief-of-Staff
  *
- * Persists assumptions to .sisyphus/assumptions.json for session-end capture.
+ * Persists assumptions to .opencode/assumptions.json for session-end capture.
  */
 export interface TrackedAssumption {
     worker: string;
@@ -328,7 +326,7 @@ export interface TrackedAssumption {
 }
 
 export async function trackAssumption(assumption: TrackedAssumption) {
-    const assumptionsPath = join(process.cwd(), '.sisyphus', 'assumptions.json');
+    const assumptionsPath = join(process.cwd(), '.opencode', 'assumptions.json');
 
     // Ensure directory exists
     await mkdir(dirname(assumptionsPath), { recursive: true });
@@ -354,7 +352,7 @@ export async function trackAssumption(assumption: TrackedAssumption) {
 }
 
 export async function getTrackedAssumptions(): Promise<TrackedAssumption[]> {
-    const assumptionsPath = join(process.cwd(), '.sisyphus', 'assumptions.json');
+    const assumptionsPath = join(process.cwd(), '.opencode', 'assumptions.json');
 
     if (!existsSync(assumptionsPath)) {
         return [];
@@ -369,7 +367,7 @@ export async function getTrackedAssumptions(): Promise<TrackedAssumption[]> {
 }
 
 export async function clearTrackedAssumptions() {
-    const assumptionsPath = join(process.cwd(), '.sisyphus', 'assumptions.json');
+    const assumptionsPath = join(process.cwd(), '.opencode', 'assumptions.json');
 
     if (existsSync(assumptionsPath)) {
         await writeFile(assumptionsPath, '[]');
@@ -385,7 +383,7 @@ export async function verifyAssumption(assumed: string) {
         return a;
     });
 
-    const assumptionsPath = join(process.cwd(), '.sisyphus', 'assumptions.json');
+    const assumptionsPath = join(process.cwd(), '.opencode', 'assumptions.json');
     await writeFile(assumptionsPath, JSON.stringify(updated, null, 2));
 
     return updated;

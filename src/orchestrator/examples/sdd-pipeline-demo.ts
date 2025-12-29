@@ -166,7 +166,7 @@ async function runSDDPipelineDemo() {
     console.log('-'.repeat(40));
 
     const interviewResult = await mockSkillAgent({
-        skill_name: 'sisyphus',
+        skill_name: 'chief-of-staff',
         agent_name: 'interviewer',
         prompt: 'Clarify requirements for: Build user authentication with OAuth support',
     });
@@ -180,7 +180,7 @@ async function runSDDPipelineDemo() {
     console.log('-'.repeat(40));
 
     const specResult = await mockSkillAgent({
-        skill_name: 'sisyphus',
+        skill_name: 'chief-of-staff',
         agent_name: 'spec-writer',
         prompt: 'Create spec for authenticated system',
         context: {
@@ -197,7 +197,7 @@ async function runSDDPipelineDemo() {
     console.log('-'.repeat(40));
 
     const planResult = await mockSkillAgent({
-        skill_name: 'sisyphus',
+        skill_name: 'chief-of-staff',
         agent_name: 'planner',
         prompt: 'Create implementation plan',
         context: {
@@ -214,7 +214,7 @@ async function runSDDPipelineDemo() {
     console.log('-'.repeat(40));
 
     const validationResult = await mockSkillAgent({
-        skill_name: 'sisyphus',
+        skill_name: 'chief-of-staff',
         agent_name: 'validator',
         prompt: 'Validate plan against precedents',
         context: {
@@ -251,7 +251,7 @@ async function runSDDPipelineDemo() {
         });
 
         await mockSkillAgent({
-            skill_name: 'sisyphus',
+            skill_name: 'chief-of-staff',
             agent_name: 'executor',
             prompt: `Implement: ${phase.title}`,
             context: {

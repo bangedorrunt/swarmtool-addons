@@ -18,23 +18,19 @@ The **Skill-Based Subagent System** represents a paradigm shift from monolithic 
 
 ## Core Principles
 
-### 1. Agent-as-Tool Pattern
-
-```
 Main Agent                    Skill Agent
     │                             │
     │  skill_agent({              │
-    │    skill: "analyzer",       │
-    │    agent: "security",       │
+    │    agent_name: "chief-of-staff/interviewer",
     │    prompt: "Check auth.ts"  │
     │  })                         │
     │ ──────────────────────────▶ │ (Isolated context)
     │                             │
     │  ◀────────────────────────  │
     │  { success: true,           │
-    │    output: { ... } }        │  (Structured JSON)
+    │    agent: "...",            │
+    │    messageID: "..." }       │  (JSON response)
     │                             │
-```
 
 - **No chat history** passed between agents
 - **Structured output** (JSON) replaces conversation
@@ -146,10 +142,10 @@ metadata:
 ```
 
 **Agents Required**:
-- `sisyphus/spec-writer` - Creates structured specs
-- `sisyphus/planner` - Designs implementation strategy
-- `sisyphus/validator` - Quality gate (memory-lane integration)
-- `sisyphus/executor` - TDD execution
+- `chief-of-staff/spec-writer` - Creates structured specs
+- `chief-of-staff/planner` - Designs implementation strategy
+- `chief-of-staff/validator` - Quality gate (memory-lane integration)
+- `chief-of-staff/executor` - TDD execution
 
 ---
 
@@ -200,7 +196,7 @@ metadata:
 
 ```yaml
 ---
-name: sisyphus/interviewer
+name: chief-of-staff/interviewer
 description: Proactively clarifies requirements before assumptions
 model: google/gemini-3-flash
 tools:
@@ -294,7 +290,7 @@ You NEVER assume. You ALWAYS ask.
 
 ```yaml
 ---
-name: sisyphus/chief-of-staff
+name: chief-of-staff/chief-of-staff
 description: Proactive manager of direction, assumptions, and async worker fleet
 model: google/gemini-3-pro
 metadata:
@@ -381,10 +377,10 @@ Surface and interview when:
 
 | Task | Deliverable | Status |
 |------|------------|--------|
-| Enhance `skill_agent` tool | Support `run_in_background`, structured output | 🔲 |
-| Create interviewer agent | `sisyphus/interviewer` SKILL.md | 🔲 |
-| Create spec-writer agent | `sisyphus/spec-writer` SKILL.md | 🔲 |
-| Test agent composition | Integration tests for agent chains | 🔲 |
+| Enhance `skill_agent` tool | Support hierarchical naming, context injection | ✅ |
+| Create `skill_list` tool | Dynamic agent discovery from filesystem | ✅ |
+| Fix `interviewer` protocol | Explicit DIALOGUE mode with Wait-Loop | ✅ |
+| Update core commands | `/ama`, `/sdd`, `/swarm` using `skill_agent` | ✅ |
 
 ### Phase 2: Spec-Driven Workflow (Week 2)
 
@@ -392,7 +388,7 @@ Surface and interview when:
 |------|------------|--------|
 | Spec → Plan → Validate → Execute flow | Full SDD pipeline | 🔲 |
 | Quality gate integration | Validator with Memory Lane | 🔲 |
-| Ledger state management | SISYPHUS_LEDGER.md updates | 🔲 |
+| Ledger state management | LEDGER.md updates | 🔲 |
 | Context wipe resilience | Handoff/resume support | 🔲 |
 
 ### Phase 3: Chief-of-Staff (Week 3)
@@ -445,7 +441,7 @@ Surface and interview when:
 │                           │                                     │
 │  Layer 2: State Persistence (CCv2-INSPIRED)                     │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │  SISYPHUS_LEDGER.md (continuity)                         │   │
+│  │  LEDGER.md (continuity)                         │   │
 │  │  handoff-*.md (context wipe recovery)                    │   │
 │  │  → File-based, no runtime dependency                     │   │
 │  └─────────────────────────────────────────────────────────┘   │
@@ -480,7 +476,7 @@ Surface and interview when:
 
 | Pattern | Implementation | Independence |
 |---------|---------------|--------------|
-| **Continuity Ledger** | `.sisyphus/SISYPHUS_LEDGER.md` | Pure file, no runtime |
+| **Continuity Ledger** | `.opencode/LEDGER.md` | Pure file, no runtime |
 | **Auto-Handoff** | `handoff-{timestamp}.md` | Shell-triggerable |
 | **TypeScript Preflight** | Run `tsc --noEmit` before edits | CLI-based |
 | **Skill Hints** | Keyword → agent recommendations | Static config |
@@ -541,17 +537,17 @@ User: "Build auth system"
        ▼
 Chief-of-Staff: "Starting new epic. Spawning SDD pipeline."
        │
-       ├──▶ sisyphus/spec-writer → Creates requirements
+       ├──▶ chief-of-staff/spec-writer → Creates requirements
        │          │
        │          ▼ (assumption detected)
-       │    sisyphus/interviewer: "Which OAuth providers?"
+       │    chief-of-staff/interviewer: "Which OAuth providers?"
        │          │
        │          ▼ (user answers)
        │    Chief-of-Staff: Logs assumption resolution
        │
-       ├──▶ sisyphus/planner → Creates implementation plan
-       ├──▶ sisyphus/validator → Checks against precedents
-       └──▶ sisyphus/executor → Implements with TDD
+       ├──▶ chief-of-staff/planner → Creates implementation plan
+       ├──▶ chief-of-staff/validator → Checks against precedents
+       └──▶ chief-of-staff/executor → Implements with TDD
 ```
 
 #### Scenario 2: SDD → Interactive → Chief
@@ -562,7 +558,7 @@ Executor hits ambiguity:
        ▼
 Executor: "Config structure unclear. Escalating."
        │
-       ├──▶ sisyphus/interviewer: "Two options for config..."
+       ├──▶ chief-of-staff/interviewer: "Two options for config..."
        │          │
        │          ▼ (user chooses)
        │
@@ -597,14 +593,14 @@ Should I continue with these assumptions?"
 ```typescript
 // Workflows can call each other via skill_agent
 const result = await skill_agent({
-  skill_name: "sisyphus",
+  skill_name: "chief-of-staff",
   agent_name: "interviewer",
   prompt: "Clarify: Which database provider?",
 });
 
 // Chief-of-Staff can spawn SDD pipeline
 const pipeline = await skill_agent({
-  skill_name: "sisyphus",
+  skill_name: "chief-of-staff",
   agent_name: "planner",
   prompt: JSON.stringify({
     spec: specResult.output,
@@ -628,17 +624,27 @@ await swarmmail_send({
 
 ## skill_agent Tool Analysis & Improvements
 
-### Current Implementation Review
+### Implemented: `skill_agent` - Agent Invocation
 
 ```typescript
-// Current: src/opencode/agent/tools.ts (76 lines)
 skill_agent({
-  skill_name: string,      // e.g., "sisyphus"
-  agent_name: string,      // e.g., "planner"
-  prompt: string,          // Task description
-  run_in_background?: boolean  // Foreground (blocking) or background
+  agent_name: string,      // e.g., "chief-of-staff/planner"
+  prompt: string,          // Task description or question
+  context?: string         // Optional: prepended context
 })
-→ { success: true, output/taskId } | { success: false, error, message }
+→ { "success": true, "agent": "...", "messageID": "...", "note": "..." }
+| { "success": false, "error": "SPAWN_FAILED", "message": "..." }
+```
+
+### Implemented: `skill_list` - Agent Discovery
+
+```typescript
+skill_list()
+→ {
+  "success": true,
+  "agents": ["chief-of-staff/oracle", "chief-of-staff/interviewer", ...],
+  "note": "..."
+}
 ```
 
 ### Identified Limitations
@@ -663,7 +669,7 @@ skill_list({
 → {
   agents: [
     { 
-      name: "sisyphus/planner",
+      name: "chief-of-staff/planner",
       description: "Strategic design agent...",
       model: "gemini-3-flash",
       tool_access: ["read", "bash", "lsp_*"]
@@ -680,9 +686,9 @@ skill_list({
 ```typescript
 skill_spawn_batch({
   tasks: [
-    { skill: "sisyphus", agent: "executor", prompt: "Implement auth" },
-    { skill: "sisyphus", agent: "executor", prompt: "Implement db" },
-    { skill: "sisyphus", agent: "executor", prompt: "Write tests" },
+    { skill: "chief-of-staff", agent: "executor", prompt: "Implement auth" },
+    { skill: "chief-of-staff", agent: "executor", prompt: "Implement db" },
+    { skill: "chief-of-staff", agent: "executor", prompt: "Write tests" },
   ],
   wait?: boolean,  // true = block until all complete (default: false)
   timeout_ms?: number  // Max wait time
@@ -723,7 +729,7 @@ skill_gather({
 ```typescript
 // Enhanced skill_agent with structured context
 skill_agent({
-  skill_name: "sisyphus",
+  skill_name: "chief-of-staff",
   agent_name: "executor",
   prompt: "Implement the next phase",
   context: {
@@ -755,7 +761,7 @@ skill_agent({
 ```typescript
 // Spawn agent in dialogue mode for multi-turn conversations
 skill_agent({
-  skill_name: "sisyphus",
+  skill_name: "chief-of-staff",
   agent_name: "interviewer",
   prompt: "Clarify auth requirements",
   interaction_mode: "dialogue",  // ⭐ NEW PARAMETER
@@ -812,7 +818,7 @@ let approved = false;
 
 while (!approved) {
   const result = await skill_agent({
-    skill_name: "sisyphus",
+    skill_name: "chief-of-staff",
     agent_name: "interviewer",
     interaction_mode: "dialogue",
     prompt: state ? userInput : "Clarify requirements",
@@ -858,7 +864,7 @@ Session 2: "Build auth" → ... repeats mistake X (didn't query Memory Lane)
 │  │  1. Extract keywords from user's first message          │   │
 │  │  2. Query Memory Lane: memory-lane_find({ query })      │   │
 │  │  3. Inject relevant learnings into system prompt        │   │
-│  │  4. Load SISYPHUS_LEDGER.md if exists                   │   │
+│  │  4. Load LEDGER.md if exists                   │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                           │                                     │
 │                           ▼                                     │
@@ -872,7 +878,7 @@ Session 2: "Build auth" → ... repeats mistake X (didn't query Memory Lane)
 │                           ▼                                     │
 │  SESSION END HOOK (Automatic)                                   │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │  1. Spawn sisyphus/memory-catcher agent                 │   │
+│  │  1. Spawn chief-of-staff/memory-catcher agent                 │   │
 │  │  2. Extract learnings from conversation                 │   │
 │  │  3. Store via memory-lane_store with taxonomy           │   │
 │  │  4. Update LEDGER if work ongoing                       │   │
@@ -909,7 +915,7 @@ export function createSessionLearningInjector() {
       });
       
       // 3. Load ledger if exists
-      const ledgerPath = '.sisyphus/SISYPHUS_LEDGER.md';
+      const ledgerPath = '.opencode/LEDGER.md';
       const ledger = existsSync(ledgerPath) 
         ? await readFile(ledgerPath, 'utf-8')
         : null;
@@ -942,7 +948,7 @@ function buildLearningContext(learnings: Memory[], ledger: string | null) {
   
   if (ledger) {
     context += `\n## Continuity State\n`;
-    context += `Previous work detected. Resume from SISYPHUS_LEDGER.md.\n`;
+    context += `Previous work detected. Resume from LEDGER.md.\n`;
   }
   
   return context;
@@ -960,7 +966,7 @@ export function createSessionLearningCapture() {
     async execute(context: SessionContext) {
       // 1. Spawn memory-catcher to extract learnings
       const result = await skill_agent({
-        skill_name: 'sisyphus',
+        skill_name: 'chief-of-staff',
         agent_name: 'memory-catcher',
         prompt: `
           Analyze this session transcript and extract actionable learnings.
@@ -1079,8 +1085,8 @@ Agent avoids mistake before making it
 │       ├──▶ skill_list (discover available agents)               │
 │       │                                                         │
 │  [Planning]                                                     │
-│       ├──▶ skill_agent(sisyphus/planner)                        │
-│       ├──▶ skill_agent(sisyphus/validator)                      │
+│       ├──▶ skill_agent(chief-of-staff/planner)                        │
+│       ├──▶ skill_agent(chief-of-staff/validator)                      │
 │       │                                                         │
 │  [Execution - Parallel]                                         │
 │       ├──▶ skill_spawn_batch([                                  │
@@ -1095,7 +1101,7 @@ Agent avoids mistake before making it
 │       ├──▶ ledger_update(current_state)                         │
 │       │                                                         │
 │  [Session End]                                                  │
-│       ├──▶ skill_agent(sisyphus/memory-catcher)                 │
+│       ├──▶ skill_agent(chief-of-staff/memory-catcher)                 │
 │       └──▶ memory-lane_store(learnings)                         │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -1124,19 +1130,19 @@ Agent avoids mistake before making it
 
 ---
 
-## Appendix: Existing Sisyphus Agents
+## Appendix: Existing Chief-of-Staff Agents
 
 | Agent | Purpose | Tools |
 |-------|---------|-------|
-| `sisyphus/oracle` | Expert advisor (read-only analysis) | read |
-| `sisyphus/planner` | Strategic designer | read, bash, LSP |
-| `sisyphus/validator` | Quality gate (precedent check) | read, memory-lane |
-| `sisyphus/executor` | TDD implementation | read, write, edit, bash |
-| `sisyphus/explore` | Codebase search | read, grep, LSP |
-| `sisyphus/librarian` | External research | gh, context7, websearch |
-| `sisyphus/memory-catcher` | Learning extraction | memory-lane |
-| `sisyphus/frontend-ui-ux-engineer` | UI/UX specialist | TBD |
+| `chief-of-staff/oracle` | Expert advisor (read-only analysis) | read |
+| `chief-of-staff/planner` | Strategic designer | read, bash, LSP |
+| `chief-of-staff/validator` | Quality gate (precedent check) | read, memory-lane |
+| `chief-of-staff/executor` | TDD implementation | read, write, edit, bash |
+| `chief-of-staff/explore` | Codebase search | read, grep, LSP |
+| `chief-of-staff/librarian` | External research | gh, context7, websearch |
+| `chief-of-staff/memory-catcher` | Learning extraction | memory-lane |
+| `chief-of-staff/frontend-ui-ux-engineer` | UI/UX specialist | TBD |
 
 ---
 
-*This SPEC represents the next evolution of the orchestrator module, building on the proof-of-concept in `src/orchestrator/sisyphus/`.*
+*This SPEC represents the next evolution of the orchestrator module, building on the proof-of-concept in `src/orchestrator/chief-of-staff/`.*

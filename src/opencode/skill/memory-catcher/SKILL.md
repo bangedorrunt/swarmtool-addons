@@ -203,7 +203,7 @@ await memory-lane_store({
 ```json
 {
   "bead_id": "def_456",
-  "agent_name": "Sisyphus",
+  "agent_name": "Chief-of-Staff",
   "summary": "Chose SQLite over PostgreSQL for local development",
   "evaluation": "Evaluated database options. PostgreSQL requires external service, SQLite is embedded. For local development with minimal setup, SQLite is superior. Migration to production PostgreSQL remains possible.",
   "files_touched": [

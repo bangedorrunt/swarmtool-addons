@@ -68,7 +68,7 @@ Agent proceeds with correct direction
 ```typescript
 // Spawn agent in dialogue mode
 const result = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'interviewer',
   interaction_mode: 'dialogue',  // ⭐ KEY!
   prompt: 'Clarify requirements for auth feature',
@@ -87,7 +87,7 @@ if (state.status === 'needs_input') {
   
   // Continue dialogue with accumulated state
   const continued = await skill_agent({
-    skill_name: 'sisyphus',
+    skill_name: 'chief-of-staff',
     agent_name: 'interviewer',
     interaction_mode: 'dialogue',
     prompt: userAnswer,
@@ -132,7 +132,7 @@ let approved = false;
 
 while (!approved) {
   const result = await skill_agent({
-    skill_name: 'sisyphus',
+    skill_name: 'chief-of-staff',
     agent_name: 'interviewer',
     interaction_mode: 'dialogue',
     prompt: interviewState ? userInput : 'Clarify auth requirements',
@@ -153,7 +153,7 @@ const explicitDirection = result.output.output.explicit_direction;
 
 // Phase 2: Create spec with confirmed direction
 const spec = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'spec-writer',
   prompt: 'Create auth spec',
   context: { explicit_direction: explicitDirection },
@@ -161,7 +161,7 @@ const spec = await skill_agent({
 
 // Phase 3: Plan (one-shot, no dialogue needed)
 const plan = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'planner',
   prompt: 'Create implementation plan',
   context: { spec: spec.output },
@@ -173,7 +173,7 @@ const plan = await skill_agent({
 ```typescript
 // Chief-of-Staff uses dialogue for checkpoints
 const chief = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'chief-of-staff',
   interaction_mode: 'dialogue',
   prompt: 'Manage auth implementation',
@@ -205,7 +205,7 @@ These patterns work with just `skill_agent` - no swarm infrastructure needed.
 ```typescript
 // Just spawn the oracle agent directly
 const result = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'oracle',
   prompt: `
     We're building a real-time analytics dashboard.
@@ -241,7 +241,7 @@ const result = await skill_agent({
 ```typescript
 // Step 1: Clarify with interviewer
 const clarification = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'interviewer',
   prompt: 'User wants to "build a dashboard". Clarify requirements.',
 });
@@ -256,7 +256,7 @@ const clarification = await skill_agent({
 
 // Step 2: Now proceed with clear direction
 const spec = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'spec-writer',
   prompt: 'Create spec for business analytics dashboard',
   context: {
@@ -279,14 +279,14 @@ const spec = await skill_agent({
 ```typescript
 // Phase 1: Create specification
 const spec = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'spec-writer',
   prompt: 'Create spec for email/password auth with OAuth support',
 });
 
 // Phase 2: Create implementation plan
 const plan = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'planner',
   prompt: 'Create implementation plan for auth system',
   context: { spec: spec.output },
@@ -294,7 +294,7 @@ const plan = await skill_agent({
 
 // Phase 3: Validate plan against precedents
 const validation = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'validator',
   prompt: 'Validate auth implementation plan',
   context: { plan: plan.output },
@@ -304,7 +304,7 @@ const validation = await skill_agent({
 if (validation.output.verdict === 'PASS') {
   for (const phase of plan.output.phases) {
     await skill_agent({
-      skill_name: 'sisyphus',
+      skill_name: 'chief-of-staff',
       agent_name: 'executor',
       prompt: `Implement: ${phase.title}`,
       context: { files_assigned: phase.files },
@@ -327,7 +327,7 @@ if (validation.output.verdict === 'PASS') {
 ```typescript
 // Step 1: Research the library
 const research = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'librarian',
   prompt: `
     Research Drizzle ORM for PostgreSQL:
@@ -340,14 +340,14 @@ const research = await skill_agent({
 
 // Step 2: Explore existing codebase for patterns
 const codebase = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'explore',
   prompt: 'Find existing database patterns in this project',
 });
 
 // Step 3: Plan integration
 const plan = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'planner',
   prompt: 'Plan Drizzle ORM integration',
   context: {
@@ -416,11 +416,11 @@ These patterns leverage SwarmMail for inter-agent communication.
 // Spawn parallel workers
 const { task_ids } = await skill_spawn_batch({
   tasks: [
-    { skill: 'sisyphus', agent: 'executor', prompt: 'Refactor auth module' },
-    { skill: 'sisyphus', agent: 'executor', prompt: 'Refactor user module' },
-    { skill: 'sisyphus', agent: 'executor', prompt: 'Refactor billing module' },
-    { skill: 'sisyphus', agent: 'executor', prompt: 'Refactor notifications' },
-    { skill: 'sisyphus', agent: 'executor', prompt: 'Update shared utilities' },
+    { skill: 'chief-of-staff', agent: 'executor', prompt: 'Refactor auth module' },
+    { skill: 'chief-of-staff', agent: 'executor', prompt: 'Refactor user module' },
+    { skill: 'chief-of-staff', agent: 'executor', prompt: 'Refactor billing module' },
+    { skill: 'chief-of-staff', agent: 'executor', prompt: 'Refactor notifications' },
+    { skill: 'chief-of-staff', agent: 'executor', prompt: 'Update shared utilities' },
   ],
   wait: false, // Non-blocking
 });
@@ -461,7 +461,7 @@ console.log('All workers complete!');
 ```typescript
 // Chief-of-Staff manages the entire flow
 const chief = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'chief-of-staff',
   prompt: `
     User request: "Build complete e-commerce checkout flow"
@@ -535,7 +535,7 @@ for (const msg of inbox.messages) {
   if (msg.event_type === 'WORKER_BLOCKED') {
     // Spawn utility worker first
     await skill_agent({
-      skill_name: 'sisyphus',
+      skill_name: 'chief-of-staff',
       agent_name: 'executor',
       prompt: `Create shared utility: ${msg.body.suggestion}`,
     });
@@ -566,21 +566,21 @@ for (const msg of inbox.messages) {
 ```typescript
 // 1. Explore codebase structure
 const structure = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'explore',
   prompt: 'Map the project architecture: key directories, patterns, conventions',
 });
 
 // 2. Find similar features for reference
 const examples = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'explore',
   prompt: 'Find examples of API endpoints with authentication',
 });
 
 // 3. Get oracle advice on approach
 const advice = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'oracle',
   prompt: `
     New feature: Add user preferences API
@@ -592,7 +592,7 @@ const advice = await skill_agent({
 
 // 4. Create plan based on patterns
 const plan = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'planner',
   prompt: 'Plan user preferences API implementation',
   context: {
@@ -613,7 +613,7 @@ const plan = await skill_agent({
 ```typescript
 // 1. Analyze current state
 const analysis = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'explore',
   prompt: `
     Analyze JavaScript files for TypeScript migration:
@@ -626,7 +626,7 @@ const analysis = await skill_agent({
 
 // 2. Create migration spec
 const spec = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'spec-writer',
   prompt: 'Create TypeScript migration spec',
   context: { analysis: analysis.output },
@@ -634,7 +634,7 @@ const spec = await skill_agent({
 
 // 3. Plan phased migration
 const plan = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'planner',
   prompt: 'Plan phased TS migration (leaf nodes first)',
   context: { spec: spec.output },
@@ -643,7 +643,7 @@ const plan = await skill_agent({
 // 4. Execute in parallel (files don't conflict)
 const { task_ids } = await skill_spawn_batch({
   tasks: plan.output.phases[0].files.map(file => ({
-    skill: 'sisyphus',
+    skill: 'chief-of-staff',
     agent: 'executor',
     prompt: `Convert to TypeScript: ${file}`,
   })),
@@ -652,7 +652,7 @@ const { task_ids } = await skill_spawn_batch({
 
 // 5. Validate and continue to next phase
 const validation = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'validator',
   prompt: 'Validate TypeScript migration phase 1',
 });
@@ -669,7 +669,7 @@ const validation = await skill_agent({
 ```typescript
 // 1. Gather context from error
 const explore = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'explore',
   prompt: `
     Bug: "Payment fails for amounts > $999"
@@ -683,7 +683,7 @@ const explore = await skill_agent({
 
 // 2. Get expert analysis
 const analysis = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'oracle',
   prompt: `
     Bug context: ${JSON.stringify(explore.output)}
@@ -699,7 +699,7 @@ const analysis = await skill_agent({
 
 // 3. Verify hypothesis with targeted search
 const verification = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'explore',
   prompt: `
     Hypothesis: ${analysis.output.likely_cause}
@@ -711,7 +711,7 @@ const verification = await skill_agent({
 // 4. Fix with executor
 if (verification.output.confirmed) {
   await skill_agent({
-    skill_name: 'sisyphus',
+    skill_name: 'chief-of-staff',
     agent_name: 'executor',
     prompt: `
       Fix payment bug:
@@ -734,7 +734,7 @@ if (verification.output.confirmed) {
 ```typescript
 // Chief-of-Staff orchestrates everything
 const chief = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'chief-of-staff',
   prompt: `
     Epic: "Add team collaboration features"

@@ -84,7 +84,7 @@ Agents are defined in **SKILL.md** files, not code:
 
 ```markdown
 ---
-name: sisyphus/planner
+name: chief-of-staff/planner
 description: Strategic design agent
 model: google/gemini-3-flash
 metadata:
@@ -216,7 +216,7 @@ Implicit decisions are tracked and periodically reviewed:
 │                                    │                                        │
 │  ┌───────────────────────────────────────────────────────────────────────┐ │
 │  │  LAYER 2: STATE PERSISTENCE (CCv2-Inspired)                           │ │
-│  │  SISYPHUS_LEDGER.md + handoff-*.md + Memory Lane                      │ │
+│  │  LEDGER.md + handoff-*.md + Memory Lane                      │ │
 │  │  → Pure file-based, no runtime dependency                             │ │
 │  └───────────────────────────────────────────────────────────────────────┘ │
 │                                    │                                        │
@@ -235,7 +235,7 @@ Implicit decisions are tracked and periodically reviewed:
 
 ```
 ~/.config/opencode/skill/
-└── sisyphus/                        # Skill directory
+└── chief-of-staff/                  # Skill directory
     ├── SKILL.md                     # Parent skill (kernel)
     └── agents/                      # Subagent directory
         ├── chief-of-staff/
@@ -259,8 +259,8 @@ Implicit decisions are tracked and periodically reviewed:
         └── librarian/
             └── SKILL.md             # External research
 
-.sisyphus/                           # Project state (file-based)
-├── SISYPHUS_LEDGER.md               # Current state projection
+.opencode/                           # Project state (file-based)
+├── LEDGER.md                        # Current state projection
 ├── handoff-*.md                     # Context wipe recovery files
 └── assumptions.json                 # Chief-of-Staff tracked assumptions
 ```
@@ -277,7 +277,7 @@ Implicit decisions are tracked and periodically reviewed:
 Main Agent                    Sub-Agent
     │                             │
     │  skill_agent({              │
-    │    skill: "sisyphus",       │
+    │    skill: "chief-of-staff", │
     │    agent: "planner",        │
     │    prompt: "Design auth"    │
     │  })                         │
@@ -296,7 +296,7 @@ Main Agent                    Sub-Agent
 **Principle**: Human-readable state projection for debugging and recovery.
 
 ```markdown
-# SISYPHUS_LEDGER.md
+# LEDGER.md
 
 ## Goal
 Refactor authentication system to use JWT tokens
@@ -368,7 +368,7 @@ Refactor authentication system to use JWT tokens
 User: "Build a dashboard"
        │
        ▼
-sisyphus/interviewer:
+chief-of-staff/interviewer:
 ┌─────────────────────────────────────────────────────────────────┐
 │  Before I proceed, I need to clarify:                           │
 │                                                                 │
@@ -390,7 +390,7 @@ sisyphus/interviewer:
 Chief-of-Staff: Logs answers as explicit direction
        │
        ▼
-sisyphus/planner: Creates plan with zero assumptions
+chief-of-staff/planner: Creates plan with zero assumptions
 ```
 
 ---
@@ -406,7 +406,7 @@ sisyphus/planner: Creates plan with zero assumptions
 │                                                                 │
 │  1. SPEC PHASE                                                  │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │  sisyphus/spec-writer                                    │   │
+│  │  chief-of-staff/spec-writer                              │   │
 │  │  Input: "Build auth system"                              │   │
 │  │  Output: {                                               │   │
 │  │    requirements: [...],                                  │   │
@@ -417,7 +417,7 @@ sisyphus/planner: Creates plan with zero assumptions
 │                               │                                 │
 │  2. PLAN PHASE                ▼                                 │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │  sisyphus/planner                                        │   │
+│  │  chief-of-staff/planner                                  │   │
 │  │  Input: spec.requirements                                │   │
 │  │  Output: {                                               │   │
 │  │    phases: [...],                                        │   │
@@ -428,7 +428,7 @@ sisyphus/planner: Creates plan with zero assumptions
 │                               │                                 │
 │  3. VALIDATE PHASE            ▼                                 │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │  sisyphus/validator                                      │   │
+│  │  chief-of-staff/validator                                │   │
 │  │  Input: plan + memory-lane precedents                    │   │
 │  │  Output: {                                               │   │
 │  │    verdict: "PASS" | "FAIL",                             │   │
@@ -438,7 +438,7 @@ sisyphus/planner: Creates plan with zero assumptions
 │                               │                                 │
 │  4. EXECUTE PHASE             ▼ (if PASS)                       │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │  sisyphus/executor (parallel workers)                    │   │
+│  │  chief-of-staff/executor (parallel workers)              │   │
 │  │  Input: plan.phases[current]                             │   │
 │  │  Output: {                                               │   │
 │  │    files_touched: [...],                                 │   │
@@ -516,9 +516,9 @@ sisyphus/planner: Creates plan with zero assumptions
 │       ├──▶ skill_list (discover available agents)               │
 │       │                                                         │
 │  [Planning]                                                     │
-│       ├──▶ skill_agent(sisyphus/interviewer)                    │
-│       ├──▶ skill_agent(sisyphus/planner)                        │
-│       ├──▶ skill_agent(sisyphus/validator)                      │
+│       ├──▶ skill_agent(chief-of-staff/interviewer)              │
+│       ├──▶ skill_agent(chief-of-staff/planner)                  │
+│       ├──▶ skill_agent(chief-of-staff/validator)                │
 │       │                                                         │
 │  [Execution - Parallel]                                         │
 │       ├──▶ skill_spawn_batch([executors...])                    │
@@ -529,7 +529,7 @@ sisyphus/planner: Creates plan with zero assumptions
 │       ├──▶ ledger_update(current_state)                         │
 │       │                                                         │
 │  [Session End]                                                  │
-│       ├──▶ skill_agent(sisyphus/memory-catcher)                 │
+│       ├──▶ skill_agent(chief-of-staff/memory-catcher)           │
 │       └──▶ memory-lane_store(learnings)                         │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -552,7 +552,7 @@ sisyphus/planner: Creates plan with zero assumptions
 │  │                                                          │   │
 │  │  1. Extract keywords from user's first message           │   │
 │  │  2. Query: memory-lane_find({ query: keywords })         │   │
-│  │  3. Load: .sisyphus/SISYPHUS_LEDGER.md (if exists)       │   │
+│  │  3. Load: .opencode/LEDGER.md (if exists)                 │   │
 │  │  4. Inject into system prompt:                           │   │
 │  │     "## Relevant Past Learnings                          │   │
 │  │      - [correction]: User prefers Zod over io-ts         │   │
@@ -573,11 +573,11 @@ sisyphus/planner: Creates plan with zero assumptions
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │  Hook: createSessionLearningCapture                      │   │
 │  │                                                          │   │
-│  │  1. Spawn: sisyphus/memory-catcher                       │   │
+│  │  1. Spawn: chief-of-staff/memory-catcher                 │   │
 │  │  2. Pass: { transcript, files_touched }                  │   │
 │  │  3. Extract: corrections, decisions, patterns            │   │
 │  │  4. Store: memory-lane_store(each learning)              │   │
-│  │  5. Update: SISYPHUS_LEDGER.md if ongoing work           │   │
+│  │  5. Update: LEDGER.md if ongoing work           │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
 │  NEXT SESSION                                                   │
@@ -609,7 +609,7 @@ The memory-catcher agent is reimplemented to embrace the self-learning workflow:
 
 ```yaml
 ---
-name: sisyphus/memory-catcher
+name: chief-of-staff/memory-catcher
 description: >-
   Session-end learning extraction agent. Analyzes transcripts to find
   corrections, decisions, patterns, and anti-patterns. Stores via Memory Lane
@@ -828,7 +828,7 @@ export function createSessionLearningInjector() {
       });
       
       // 3. Load ledger
-      const ledgerPath = '.sisyphus/SISYPHUS_LEDGER.md';
+      const ledgerPath = '.opencode/LEDGER.md';
       const ledger = existsSync(ledgerPath) 
         ? await readFile(ledgerPath, 'utf-8')
         : null;
@@ -848,7 +848,7 @@ export function createSessionLearningInjector() {
       
       if (ledger) {
         injection += '\n## Continuity State\n';
-        injection += 'Previous work detected. Resume from SISYPHUS_LEDGER.md.\n';
+        injection += 'Previous work detected. Resume from LEDGER.md.\n';
       }
       
       return { systemPromptAddition: injection };
@@ -864,7 +864,7 @@ export function createSessionLearningCapture() {
     async execute(context: SessionContext) {
       // Spawn memory-catcher with session context
       const result = await skill_agent({
-        skill_name: 'sisyphus',
+        skill_name: 'chief-of-staff',
         agent_name: 'memory-catcher',
         prompt: 'Extract learnings from this session.',
         context: {
@@ -884,9 +884,9 @@ export function createSessionLearningCapture() {
 ### Step 3: Chief-of-Staff Agent (Week 3)
 
 ```markdown
-<!-- sisyphus/agents/chief-of-staff/SKILL.md -->
+<!-- chief-of-staff/agents/chief-of-staff/SKILL.md -->
 ---
-name: sisyphus/chief-of-staff
+name: chief-of-staff/chief-of-staff
 description: Strategic manager tracking direction, assumptions, and worker fleet
 model: google/gemini-3-pro
 metadata:
@@ -967,7 +967,7 @@ async function runSDDPipeline(userRequest: string) {
   // 2. Chief-of-Staff orchestrates
   
   const chief = await skill_agent({
-    skill_name: 'sisyphus',
+    skill_name: 'chief-of-staff',
     agent_name: 'chief-of-staff',
     prompt: `User request: "${userRequest}". Begin SDD pipeline.`,
   });
@@ -989,7 +989,7 @@ async function parallelImplementation(plan: Plan) {
   // Spawn batch
   const { task_ids } = await skill_spawn_batch({
     tasks: plan.phases.map(phase => ({
-      skill: 'sisyphus',
+      skill: 'chief-of-staff',
       agent: 'executor',
       prompt: `Implement phase: ${phase.title}`,
     })),

@@ -222,15 +222,15 @@ const results = await skill_gather({ task_ids });
 **Survive context wipes and session breaks:**
 
 ```
-.sisyphus/
-├── SISYPHUS_LEDGER.md       # Current state, decisions
+.opencode/
+├── LEDGER.md       # Current state, decisions
 ├── assumptions.json          # Tracked assumptions
 ├── dialogue_state.json       # Multi-turn state
 └── handoff-{timestamp}.md    # Context wipe recovery
 ```
 
 **Auto-resume after interruption:**
-1. Agent reads `SISYPHUS_LEDGER.md`
+1. Agent reads `LEDGER.md`
 2. Sees: "Phase: EXECUTING, Progress: 3/5 modules done"
 3. Continues from checkpoint
 
@@ -354,7 +354,7 @@ Agent implements correctly
 - [WORKFLOW_PATTERNS_GUIDE.md](docs/WORKFLOW_PATTERNS_GUIDE.md) - Comprehensive usage patterns
 - [SKILL_BASED_AGENTS_SPEC.md](docs/SKILL_BASED_AGENTS_SPEC.md) - Technical specification
 - [PLAN.md](docs/PLAN.md) - Architecture and roadmap
-- Individual agent `SKILL.md` files in `src/orchestrator/sisyphus/agents/`
+- Individual agent `SKILL.md` files in `src/orchestrator/chief-of-staff/agents/`
 
 ---
 

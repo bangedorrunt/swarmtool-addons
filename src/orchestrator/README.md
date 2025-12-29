@@ -417,7 +417,7 @@ In your project's `.opencode.json`:
 ```json
 {
   "models": {
-    "sisyphus/oracle": { "model": "openrouter/anthropic/claude-3.5-sonnet" }
+    "chief-of-staff/oracle": { "model": "openrouter/anthropic/claude-3.5-sonnet" }
   }
 }
 ```

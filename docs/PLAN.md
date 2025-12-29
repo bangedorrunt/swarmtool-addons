@@ -137,7 +137,7 @@ swarm-tool-addons/
 │   │   ├── tools.ts             # skill_* tools
 │   │   ├── hooks/               # Self-learning hooks
 │   │   ├── examples/            # Demo workflows
-│   │   └── sisyphus/            # Main orchestrator skill
+│   │   └── chief-of-staff/      # Main orchestrator skill
 │   │       └── agents/          # 11 specialized agents
 │   ├── memory-lane/             # Semantic memory
 │   └── conductor/               # SDD framework
@@ -157,7 +157,7 @@ Agents return structured JSON, not conversation history:
 
 ```typescript
 const result = await skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'planner',
   prompt: 'Create plan for auth feature',
 });
@@ -181,8 +181,8 @@ context: {
 State persists across context wipes:
 
 ```
-.sisyphus/
-├── SISYPHUS_LEDGER.md    # Human-readable state
+.opencode/
+├── LEDGER.md              # Human-readable state
 └── assumptions.json       # Tracked assumptions
 ```
 
@@ -211,7 +211,7 @@ Session 2:
 ```typescript
 // Ask the oracle
 skill_agent({
-  skill_name: 'sisyphus',
+  skill_name: 'chief-of-staff',
   agent_name: 'oracle',
   prompt: 'Should I use PostgreSQL or MongoDB for analytics?'
 })
@@ -223,7 +223,7 @@ skill_agent({
 // Refactor multiple files in parallel
 skill_spawn_batch({
   tasks: files.map(f => ({
-    skill: 'sisyphus',
+    skill: 'chief-of-staff',
     agent: 'executor',
     prompt: `Refactor ${f} to TypeScript`
   })),
@@ -274,17 +274,17 @@ const memories = await queryLearnings("database preferences");
 
 | Agent | SKILL.md Location |
 |-------|-------------------|
-| Oracle | `sisyphus/agents/oracle/` |
-| Librarian | `sisyphus/agents/librarian/` |
-| Explore | `sisyphus/agents/explore/` |
-| Interviewer | `sisyphus/agents/interviewer/` |
-| Spec-Writer | `sisyphus/agents/spec-writer/` |
-| Planner | `sisyphus/agents/planner/` |
-| Validator | `sisyphus/agents/validator/` |
-| Executor | `sisyphus/agents/executor/` |
-| Memory-Catcher | `sisyphus/agents/memory-catcher/` |
-| Chief-of-Staff | `sisyphus/agents/chief-of-staff/` |
-| Workflow-Architect | `sisyphus/agents/workflow-architect/` |
+| Oracle | `chief-of-staff/agents/oracle/` |
+| Librarian | `chief-of-staff/agents/librarian/` |
+| Explore | `chief-of-staff/agents/explore/` |
+| Interviewer | `chief-of-staff/agents/interviewer/` |
+| Spec-Writer | `chief-of-staff/agents/spec-writer/` |
+| Planner | `chief-of-staff/agents/planner/` |
+| Validator | `chief-of-staff/agents/validator/` |
+| Executor | `chief-of-staff/agents/executor/` |
+| Memory-Catcher | `chief-of-staff/agents/memory-catcher/` |
+| Chief-of-Staff | `chief-of-staff/agents/chief-of-staff/` |
+| Workflow-Architect | `chief-of-staff/agents/workflow-architect/` |
 
 ---
 

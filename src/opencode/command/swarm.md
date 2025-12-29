@@ -101,7 +101,7 @@ Check for flags in the task:
 - Wait for answer - don't assume
 
 ### Phase 1: Initialize
-`swarmmail_init(project_path="$PWD", task_description="Swarm: $ARGUMENTS")`
+`swarmmail_init_safe(project_path="$PWD", task_description="Swarm: $ARGUMENTS")`
 
 ### Phase 1.5: Research Phase (FOR COMPLEX TASKS)
 
@@ -118,8 +118,11 @@ swarm_spawn_researcher(
   project_path="$PWD"
 )
 
-// 2. Spawn researcher as Task subagent
-const researchFindings = await Task(subagent_type="swarm-researcher", prompt="<from above>")
+// 2. Spawn researcher as skill_agent
+const researchFindings = await skill_agent({
+  agent_name: "chief-of-staff/researcher",
+  prompt: "<from above>"
+})
 
 // 3. Researcher returns condensed summary
 // Use this summary in shared_context for workers
@@ -147,7 +150,7 @@ const researchFindings = await Task(subagent_type="swarm-researcher", prompt="<f
 ```
 memory-lane_find(query="<task keywords>", limit=5)       # Past learnings (decisions, corrections)
 cass_search({ query: "<task description>", limit: 5 })         # Similar past tasks  
-use skill                                                # Available skills
+skill_list()                                             # Available registered agents (oracle, worker, researcher, etc.)
 ```
 
 Synthesize findings into shared_context for workers.
@@ -177,25 +180,25 @@ swarm_validate_decomposition(response="<CellTree JSON>")
 ```
 // Single message with multiple Task calls
 swarm_spawn_subtask(bead_id_1, epic_id, title_1, files_1, shared_context, project_path="$PWD")
-Task(subagent_type="swarm/worker", prompt="<from above>")
+skill_agent({ agent_name: "chief-of-staff/worker", prompt: "<from above>" })
 swarm_spawn_subtask(bead_id_2, epic_id, title_2, files_2, shared_context, project_path="$PWD")
-Task(subagent_type="swarm/worker", prompt="<from above>")
+skill_agent({ agent_name: "chief-of-staff/worker", prompt: "<from above>" })
 ```
 
 **For sequential work:**
 ```
 // Spawn worker 1, wait for completion
 swarm_spawn_subtask(bead_id_1, ...)
-const result1 = await Task(subagent_type="swarm/worker", prompt="<from above>")
+const result1 = await skill_agent({ agent_name: "chief-of-staff/worker", prompt: "<from above>" })
 
 // THEN spawn worker 2 with context from worker 1
 swarm_spawn_subtask(bead_id_2, ..., shared_context="Worker 1 completed: " + result1)
-const result2 = await Task(subagent_type="swarm/worker", prompt="<from above>")
+const result2 = await skill_agent({ agent_name: "chief-of-staff/worker", prompt: "<from above>" })
 ```
 
 **NEVER do the work yourself.** Even if it seems faster, spawn a worker.
 
-**IMPORTANT:** Pass `project_path` to `swarm_spawn_subtask` so workers can call `swarmmail_init`.
+**IMPORTANT:** Pass `project_path` to `swarm_spawn_subtask` so workers can call `swarmmail_init_safe`.
 
 ### Phase 7: MANDATORY Review Loop (NON-NEGOTIABLE)
 
@@ -223,7 +226,7 @@ const result2 = await Task(subagent_type="swarm/worker", prompt="<from above>")
    **If needs_changes:**
    - `swarm_review_feedback` returns `retry_context` (NOT sends message - worker is dead)
    - Generate retry prompt: `swarm_spawn_retry(retry_context)`
-   - Spawn NEW worker with Task() using retry prompt
+   - Spawn NEW worker with `skill_agent` using retry prompt
    - Max 3 attempts before marking task blocked
    
    **If 3 failures:**

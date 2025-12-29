@@ -68,10 +68,14 @@ export interface ConfigValidationResult {
  * Maps agent paths (from src/opencode/agent/*.md and src/orchestrator subdirectories) to default models
  */
 export const DEFAULT_MODELS = {
-  'swarm/planner': 'opencode/big-pickle',
-  'swarm/worker': 'opencode/glm-4.7-free',
-  'swarm/researcher': 'opencode/grok-code',
-  oracle: 'openai/gpt-5.2',
+  build: 'google/gemini-3-flash',
+  plan: 'google/gemini-3-flash',
+  explore: 'google/gemini-3-flash',
+  general: 'google/gemini-3-flash',
+  'chief-of-staff/oracle': 'google/gemini-3-flash',
+  'swarm/planner': 'google/gemini-3-flash',
+  'swarm/worker': 'google/gemini-3-flash',
+  'swarm/researcher': 'google/gemini-3-flash',
 } as const;
 
 /**
@@ -171,6 +175,8 @@ export function validateConfig(config: SwarmToolAddonsConfig): ConfigValidationR
 export function getDefaultConfig(): SwarmToolAddonsConfig {
   return {
     models: {
+      build: { model: DEFAULT_MODELS.build },
+      plan: { model: DEFAULT_MODELS.plan },
       'swarm/planner': {
         model: DEFAULT_MODELS['swarm/planner'],
       },
@@ -179,9 +185,6 @@ export function getDefaultConfig(): SwarmToolAddonsConfig {
       },
       'swarm/researcher': {
         model: DEFAULT_MODELS['swarm/researcher'],
-      },
-      oracle: {
-        model: DEFAULT_MODELS.oracle,
       },
     },
     debug: false,

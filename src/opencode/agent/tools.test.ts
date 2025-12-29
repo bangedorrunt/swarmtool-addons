@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createSkillAgentTools } from './tools';
-import { loadSkillAgents } from '../loader';
-import * as loader from '../loader';
+import { createSkillAgentTools } from '../../orchestrator/tools';
+import * as skillLoader from '../config/skill-loader';
 
 /**
  * Unit Tests for Skill Agent Tools
@@ -23,14 +22,20 @@ describe('createSkillAgentTools', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
 
-    // Mock client with call method
+    // Mock client with session.prompt method
     mockClient = {
-      call: vi.fn().mockResolvedValue('task-result'),
+      session: {
+        create: vi.fn().mockResolvedValue({
+          data: { id: 'test-session' },
+        }),
+        prompt: vi.fn().mockResolvedValue({
+          data: {
+            success: true,
+            note: 'Agent message sent.',
+          },
+        }),
+      },
     };
-
-    // Mock loadSkillAgents
-    loadSkillAgentsMock = vi.spyOn(loader, 'loadSkillAgents');
-    loadSkillAgentsMock.mockClear();
   });
 
   describe('skill_agent tool', () => {
@@ -41,412 +46,124 @@ describe('createSkillAgentTools', () => {
       skillAgentTool = tools.skill_agent;
     });
 
-    describe('resolves fullName correctly', () => {
-      it('constructs fullName as skill_name/agent_name', async () => {
-        // Mock agent discovery
-        loadSkillAgentsMock.mockResolvedValue([
+    describe('skill_agent invocation', () => {
+      it('calls client.session.prompt with correct hierarchical agent name', async () => {
+        await skillAgentTool.execute(
           {
-            name: 'code-reviewer/reviewer',
-            config: {
-              name: 'code-reviewer/reviewer',
-              prompt: 'Review code for issues.',
-            },
+            agent_name: 'chief-of-staff/oracle',
+            prompt: 'Hello Oracle',
           },
-        ]);
-
-        const parsedResult = JSON.parse(
-          await skillAgentTool.execute({
-            skill_name: 'code-reviewer',
-            agent_name: 'reviewer',
-            prompt: 'Review this file',
-          })
+          mockContext
         );
 
-        expect(parsedResult.success).toBe(true);
+        expect(mockClient.session.prompt).toHaveBeenCalledWith({
+          path: { id: 'test-session' },
+          body: {
+            agent: 'chief-of-staff/oracle',
+            parts: [{ type: 'text', text: 'Hello Oracle' }],
+          },
+        });
       });
 
-      it('handles skill names with hyphens', async () => {
-        loadSkillAgentsMock.mockResolvedValue([
+      it('includes context in the prompt if provided', async () => {
+        await skillAgentTool.execute(
           {
-            name: 'my-skill/agent-name',
-            config: {
-              name: 'my-skill/agent-name',
-              prompt: 'Agent prompt',
-            },
+            agent_name: 'chief-of-staff/oracle',
+            prompt: 'Main prompt',
+            context: 'Previous context',
           },
-        ]);
-
-        const parsedResult = JSON.parse(
-          await skillAgentTool.execute({
-            skill_name: 'my-skill',
-            agent_name: 'agent-name',
-            prompt: 'Test task',
-          })
+          mockContext
         );
 
-        expect(parsedResult.success).toBe(true);
-      });
-
-      it('handles skill names with underscores', async () => {
-        loadSkillAgentsMock.mockResolvedValue([
-          {
-            name: 'my_skill/my_agent',
-            config: {
-              name: 'my_skill/my_agent',
-              prompt: 'Agent prompt',
-            },
-          },
-        ]);
-
-        const parsedResult = JSON.parse(
-          await skillAgentTool.execute({
-            skill_name: 'my_skill',
-            agent_name: 'my_agent',
-            prompt: 'Test task',
-          })
-        );
-
-        expect(parsedResult.success).toBe(true);
-      });
-    });
-
-    describe('calls client.call with correct arguments', () => {
-      it('calls client.call with task tool when run_in_background is false', async () => {
-        loadSkillAgentsMock.mockResolvedValue([
-          {
-            name: 'test-skill/test-agent',
-            config: {
-              name: 'test-skill/test-agent',
-              prompt: 'Test agent prompt',
-            },
-          },
-        ]);
-
-        await skillAgentTool.execute({
-          skill_name: 'test-skill',
-          agent_name: 'test-agent',
-          prompt: 'Test task description',
-          run_in_background: false,
-        });
-
-        expect(mockClient.call).toHaveBeenCalledTimes(1);
-        expect(mockClient.call).toHaveBeenCalledWith('task', {
-          description: 'Test task description',
-          agent: 'test-skill/test-agent',
-        });
-      });
-
-      it('calls client.call with background_task tool when run_in_background is true', async () => {
-        mockClient.call.mockResolvedValue('background-task-id');
-
-        loadSkillAgentsMock.mockResolvedValue([
-          {
-            name: 'test-skill/test-agent',
-            config: {
-              name: 'test-skill/test-agent',
-              prompt: 'Test agent prompt',
-            },
-          },
-        ]);
-
-        await skillAgentTool.execute({
-          skill_name: 'test-skill',
-          agent_name: 'test-agent',
-          prompt: 'Test task description',
-          run_in_background: true,
-        });
-
-        expect(mockClient.call).toHaveBeenCalledTimes(1);
-        expect(mockClient.call).toHaveBeenCalledWith('background_task', {
-          description: 'Test task description',
-          agent: 'test-skill/test-agent',
-        });
-      });
-
-      it('defaults run_in_background to false when not provided', async () => {
-        loadSkillAgentsMock.mockResolvedValue([
-          {
-            name: 'test-skill/test-agent',
-            config: {
-              name: 'test-skill/test-agent',
-              prompt: 'Test agent prompt',
-            },
-          },
-        ]);
-
-        await skillAgentTool.execute({
-          skill_name: 'test-skill',
-          agent_name: 'test-agent',
-          prompt: 'Test task description',
-        });
-
-        expect(mockClient.call).toHaveBeenCalledWith('task', expect.any(Object));
-      });
-
-      it('passes prompt from args to client.call', async () => {
-        const customPrompt = 'This is a custom prompt with detailed instructions';
-
-        loadSkillAgentsMock.mockResolvedValue([
-          {
-            name: 'test-skill/test-agent',
-            config: {
-              name: 'test-skill/test-agent',
-              prompt: 'Default prompt',
-            },
-          },
-        ]);
-
-        await skillAgentTool.execute({
-          skill_name: 'test-skill',
-          agent_name: 'test-agent',
-          prompt: customPrompt,
-        });
-
-        expect(mockClient.call).toHaveBeenCalledWith(
-          'task',
+        expect(mockClient.session.prompt).toHaveBeenCalledWith(
           expect.objectContaining({
-            description: customPrompt,
+            body: expect.objectContaining({
+              parts: [{ type: 'text', text: 'Previous context\n\nMain prompt' }],
+            }),
           })
         );
       });
 
-      it('passes agent name from discovery to client.call', async () => {
-        loadSkillAgentsMock.mockResolvedValue([
+      it('returns success when session.prompt succeeds', async () => {
+        const result = await skillAgentTool.execute(
           {
-            name: 'code-reviewer/reviewer',
-            config: {
-              name: 'code-reviewer/reviewer',
-              prompt: 'Code reviewer prompt',
-            },
+            agent_name: 'chief-of-staff/oracle',
+            prompt: 'Test',
           },
-        ]);
-
-        await skillAgentTool.execute({
-          skill_name: 'code-reviewer',
-          agent_name: 'reviewer',
-          prompt: 'Review this code',
-        });
-
-        expect(mockClient.call).toHaveBeenCalledWith(
-          'task',
-          expect.objectContaining({
-            agent: 'code-reviewer/reviewer',
-          })
+          mockContext
         );
-      });
-    });
-
-    describe('error handling for missing agents', () => {
-      it('returns error when agent is not found', async () => {
-        loadSkillAgentsMock.mockResolvedValue([
-          {
-            name: 'test-skill/other-agent',
-            config: {
-              name: 'test-skill/other-agent',
-              prompt: 'Other agent prompt',
-            },
-          },
-        ]);
-
-        const result = await skillAgentTool.execute({
-          skill_name: 'test-skill',
-          agent_name: 'nonexistent-agent',
-          prompt: 'Test task',
-        });
 
         const parsedResult = JSON.parse(result);
+        expect(parsedResult.success).toBe(true);
+        expect(parsedResult.agent).toBe('chief-of-staff/oracle');
+      });
 
-        expect(parsedResult.success).toBe(false);
-        expect(parsedResult.error).toBe('AGENT_NOT_FOUND');
-        expect(parsedResult.message).toContain(
-          "Agent 'nonexistent-agent' not found in skill 'test-skill'"
+      it('returns error when session.create fails', async () => {
+        mockClient.session.create.mockRejectedValue(new Error('Session create failed'));
+
+        try {
+          await skillAgentTool.execute(
+            {
+              agent_name: 'chief-of-staff/oracle',
+              prompt: 'Test',
+            },
+            mockContext
+          );
+        } catch (err: any) {
+          expect(err.message).toContain('Session create failed');
+        }
+      });
+
+      it('returns error when session.prompt fails', async () => {
+        mockClient.session.prompt.mockRejectedValue(new Error('Spawn failed'));
+
+        const result = await skillAgentTool.execute(
+          {
+            agent_name: 'chief-of-staff/oracle',
+            prompt: 'Test',
+          },
+          mockContext
         );
-      });
-
-      it('includes available agents in error message when skill exists', async () => {
-        loadSkillAgentsMock.mockResolvedValue([
-          {
-            name: 'test-skill/agent1',
-            config: {
-              name: 'test-skill/agent1',
-              prompt: 'Agent 1 prompt',
-            },
-          },
-          {
-            name: 'test-skill/agent2',
-            config: {
-              name: 'test-skill/agent2',
-              prompt: 'Agent 2 prompt',
-            },
-          },
-          {
-            name: 'other-skill/agent',
-            config: {
-              name: 'other-skill/agent',
-              prompt: 'Other agent prompt',
-            },
-          },
-        ]);
-
-        const result = await skillAgentTool.execute({
-          skill_name: 'test-skill',
-          agent_name: 'nonexistent',
-          prompt: 'Test task',
-        });
 
         const parsedResult = JSON.parse(result);
-
-        expect(parsedResult.success).toBe(false);
-        expect(parsedResult.error).toBe('AGENT_NOT_FOUND');
-        expect(parsedResult.message).toContain('Available: agent1, agent2');
-      });
-
-      it('indicates no agents found when skill does not exist', async () => {
-        loadSkillAgentsMock.mockResolvedValue([
-          {
-            name: 'other-skill/agent',
-            config: {
-              name: 'other-skill/agent',
-              prompt: 'Other agent',
-            },
-          },
-        ]);
-
-        const result = await skillAgentTool.execute({
-          skill_name: 'nonexistent-skill',
-          agent_name: 'agent',
-          prompt: 'Test task',
-        });
-
-        const parsedResult = JSON.parse(result);
-
-        expect(parsedResult.success).toBe(false);
-        expect(parsedResult.error).toBe('AGENT_NOT_FOUND');
-        expect(parsedResult.message).toContain("No agents found for skill 'nonexistent-skill'");
-      });
-
-      it('does not call client.call when agent is not found', async () => {
-        loadSkillAgentsMock.mockResolvedValue([]);
-
-        await skillAgentTool.execute({
-          skill_name: 'test-skill',
-          agent_name: 'nonexistent',
-          prompt: 'Test task',
-        });
-
-        expect(mockClient.call).not.toHaveBeenCalled();
-      });
-    });
-
-    describe('handles client.call errors', () => {
-      it('returns error when client.call throws', async () => {
-        loadSkillAgentsMock.mockResolvedValue([
-          {
-            name: 'test-skill/test-agent',
-            config: {
-              name: 'test-skill/test-agent',
-              prompt: 'Test agent',
-            },
-          },
-        ]);
-
-        const error = new Error('Network error');
-        mockClient.call.mockRejectedValue(error);
-
-        const result = await skillAgentTool.execute({
-          skill_name: 'test-skill',
-          agent_name: 'test-agent',
-          prompt: 'Test task',
-        });
-
-        const parsedResult = JSON.parse(result);
-
         expect(parsedResult.success).toBe(false);
         expect(parsedResult.error).toBe('SPAWN_FAILED');
-        expect(parsedResult.message).toBe('Network error');
+        expect(parsedResult.message).toBe('Spawn failed');
       });
 
-      it('handles error without message property', async () => {
-        loadSkillAgentsMock.mockResolvedValue([
+      it('returns success even if session.prompt has EOF error (OpenCode quirk)', async () => {
+        mockClient.session.prompt.mockRejectedValue(new Error('JSON Parse error: Unexpected EOF'));
+
+        const result = await skillAgentTool.execute(
           {
-            name: 'test-skill/test-agent',
-            config: {
-              name: 'test-skill/test-agent',
-              prompt: 'Test agent',
-            },
+            agent_name: 'chief-of-staff/oracle',
+            prompt: 'Test',
           },
-        ]);
-
-        mockClient.call.mockRejectedValue('String error');
-
-        const result = await skillAgentTool.execute({
-          skill_name: 'test-skill',
-          agent_name: 'test-agent',
-          prompt: 'Test task',
-        });
+          mockContext
+        );
 
         const parsedResult = JSON.parse(result);
-
-        expect(parsedResult.success).toBe(false);
-        expect(parsedResult.error).toBe('SPAWN_FAILED');
-        expect(parsedResult.message).toBe('String error');
+        expect(parsedResult.success).toBe(true);
+        expect(parsedResult.agent).toBe('chief-of-staff/oracle');
       });
     });
 
-    describe('successful execution', () => {
-      it('returns success with output for foreground task', async () => {
-        const mockOutput = 'Task completed successfully';
+    describe('skill_list tool', () => {
+      let skillListTool: any;
 
-        loadSkillAgentsMock.mockResolvedValue([
-          {
-            name: 'test-skill/test-agent',
-            config: {
-              name: 'test-skill/test-agent',
-              prompt: 'Test agent',
-            },
-          },
-        ]);
-
-        mockClient.call.mockResolvedValue(mockOutput);
-
-        const result = await skillAgentTool.execute({
-          skill_name: 'test-skill',
-          agent_name: 'test-agent',
-          prompt: 'Test task',
-        });
-
-        const parsedResult = JSON.parse(result);
-
-        expect(parsedResult.success).toBe(true);
-        expect(parsedResult.output).toBe(mockOutput);
+      beforeEach(() => {
+        const tools = createSkillAgentTools(mockClient);
+        skillListTool = tools.skill_list;
       });
 
-      it('returns success with taskId for background task', async () => {
-        const mockTaskId = 'task-123-abc';
+      it('lists available agents from loader', async () => {
+        const mockSkillNames = ['chief-of-staff/oracle', 'chief-of-staff/interviewer'];
+        vi.spyOn(skillLoader, 'getAvailableSkillNames').mockResolvedValue(mockSkillNames);
 
-        loadSkillAgentsMock.mockResolvedValue([
-          {
-            name: 'test-skill/test-agent',
-            config: {
-              name: 'test-skill/test-agent',
-              prompt: 'Test agent',
-            },
-          },
-        ]);
+        const result = await skillListTool.execute({}, mockContext);
 
-        mockClient.call.mockResolvedValue(mockTaskId);
-
-        const result = await skillAgentTool.execute({
-          skill_name: 'test-skill',
-          agent_name: 'test-agent',
-          prompt: 'Test task',
-          run_in_background: true,
-        });
-
-        const parsedResult = JSON.parse(result);
-
-        expect(parsedResult.success).toBe(true);
-        expect(parsedResult.taskId).toBe(mockTaskId);
+        expect(result).toContain('chief-of-staff/oracle');
+        expect(result).toContain('chief-of-staff/interviewer');
       });
     });
   });
@@ -456,14 +173,8 @@ describe('createSkillAgentTools', () => {
       const tools = createSkillAgentTools(mockClient);
 
       expect(tools.skill_agent.description).toBe(
-        'Spawn a specialized subagent. Supports context injection and interactive dialogue mode for multi-turn user interactions.'
+        'Spawn a specialized subagent. Use async:false for sequential orchestration (waits for result).'
       );
-    });
-
-    it('has skill_name argument defined', () => {
-      const tools = createSkillAgentTools(mockClient);
-
-      expect(tools.skill_agent.args.skill_name).toBeDefined();
     });
 
     it('has agent_name argument defined', () => {
@@ -478,10 +189,10 @@ describe('createSkillAgentTools', () => {
       expect(tools.skill_agent.args.prompt).toBeDefined();
     });
 
-    it('has run_in_background argument defined as optional', () => {
+    it('has context argument defined as optional', () => {
       const tools = createSkillAgentTools(mockClient);
 
-      expect(tools.skill_agent.args.run_in_background).toBeDefined();
+      expect(tools.skill_agent.args.context).toBeDefined();
     });
   });
 });

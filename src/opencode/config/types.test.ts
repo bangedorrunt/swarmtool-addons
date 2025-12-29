@@ -3,8 +3,6 @@ import {
   SwarmToolAddonsConfig,
   parseConfig,
   validateConfig,
-  DEFAULT_MODELS,
-  getDefaultConfig,
 } from './types';
 
 describe('SwarmToolAddonsConfig', () => {
@@ -334,38 +332,5 @@ describe('SwarmToolAddonsConfig', () => {
     });
   });
 
-  describe('DEFAULT_MODELS includes oracle', () => {
-    it('should include oracle in DEFAULT_MODELS', () => {
-      expect(DEFAULT_MODELS).toHaveProperty('oracle');
-      expect(DEFAULT_MODELS.oracle).toBe('openai/gpt-5.2');
-    });
 
-    it('should have all required agents in DEFAULT_MODELS', () => {
-      const expectedAgents = ['swarm/planner', 'swarm/worker', 'swarm/researcher', 'oracle'];
-
-      for (const agent of expectedAgents) {
-        expect(DEFAULT_MODELS).toHaveProperty(agent);
-        expect(typeof DEFAULT_MODELS[agent as keyof typeof DEFAULT_MODELS]).toBe('string');
-      }
-    });
-  });
-
-  describe('getDefaultConfig includes oracle', () => {
-    it('should include oracle in default config', () => {
-      const defaultConfig = getDefaultConfig();
-      expect(defaultConfig.models).toHaveProperty('oracle');
-      expect(defaultConfig.models.oracle.model).toBe('openai/gpt-5.2');
-    });
-
-    it('should include all agents with their default models', () => {
-      const defaultConfig = getDefaultConfig();
-      const expectedAgents = ['swarm/planner', 'swarm/worker', 'swarm/researcher', 'oracle'];
-
-      for (const agent of expectedAgents) {
-        expect(defaultConfig.models).toHaveProperty(agent);
-        expect(defaultConfig.models[agent]).toBeDefined();
-        expect(defaultConfig.models[agent].model).toBeDefined();
-      }
-    });
-  });
 });

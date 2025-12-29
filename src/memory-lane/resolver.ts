@@ -108,12 +108,6 @@ export class EntityResolver {
         return { type, slug: name || '' };
       });
     } catch (error) {
-      // Log error but return fallback entities (graceful degradation)
-      // eslint-disable-next-line no-console - Error logging is important for debugging database issues
-      console.warn(
-        '[EntityResolver] Failed to load entities from database, using fallback:',
-        error
-      );
       return EntityResolver.FALLBACK_ENTITIES;
     }
   }
@@ -217,7 +211,6 @@ export class EntityResolver {
 
     // 1. Check for exact slug match (fast path)
     if (query.includes(':')) {
-      console.log('[EntityResolver] Exact slug match, returning:', query.toLowerCase());
       return [query.toLowerCase()];
     }
 
