@@ -5,6 +5,7 @@
  * - Custom tools (tools callable by the LLM)
  * - Custom slash commands (user-invokable /commands loaded from .md files)
  * - Config hooks (modify config at runtime)
+ * - Session learning hooks (self-learning across sessions)
  */
 
 import type { Plugin } from '@opencode-ai/plugin';
@@ -15,6 +16,7 @@ import { conductorTools, conductorCheckpointHook, conductorVerifyHook } from './
 import { loadConfig } from './opencode';
 import { loadLocalAgents, loadSkillAgents, loadCommands } from './opencode';
 import { createSkillAgentTools } from './opencode';
+import { createOpenCodeSessionLearningHook } from './orchestrator/hooks';
 
 export const SwarmToolAddons: Plugin = async (input) => {
   // Load configuration
@@ -38,6 +40,19 @@ export const SwarmToolAddons: Plugin = async (input) => {
   // Create tools with client access
   const skillAgentTools = createSkillAgentTools(input.client);
 
+  // Create session learning hook with skill_agent integration
+  const sessionLearningHook = createOpenCodeSessionLearningHook(input, {
+    maxMemories: 10,
+    captureEnabled: true,
+    captureDelay: 2000,
+    skillAgent: async (args) => {
+      // Use the skill_agent tool for spawning memory-catcher
+      // Note: Context is constructed internally, we just need to satisfy the type
+      const result = await skillAgentTools.skill_agent.execute(args, {} as any);
+      return JSON.parse(result);
+    },
+  });
+
   return {
     // Register custom tools
     tool: {
@@ -55,18 +70,18 @@ export const SwarmToolAddons: Plugin = async (input) => {
         if (memoryTools.includes(input.tool)) {
           output.context.push(
             'SYSTEM: Memory Lane Guidance\n' +
-              'When searching for behavioral context (corrections, decisions, preferences), ' +
-              "ALWAYS prioritize 'memory-lane_find' over 'semantic-memory_find'.\n" +
-              "Memory Lane provides intent boosting and entity filtering which 'semantic-memory_find' lacks."
+            'When searching for behavioral context (corrections, decisions, preferences), ' +
+            "ALWAYS prioritize 'memory-lane_find' over 'semantic-memory_find'.\n" +
+            "Memory Lane provides intent boosting and entity filtering which 'semantic-memory_find' lacks."
           );
         }
 
         if (input.tool === 'swarmmail_init' && fs.existsSync(path.join(process.cwd(), 'tracks'))) {
           output.context.push(
             'SYSTEM: Conductor SDD Protocol Active\n' +
-              'This project is managed by Conductor. You MUST follow the Spec-Driven Development (SDD) protocol.\n' +
-              "Use 'conductor_verify' to check quality gates and 'conductor_checkpoint' to commit task completions.\n" +
-              "Never implement without a verified spec and plan in the 'tracks/' directory."
+            'This project is managed by Conductor. You MUST follow the Spec-Driven Development (SDD) protocol.\n' +
+            "Use 'conductor_verify' to check quality gates and 'conductor_checkpoint' to commit task completions.\n" +
+            "Never implement without a verified spec and plan in the 'tracks/' directory."
           );
         }
       },
@@ -79,9 +94,9 @@ export const SwarmToolAddons: Plugin = async (input) => {
         if (input.tool === 'swarmmail_init') {
           output.context.push(
             'SYSTEM: Memory Lane System Active\n' +
-              "You have access to 'memory-lane_find' and 'memory-lane_store'.\n" +
-              "ALWAYS use these instead of 'semantic-memory_*' tools. Memory Lane provides " +
-              'superior high-integrity search, intent boosting, and entity filtering.'
+            "You have access to 'memory-lane_find' and 'memory-lane_store'.\n" +
+            "ALWAYS use these instead of 'semantic-memory_*' tools. Memory Lane provides " +
+            'superior high-integrity search, intent boosting, and entity filtering.'
           );
         }
 
@@ -122,9 +137,8 @@ export const SwarmToolAddons: Plugin = async (input) => {
         }
       },
 
-      event: async () => {
-        // No cleanup needed
-      },
+      // Session learning hook - handles session.created, message.created, session.idle, session.deleted
+      event: sessionLearningHook,
     },
 
     // Config Hook

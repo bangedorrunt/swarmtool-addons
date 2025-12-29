@@ -1,0 +1,476 @@
+/**
+ * OpenCode Session Learning Hooks
+ *
+ * Wires the self-learning workflow into actual OpenCode lifecycle events.
+ * Connects to real Memory Lane database for persistent cross-session learning.
+ *
+ * Events used:
+ * - session.created: Initialize learning context
+ * - message.created (first user message): Inject relevant learnings
+ * - session.idle: Trigger learning capture
+ * - session.deleted: Cleanup
+ */
+
+import type { PluginInput } from '@opencode-ai/plugin';
+import { existsSync } from 'node:fs';
+import { readFile, mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { MemoryLaneAdapter } from '../../memory-lane/adapter';
+import type { MemoryType } from '../../memory-lane/taxonomy';
+
+// Re-export for compatibility with standalone usage
+export {
+    trackAssumption,
+    getTrackedAssumptions,
+    clearTrackedAssumptions,
+    verifyAssumption,
+    type TrackedAssumption,
+} from './session-learning';
+
+interface SessionLearningConfig {
+    /** Max memories to inject at session start. Default: 10 */
+    maxMemories?: number;
+    /** Path to project ledger relative to cwd. Default: .sisyphus/SISYPHUS_LEDGER.md */
+    ledgerPath?: string;
+    /** Enable learning capture at session end. Default: true */
+    captureEnabled?: boolean;
+    /** Delay before capturing (allows user to continue). Default: 2000ms */
+    captureDelay?: number;
+    /** skill_agent function for spawning memory-catcher */
+    skillAgent?: (args: {
+        skill_name: string;
+        agent_name: string;
+        prompt: string;
+        context?: any;
+    }) => Promise<any>;
+}
+
+interface Memory {
+    id: string;
+    type: string;
+    information: string;
+    confidence?: number;
+    entities?: string[];
+}
+
+/**
+ * Extract keywords from user's first message for Memory Lane query
+ */
+function extractKeywords(message: string): string[] {
+    const stopWords = new Set([
+        'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+        'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+        'should', 'may', 'might', 'must', 'can', 'to', 'of', 'in', 'for',
+        'on', 'with', 'at', 'by', 'from', 'as', 'into', 'through', 'during',
+        'before', 'after', 'above', 'below', 'between', 'under', 'again',
+        'further', 'then', 'once', 'here', 'there', 'when', 'where', 'why',
+        'how', 'all', 'each', 'few', 'more', 'most', 'other', 'some', 'such',
+        'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very',
+        'just', 'and', 'but', 'if', 'or', 'because', 'until', 'while', 'this',
+        'that', 'these', 'those', 'i', 'me', 'my', 'we', 'our', 'you', 'your',
+        'he', 'him', 'she', 'her', 'it', 'its', 'they', 'them', 'their', 'what',
+        'which', 'who', 'whom', 'please', 'help', 'want', 'need', 'like',
+    ]);
+
+    return message
+        .toLowerCase()
+        .replace(/[^\w\s]/g, ' ')
+        .split(/\s+/)
+        .filter((word) => word.length > 2 && !stopWords.has(word))
+        .slice(0, 10);
+}
+
+/**
+ * Detect user corrections in message content
+ */
+function detectCorrections(content: string): boolean {
+    const correctionPatterns = [
+        /no[,.]?\s+(do|use|try|make|don't|instead|actually)/i,
+        /that's (wrong|incorrect|not right)/i,
+        /not what i (asked|meant|wanted)/i,
+        /instead[,.]?\s+(use|do|try)/i,
+        /prefer[s]?\s+.+\s+(over|instead|rather)/i,
+        /actually[,.]?\s+(i want|use|it should)/i,
+    ];
+
+    return correctionPatterns.some((pattern) => pattern.test(content));
+}
+
+/**
+ * Build context injection string from memories and ledger
+ */
+function buildLearningContext(memories: Memory[], ledger: string | null): string {
+    const sections: string[] = [];
+
+    if (memories.length > 0) {
+        sections.push('\n## 📚 Relevant Past Learnings\n');
+        sections.push('The following insights from previous sessions may help:\n');
+
+        const typeOrder = ['correction', 'decision', 'preference', 'anti_pattern', 'pattern', 'insight'];
+        const byType: Record<string, Memory[]> = {};
+
+        for (const m of memories) {
+            const type = m.type || 'insight';
+            if (!byType[type]) byType[type] = [];
+            byType[type].push(m);
+        }
+
+        for (const type of typeOrder) {
+            if (byType[type]?.length) {
+                for (const m of byType[type]) {
+                    const confidenceNote = m.confidence && m.confidence < 0.5 ? ' ⚠️ (low confidence)' : '';
+                    sections.push(`- **[${type}]**: ${m.information}${confidenceNote}`);
+                }
+            }
+        }
+
+        sections.push('');
+    }
+
+    if (ledger) {
+        sections.push('\n## 📋 Continuity State\n');
+        sections.push('Previous work detected. Resume from SISYPHUS_LEDGER.md.\n');
+    }
+
+    return sections.join('\n');
+}
+
+/**
+ * Create OpenCode Session Learning Hook
+ *
+ * Integrates with actual OpenCode lifecycle events:
+ * - Injects relevant past learnings on first user message
+ * - Captures learnings when session goes idle
+ * - Connects to real Memory Lane database
+ */
+export function createOpenCodeSessionLearningHook(
+    ctx: PluginInput,
+    config: SessionLearningConfig = {}
+) {
+    const {
+        maxMemories = 10,
+        ledgerPath = '.sisyphus/SISYPHUS_LEDGER.md',
+        captureEnabled = true,
+        captureDelay = 2000,
+        skillAgent,
+    } = config;
+
+    // Session state tracking
+    const sessionFirstMessages = new Map<string, boolean>();
+    const sessionInjectedContent = new Map<string, string>();
+    const sessionUserMessages = new Map<string, string[]>();
+    const sessionModifiedFiles = new Map<string, string[]>();
+    const pendingCaptures = new Map<string, ReturnType<typeof setTimeout>>();
+
+    // Memory Lane adapter (lazy initialized)
+    let memoryAdapter: MemoryLaneAdapter | null = null;
+
+    async function getAdapter(): Promise<MemoryLaneAdapter> {
+        if (!memoryAdapter) {
+            memoryAdapter = new MemoryLaneAdapter();
+        }
+        return memoryAdapter;
+    }
+
+    /**
+     * Query Memory Lane for relevant learnings
+     */
+    async function queryMemoryLane(query: string): Promise<Memory[]> {
+        try {
+            const adapter = await getAdapter();
+            const result = await adapter.smartFind({
+                query,
+                limit: maxMemories,
+            });
+
+            return result.results.map((r) => ({
+                id: r.id,
+                type: r.metadata?.memory_type || 'insight',
+                information: r.content,
+                confidence: r.effective_confidence,
+                entities: r.metadata?.entities,
+            }));
+        } catch (error) {
+            console.error('[session-learning] Memory Lane query failed:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Store a learning to Memory Lane
+     */
+    async function storeToMemoryLane(
+        information: string,
+        type: MemoryType,
+        entities?: string[]
+    ): Promise<void> {
+        try {
+            const adapter = await getAdapter();
+            await adapter.storeLaneMemory({
+                information,
+                type,
+                entities,
+            });
+        } catch (error) {
+            console.error('[session-learning] Memory Lane store failed:', error);
+        }
+    }
+
+    /**
+     * Load ledger if exists
+     */
+    async function loadLedger(): Promise<string | null> {
+        const fullPath = join(process.cwd(), ledgerPath);
+        if (existsSync(fullPath)) {
+            return readFile(fullPath, 'utf-8');
+        }
+        return null;
+    }
+
+    /**
+     * Capture learnings from session
+     */
+    async function captureLearnings(sessionID: string) {
+        const userMessages = sessionUserMessages.get(sessionID) || [];
+        const modifiedFiles = sessionModifiedFiles.get(sessionID) || [];
+
+        if (userMessages.length === 0) {
+            return;
+        }
+
+        // Detect corrections in user messages
+        const corrections = userMessages.filter(detectCorrections);
+
+        // If we have corrections, store them immediately
+        for (const correction of corrections) {
+            await storeToMemoryLane(
+                `User correction: ${correction.slice(0, 200)}`,
+                'correction'
+            );
+        }
+
+        // If skill_agent is provided, use memory-catcher for deeper extraction
+        if (skillAgent) {
+            try {
+                await skillAgent({
+                    skill_name: 'sisyphus',
+                    agent_name: 'memory-catcher',
+                    prompt: 'Extract learnings from this completed session.',
+                    context: {
+                        transcript_summary: userMessages.slice(-20).join('\n---\n'),
+                        files_touched: modifiedFiles,
+                        user_corrections: corrections,
+                        session_id: sessionID,
+                    },
+                });
+            } catch (error) {
+                console.error('[session-learning] Memory catcher spawn failed:', error);
+            }
+        }
+
+        console.log(`[session-learning] Captured ${corrections.length} corrections from session ${sessionID}`);
+    }
+
+    /**
+     * Handle first user message - inject learnings
+     */
+    async function handleFirstMessage(sessionID: string, content: string): Promise<string | null> {
+        const keywords = extractKeywords(content);
+        if (keywords.length === 0) {
+            return null;
+        }
+
+        // Query Memory Lane
+        const query = keywords.join(' ');
+        const memories = await queryMemoryLane(query);
+
+        // Check for ledger
+        const ledger = await loadLedger();
+
+        if (memories.length === 0 && !ledger) {
+            return null;
+        }
+
+        const injection = buildLearningContext(memories, ledger);
+        sessionInjectedContent.set(sessionID, injection);
+
+        console.log(`[session-learning] Injected ${memories.length} learnings for session ${sessionID}`);
+
+        return injection;
+    }
+
+    /**
+     * Main event handler
+     */
+    return async ({ event }: { event: { type: string; properties?: unknown } }) => {
+        const props = event.properties as Record<string, unknown> | undefined;
+
+        // Session created - initialize tracking
+        if (event.type === 'session.created') {
+            const info = props?.info as Record<string, unknown> | undefined;
+            const sessionID = info?.id as string | undefined;
+            if (sessionID) {
+                sessionFirstMessages.set(sessionID, false);
+                sessionUserMessages.set(sessionID, []);
+                sessionModifiedFiles.set(sessionID, []);
+            }
+            return;
+        }
+
+        // Message created - check for first user message
+        if (event.type === 'message.created') {
+            const info = props?.info as Record<string, unknown> | undefined;
+            const sessionID = info?.sessionID as string | undefined;
+            const role = info?.role as string | undefined;
+            const content = info?.content as string | undefined;
+
+            if (!sessionID || !content) return;
+
+            // Track user messages
+            if (role === 'user') {
+                const messages = sessionUserMessages.get(sessionID) || [];
+                messages.push(content);
+                sessionUserMessages.set(sessionID, messages);
+
+                // First user message - inject learnings
+                if (!sessionFirstMessages.get(sessionID)) {
+                    sessionFirstMessages.set(sessionID, true);
+                    const injection = await handleFirstMessage(sessionID, content);
+
+                    if (injection) {
+                        // Return injection to be added to system prompt
+                        // OpenCode will append this to the context
+                        return { systemPromptAddition: injection };
+                    }
+                }
+
+                // Cancel any pending capture if user is active
+                const pending = pendingCaptures.get(sessionID);
+                if (pending) {
+                    clearTimeout(pending);
+                    pendingCaptures.delete(sessionID);
+                }
+            }
+
+            return;
+        }
+
+        // Tool executed - track file modifications
+        if (event.type === 'tool.execute.after') {
+            const sessionID = props?.sessionID as string | undefined;
+            const toolName = props?.toolName as string | undefined;
+            const result = props?.result as Record<string, unknown> | undefined;
+
+            if (!sessionID) return;
+
+            // Track file modifications from write tools
+            if (toolName === 'write' || toolName === 'edit' || toolName === 'patch') {
+                const filePath = result?.path as string | undefined;
+                if (filePath) {
+                    const files = sessionModifiedFiles.get(sessionID) || [];
+                    if (!files.includes(filePath)) {
+                        files.push(filePath);
+                        sessionModifiedFiles.set(sessionID, files);
+                    }
+                }
+            }
+
+            return;
+        }
+
+        // Session idle - schedule learning capture
+        if (event.type === 'session.idle' && captureEnabled) {
+            const sessionID = props?.sessionID as string | undefined;
+            if (!sessionID) return;
+
+            // Cancel any existing pending capture
+            const existing = pendingCaptures.get(sessionID);
+            if (existing) {
+                clearTimeout(existing);
+            }
+
+            // Schedule capture with delay
+            const timer = setTimeout(async () => {
+                pendingCaptures.delete(sessionID);
+                await captureLearnings(sessionID);
+            }, captureDelay);
+
+            pendingCaptures.set(sessionID, timer);
+            return;
+        }
+
+        // Session deleted - cleanup
+        if (event.type === 'session.deleted') {
+            const info = props?.info as Record<string, unknown> | undefined;
+            const sessionID = info?.id as string | undefined;
+
+            if (sessionID) {
+                // Final capture before cleanup
+                if (captureEnabled) {
+                    await captureLearnings(sessionID);
+                }
+
+                // Cleanup
+                sessionFirstMessages.delete(sessionID);
+                sessionInjectedContent.delete(sessionID);
+                sessionUserMessages.delete(sessionID);
+                sessionModifiedFiles.delete(sessionID);
+
+                const pending = pendingCaptures.get(sessionID);
+                if (pending) {
+                    clearTimeout(pending);
+                    pendingCaptures.delete(sessionID);
+                }
+            }
+
+            return;
+        }
+    };
+}
+
+/**
+ * Quick Memory Lane Query Tool
+ *
+ * Use this to manually query learnings without the full session hook.
+ */
+export async function queryLearnings(
+    query: string,
+    limit: number = 10
+): Promise<Memory[]> {
+    const adapter = new MemoryLaneAdapter();
+    try {
+        const result = await adapter.smartFind({ query, limit });
+        return result.results.map((r) => ({
+            id: r.id,
+            type: r.metadata?.memory_type || 'insight',
+            information: r.content,
+            confidence: r.effective_confidence,
+            entities: r.metadata?.entities,
+        }));
+    } finally {
+        await adapter.close();
+    }
+}
+
+/**
+ * Store Learning Tool
+ *
+ * Use this to manually store a learning.
+ */
+export async function storeLearning(
+    information: string,
+    type: MemoryType,
+    entities?: string[]
+): Promise<string> {
+    const adapter = new MemoryLaneAdapter();
+    try {
+        const result = await adapter.storeLaneMemory({
+            information,
+            type,
+            entities,
+        });
+        return result.id;
+    } finally {
+        await adapter.close();
+    }
+}

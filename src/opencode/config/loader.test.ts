@@ -11,8 +11,14 @@ import {
   getConfigPath,
 } from './loader';
 
+const testDir = join(process.cwd(), '.sisyphus-test');
+
 beforeEach(() => {
-  vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'error').mockImplementation(() => { });
+  // Ensure test directory exists
+  if (!existsSync(testDir)) {
+    mkdirSync(testDir, { recursive: true });
+  }
 });
 
 afterEach(() => {
@@ -20,7 +26,7 @@ afterEach(() => {
 });
 
 describe('loadConfig', () => {
-  const testConfigPath = join(process.cwd(), 'test-config.json');
+  const testConfigPath = join(testDir, 'test-config.json');
 
   afterEach(() => {
     if (existsSync(testConfigPath)) {
@@ -165,7 +171,7 @@ describe('loadConfig', () => {
 });
 
 describe('saveConfig', () => {
-  const testConfigPath = join(process.cwd(), 'test-save-config.json');
+  const testConfigPath = join(testDir, 'test-save-config.json');
 
   afterEach(() => {
     if (existsSync(testConfigPath)) {
@@ -220,7 +226,7 @@ describe('saveConfig', () => {
 });
 
 describe('configExists', () => {
-  const testConfigPath = join(process.cwd(), 'test-exists-config.json');
+  const testConfigPath = join(testDir, 'test-exists-config.json');
 
   afterEach(() => {
     if (existsSync(testConfigPath)) {
@@ -244,7 +250,7 @@ describe('configExists', () => {
 });
 
 describe('loadConfigWithValidation', () => {
-  const testConfigPath = join(process.cwd(), 'test-validation-config.json');
+  const testConfigPath = join(testDir, 'test-validation-config.json');
 
   afterEach(() => {
     if (existsSync(testConfigPath)) {

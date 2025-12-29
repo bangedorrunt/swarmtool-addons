@@ -298,7 +298,7 @@ describe('createSkillAgentTools', () => {
 
         expect(parsedResult.success).toBe(false);
         expect(parsedResult.error).toBe('AGENT_NOT_FOUND');
-        expect(parsedResult.message).toContain('Available agents in this skill: agent1, agent2');
+        expect(parsedResult.message).toContain('Available: agent1, agent2');
       });
 
       it('indicates no agents found when skill does not exist', async () => {
@@ -456,7 +456,7 @@ describe('createSkillAgentTools', () => {
       const tools = createSkillAgentTools(mockClient);
 
       expect(tools.skill_agent.description).toBe(
-        'Spawn a specialized subagent defined by a skill.'
+        'Spawn a specialized subagent. Supports context injection and interactive dialogue mode for multi-turn user interactions.'
       );
     });
 

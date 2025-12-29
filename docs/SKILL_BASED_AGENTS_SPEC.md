@@ -740,12 +740,98 @@ skill_agent({
     
     // File context
     files_assigned: ["src/auth.ts"],
-    ledger_snapshot: "..."
+    ledger_snapshot: "...",
+    
+    // Dialogue state for multi-turn interactions
+    dialogue_state: { /* from previous turn */ }
   }
 })
 ```
 
 **Use Case**: Agents receive rich context without prompt bloat.
+
+#### 5. `interaction_mode` - Dialogue Support ⭐ NEW
+
+```typescript
+// Spawn agent in dialogue mode for multi-turn conversations
+skill_agent({
+  skill_name: "sisyphus",
+  agent_name: "interviewer",
+  prompt: "Clarify auth requirements",
+  interaction_mode: "dialogue",  // ⭐ NEW PARAMETER
+  context: {
+    // Pass previous dialogue state for continuation
+    dialogue_state: previousState
+  }
+})
+→ {
+  success: true,
+  output: {
+    dialogue_state: {
+      status: "needs_input" | "needs_approval" | "needs_verification" | "approved" | "rejected" | "completed",
+      turn: 1,
+      message_to_user: "Before I proceed, I need to clarify...",
+      pending_questions: ["Question 1?", "Question 2?"],
+      pending_assumptions: [{ assumed: "...", confidence: 0.8 }],
+      proposal: { type: "checkpoint", summary: "...", details: {...} },
+      accumulated_direction: { goals: [], constraints: [], decisions: [] },
+      history: [{ role: "agent", content: "...", timestamp: "..." }]
+    },
+    output: null  // Populated when status is "approved" or "completed"
+  },
+  mode: "dialogue",
+  interaction_hint: "Check output.dialogue_state.status to determine next action"
+}
+```
+
+**Dialogue Status Values**:
+
+| Status | Meaning | Next Action |
+|--------|---------|-------------|
+| `needs_input` | Agent has questions | Show to user, get answer, call again |
+| `needs_approval` | Agent has proposal | Show summary, ask "Ready to proceed?" |
+| `needs_verification` | Agent made assumptions | Show assumptions, ask user to verify |
+| `approved` | User approved | Continue with `output` data |
+| `rejected` | User rejected | Ask what to change |
+| `completed` | Dialogue naturally finished | Process final `output` |
+
+**Agents with Dialogue Support**:
+
+| Agent | Default Mode | When to Use Dialogue |
+|-------|--------------|---------------------|
+| `interviewer` | dialogue | Always for clarification |
+| `chief-of-staff` | dialogue | Checkpoints + assumption verification |
+| `spec-writer` | one_shot | Optional: for spec confirmation |
+| Others | one_shot | Not typically needed |
+
+**Dialogue Loop Pattern**:
+
+```typescript
+let state = null;
+let approved = false;
+
+while (!approved) {
+  const result = await skill_agent({
+    skill_name: "sisyphus",
+    agent_name: "interviewer",
+    interaction_mode: "dialogue",
+    prompt: state ? userInput : "Clarify requirements",
+    context: state ? { dialogue_state: state } : undefined,
+  });
+  
+  state = result.output.dialogue_state;
+  
+  if (state.status === "approved" || state.status === "completed") {
+    approved = true;
+  } else {
+    console.log(state.message_to_user);
+    userInput = await getUserInput();
+  }
+}
+
+// Now proceed with clarified direction
+const explicitDirection = result.output.output.explicit_direction;
+```
 
 ---
 
