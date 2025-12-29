@@ -48,15 +48,13 @@ Conductor treats the filesystem (`tracks/`) as its source of truth.
 
 The modern Conductor workflow follows an **Agentic Flywheel** that iterates until success:
 
-### Phase 1: Inception (The Socratic specifier)
+### Phase 1: Inception
 
-- **Agent:** `conductor/specifier.md`
 - **Action:** Engages the user in a targeted Q&A.
 - **Exit Condition:** A `spec.md` with **computationally verifiable** acceptance criteria.
 
-### Phase 2: Planning (The TDD Orchestrator)
+### Phase 2: Planning
 
-- **Agent:** `conductor/planner.md`
 - **Action:** Decomposes the `spec.md` into atomic Hive Cells.
 - **Strategy:** Each cell follows the Red-Green-Refactor pattern (Write Test -> Write Code -> Verify).
 
@@ -78,9 +76,9 @@ The modern Conductor workflow follows an **Agentic Flywheel** that iterates unti
 
 Create `src/opencode/skill/conductor/SKILL.md` to define the SDD rules. This skill will be injected into agents to enforce the TDD discipline.
 
-### Step 2: Implement the "Specifier" Agent
+### Step 2: Implement the "Specifier" Workflow
 
-Create `src/orchestrator/conductor/specifier.md`. This agent needs `repo-crawl` tools and a high-temperature prompt for Socratic requirement gathering.
+Define the "specifier" logic within the coordinator or as a standalone agent. This workflow needs `repo-crawl` tools and a high-temperature prompt for Socratic requirement gathering.
 
 ### Step 3: Tool Implementation (The "Glue")
 
@@ -94,9 +92,8 @@ Implement the following TypeScript tools in `src/conductor/tools.ts`:
 
 Update `src/index.ts` to:
 
-1.  Load `.md` files from `src/orchestrator/conductor/`.
-2.  Register the `/track` slash command.
-3.  Add a `tool.execute.before` hook to inject the `conductor` skill when the active project has a `tracks/` directory.
+1.  Register relevant slash commands.
+2.  Add a `tool.execute.before` hook to inject the `conductor` skill when the active project has a `tracks/` directory.
 
 ---
 
