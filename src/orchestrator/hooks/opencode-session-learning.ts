@@ -13,7 +13,7 @@
 
 import type { PluginInput } from '@opencode-ai/plugin';
 import { existsSync } from 'node:fs';
-import { readFile, mkdir, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { MemoryLaneAdapter } from '../../memory-lane/adapter';
 import type { MemoryType } from '../../memory-lane/taxonomy';
@@ -37,12 +37,7 @@ interface SessionLearningConfig {
   /** Delay before capturing (allows user to continue). Default: 2000ms */
   captureDelay?: number;
   /** skill_agent function for spawning memory-catcher */
-  skillAgent?: (args: {
-    skill_name: string;
-    agent_name: string;
-    prompt: string;
-    context?: any;
-  }) => Promise<any>;
+  skillAgent?: (_: unknown) => Promise<any>;
 }
 
 interface Memory {
@@ -285,7 +280,7 @@ export function createOpenCodeSessionLearningHook(
         query,
         limit: maxMemories,
       })
-      .catch((error) => {
+      .catch(() => {
         return { results: [] };
       });
 
@@ -313,8 +308,7 @@ export function createOpenCodeSessionLearningHook(
         type,
         entities,
       })
-      .catch((error) => {
-      });
+      .catch(() => {});
   }
 
   /**
@@ -357,8 +351,7 @@ export function createOpenCodeSessionLearningHook(
           user_corrections: corrections,
           session_id: sessionID,
         },
-      }).catch((error) => {
-      });
+      }).catch(() => {});
     }
   }
 

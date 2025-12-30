@@ -11,29 +11,12 @@
  */
 
 import { tool } from '@opencode-ai/plugin';
-import { createMemoryAdapter } from 'opencode-swarm-plugin';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { existsSync } from 'node:fs';
 import { MemoryLaneAdapter } from './adapter';
 import { MemoryTypeSchema } from './taxonomy';
 import { EntityResolver } from './resolver';
-
-/**
- * Resolve database path with centralized preference
- * - swarm.db: Primary knowledge base (memories, entities)
- * - swarm-mail.db: Event bus / message log
- */
-function getDatabasePath(): string {
-  const centralized = join(homedir(), '.config', 'swarm-tools', 'swarm.db');
-  if (existsSync(centralized)) return centralized;
-
-  const projectLocal = join(process.cwd(), '.opencode', 'swarm.db');
-  if (existsSync(projectLocal)) return projectLocal;
-
-  // Fallback to project-local (will be created if missing)
-  return projectLocal;
-}
 
 /**
  * Get MemoryLaneAdapter instance

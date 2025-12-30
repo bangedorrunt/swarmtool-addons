@@ -38,7 +38,7 @@ describe('triggerMemoryExtraction', () => {
   });
 
   // eslint-disable-next-line no-unused-vars
-  const createMockShell = (captureCallback: (_cmd: string) => void, shouldFail = false) => {
+  const createMockShell = (captureCallback: (cmd: string) => void, shouldFail = false) => {
     const mockFn = (strings: TemplateStringsArray, ...values: any[]) => {
       const cmd = strings.reduce((acc, str, i) => acc + str + (values[i] || ''), '');
       captureCallback(cmd);
@@ -66,9 +66,13 @@ describe('triggerMemoryExtraction', () => {
 
     // Clean up test directory
     try {
-      const logFile = join(projectPath, '.hive', 'memory-lane.log');
-      if (existsSync(logFile)) {
-        unlinkSync(logFile);
+      const hiveDir = join(projectPath, '.hive');
+      if (existsSync(hiveDir)) {
+        // Just empty the log file instead of deleting dir to avoid potential issues
+        const logFile = join(hiveDir, 'memory-lane.log');
+        if (existsSync(logFile)) {
+          unlinkSync(logFile);
+        }
       }
     } catch {
       // Ignore cleanup errors
@@ -94,13 +98,11 @@ describe('triggerMemoryExtraction', () => {
 
       await triggerMemoryExtraction(projectPath, outcomeData, (globalThis as any).Bun.$);
 
-      // Verify logging
-      expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[memory-lane] Triggering extraction for bd-test-123')
-      );
-      expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[memory-lane] Spawning memory-catcher CLI process...')
-      );
+      // Verify logging via file
+      const logFile = join(projectPath, '.hive', 'memory-lane.log');
+      expect(existsSync(logFile)).toBe(true);
+      const logContent = readFileSync(logFile, 'utf8');
+      expect(logContent).toContain('Triggering extraction for task bd-test-123');
 
       // Verify command was called (basic check)
       expect(capturedCommand).toContain('opencode run --agent "swarm/worker"');
@@ -125,9 +127,9 @@ describe('triggerMemoryExtraction', () => {
       await triggerMemoryExtraction(projectPath, outcomeData, (globalThis as any).Bun.$);
 
       // Should still log extraction trigger (with 'unknown' for missing bead_id)
-      expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[memory-lane] Triggering extraction for unknown')
-      );
+      const logFile = join(projectPath, '.hive', 'memory-lane.log');
+      const logContent = readFileSync(logFile, 'utf8');
+      expect(logContent).toContain('Triggering extraction for task unknown');
 
       // Should still attempt to spawn process
       expect(capturedCommand).toContain('opencode run --agent "swarm/worker"');
@@ -215,9 +217,9 @@ describe('triggerMemoryExtraction', () => {
 
       await triggerMemoryExtraction(projectPath, outcomeData, undefined);
 
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        '[memory-lane] Shell helper not available, skipping memory extraction spawn'
-      );
+      const logFile = join(projectPath, '.hive', 'memory-lane.log');
+      const logContent = readFileSync(logFile, 'utf8');
+      expect(logContent).toContain('Shell helper ($) unavailable - skipping spawn');
     });
 
     it('should handle process spawn errors gracefully', async () => {
@@ -232,10 +234,11 @@ describe('triggerMemoryExtraction', () => {
 
       await triggerMemoryExtraction(projectPath, outcomeData, (globalThis as any).Bun.$);
 
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        '[memory-lane] Failed to spawn memory-catcher process:',
-        expect.any(Error)
-      );
+      // Spawn errors are logged via logToFile (implied by quiet() in implementation if needed,
+      // but current implementation catches it and logs to logToFile)
+      const logFile = join(projectPath, '.hive', 'memory-lane.log');
+      const logContent = readFileSync(logFile, 'utf8');
+      expect(logContent).toContain('Spawn error: Error: Spawn failed');
     });
   });
 

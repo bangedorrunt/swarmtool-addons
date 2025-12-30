@@ -10,7 +10,5 @@
 export { loadLocalAgents, loadSkillAgents, loadCommands } from '../loader';
 
 // Skill-based subagent tools
-// MOVED: createSkillAgentTools moved to orchestrator/tools.ts for non-blocking implementation
-
 // Types
 export type { AgentConfig, ParsedAgent } from '../loader';

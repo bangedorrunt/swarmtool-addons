@@ -12,7 +12,7 @@
  * register intent without blocking, then gather results later.
  */
 
-import { loadActorState, saveActorState } from './actor/state';
+import { loadActorState } from './actor/state';
 import { processMessage } from './actor/core';
 import { queryLearnings } from './hooks/opencode-session-learning';
 
@@ -40,7 +40,7 @@ export interface SpawnOptions {
   /** Maximum wait time in ms (default: 60000) */
   timeoutMs?: number;
   /** Callback on status change */
-  onStatusChange?: (status: string) => void;
+  onStatusChange?: (_: string) => void;
   /** Inject relevant learnings from Memory Lane (default: true) */
   injectLearnings?: boolean;
   /** Max learnings to inject (default: 5) */
@@ -144,7 +144,7 @@ export async function spawnChildAgent(
           onStatusChange?.(`injected ${learningsInjected} learnings`);
         }
       }
-    } catch (err) {
+    } catch {
       // Learning injection failed - continue without learnings
     }
   }
@@ -238,13 +238,13 @@ export async function spawnChildAgent(
       const msg =
         result.status === 'completed'
           ? ({
-            type: 'subagent.complete' as const,
-            payload: { sessionId: childSessionId, agent, result: result.result?.slice(0, 500) },
-          } as const)
+              type: 'subagent.complete' as const,
+              payload: { sessionId: childSessionId, agent, result: result.result?.slice(0, 500) },
+            } as const)
           : ({
-            type: 'subagent.failed' as const,
-            payload: { sessionId: childSessionId, agent, error: result.error || 'Unknown error' },
-          } as const);
+              type: 'subagent.failed' as const,
+              payload: { sessionId: childSessionId, agent, error: result.error || 'Unknown error' },
+            } as const);
 
       await processMessage(currentState, msg);
     }
@@ -264,7 +264,7 @@ async function waitForSessionCompletion(
   sessionId: string,
   agent: string,
   timeoutMs: number,
-  onStatusChange?: (status: string) => void
+  onStatusChange?: (_: string) => void
 ): Promise<SpawnResult> {
   const startTime = Date.now();
   let pollInterval = 500; // Start with 500ms
@@ -302,7 +302,7 @@ async function waitForSessionCompletion(
       // Exponential backoff
       await new Promise((r) => setTimeout(r, pollInterval));
       pollInterval = Math.min(pollInterval * 1.5, maxPollInterval);
-    } catch (err: any) {
+    } catch {
       // Network error - retry with backoff
       await new Promise((r) => setTimeout(r, pollInterval));
       pollInterval = Math.min(pollInterval * 2, maxPollInterval);
@@ -394,7 +394,7 @@ export async function getChildSessions(
     }
 
     return result.data || [];
-  } catch (err) {
+  } catch {
     return [];
   }
 }

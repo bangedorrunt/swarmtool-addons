@@ -44,18 +44,6 @@ export const MemoryTypeSchema = z.enum([
 
 export type MemoryType = z.infer<typeof MemoryTypeSchema>;
 
-export interface EntityReference {
-  type: 'person' | 'project' | 'business' | 'feature' | 'agent' | 'other';
-  raw: string;
-  slug: string;
-  resolved: boolean;
-}
-
-/**
- * ISO 8601 timestamp for temporal validity tracking
- */
-export type Timestamp = string; // ISO 8601 format: "2025-12-28T12:00:00Z"
-
 /**
  * Metadata packed into the standard Memory.metadata column
  * Aligned with Drizzle schema from opencode-swarm-plugin v0.31.0
@@ -69,7 +57,7 @@ export const MemoryLaneMetadataSchema = z.object({
 
   // Entity associations
   entity_slugs: z.array(z.string()).default([]),
-  entities: z.array(z.any()).default([]), // EntityReference[]
+  entities: z.array(z.any()).default([]),
 
   // Confidence metrics
   confidence_score: z.number().min(0).max(100).default(70),

@@ -11,7 +11,6 @@ import type { LibSQLDatabase } from 'drizzle-orm/libsql';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-import path from 'node:path';
 
 export interface ResolvedEntity {
   type: string;
@@ -228,18 +227,13 @@ export class EntityResolver {
 
   /**
    * Static helper for backward compatibility
-   * Creates an instance and calls disambiguate
    *
-   * @deprecated Use instance-based disambiguate for better performance
+   * @param query - Fuzzy entity name or full slug
+   * @returns Array of matching entity slugs
    */
-  static async disambiguateStatic(query: string): Promise<string[]> {
+  static async disambiguate(query: string): Promise<string[]> {
     const resolver = new EntityResolver();
     return resolver.disambiguate(query);
-  }
-
-  // Alias for backward compatibility (test uses EntityResolver.disambiguate)
-  static async disambiguate(query: string): Promise<string[]> {
-    return EntityResolver.disambiguateStatic(query);
   }
 
   /**

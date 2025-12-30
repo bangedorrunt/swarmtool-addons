@@ -108,13 +108,6 @@ export function parseAgentMarkdown(content: string, name: string): AgentConfig {
   };
 }
 
-const SKILL_DIR = path.join(
-  process.env.HOME ?? process.env.USERPROFILE ?? '.',
-  '.config',
-  'opencode',
-  'skill'
-);
-
 /**
  * Loads all agent .md files from the local agent directory
  */
@@ -159,7 +152,7 @@ export async function loadSkillAgents(): Promise<ParsedAgent[]> {
     path.join(process.cwd(), '.opencode', 'skill'),
     path.join(process.cwd(), '.claude', 'skills'),
     // Global config directory
-    path.join(homeDir, '.config', 'opencode', 'skill')
+    path.join(homeDir, '.config', 'opencode', 'skill'),
   ];
 
   for (const skillBaseDir of searchPaths) {
@@ -209,7 +202,7 @@ export async function loadSkillAgents(): Promise<ParsedAgent[]> {
                 // Use name from frontmatter or constructed name
                 const finalName = frontmatter.name ? String(frontmatter.name) : fullName;
 
-                if (!agents.some(a => a.name === finalName)) {
+                if (!agents.some((a) => a.name === finalName)) {
                   const config = parseAgentMarkdown(content, finalName);
                   agents.push({ name: finalName, config });
                 }
@@ -222,7 +215,7 @@ export async function loadSkillAgents(): Promise<ParsedAgent[]> {
               const { frontmatter } = parseFrontmatter(content);
               const finalName = frontmatter.name ? String(frontmatter.name) : fullAgentName;
 
-              if (!agents.some(a => a.name === finalName)) {
+              if (!agents.some((a) => a.name === finalName)) {
                 const config = parseAgentMarkdown(content, finalName);
                 agents.push({ name: finalName, config });
               }

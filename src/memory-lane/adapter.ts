@@ -10,7 +10,6 @@
 
 import { createClient, type Client } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
-import { eq, sql } from 'drizzle-orm';
 import type { LibSQLDatabase } from 'drizzle-orm/libsql';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
@@ -86,12 +85,7 @@ export class MemoryLaneAdapter {
     entities?: string[];
     confidence_score?: number;
     tags?: string;
-    metadata?: string;
   }): Promise<{ id: string; message: string }> {
-    // Import MemoryStore and Ollama dynamically for embedding
-    const { createMemoryStore } = await import('swarm-mail');
-    const store = createMemoryStore(this.db);
-
     // Generate embedding for content
     const queryEmbedding = await this.generateEmbedding(args.information);
 
@@ -389,13 +383,11 @@ export class MemoryLaneAdapter {
             return;
           }
         }
-      } catch (err: any) {
-      }
+      } catch (err: any) {}
     }
 
     // If we reach here, either not Mac or failed to start
   }
-
 
   /**
    * Scan query for intent keywords to boost specific memory types
