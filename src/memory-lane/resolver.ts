@@ -2,52 +2,30 @@
  * Memory Lane Entity Resolver
  *
  * Provides utilities for extracting entity slugs from text and file paths.
- * Migrated to use Drizzle ORM for database-backed entity disambiguation.
+ * Uses Drizzle ORM with centralized database path.
  */
 
 import { createClient, type Client } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 import type { LibSQLDatabase } from 'drizzle-orm/libsql';
-import { join } from 'node:path';
-import { existsSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { getDatabasePath } from '../utils/database-path';
 
 export interface ResolvedEntity {
   type: string;
   slug: string;
 }
 
-// Re-export SwarmDb type for compatibility
-export type SwarmDb = LibSQLDatabase<any>;
+export type MemoryDb = LibSQLDatabase<Record<string, never>>;
 
 export class EntityResolver {
-  private readonly db: SwarmDb;
+  private readonly db: MemoryDb;
   private readonly client: Client;
 
   constructor() {
-    // Get database path with centralized preference (same as adapter.ts)
-    const dbPath = this.getDatabasePath();
-
-    // Create libSQL client
+    // Use centralized database path
+    const dbPath = getDatabasePath();
     this.client = createClient({ url: dbPath });
-
-    // Create Drizzle ORM instance
     this.db = drizzle(this.client);
-  }
-
-  /**
-   * Resolve database path with centralized preference
-   * - swarm.db: Primary knowledge base (memories, entities)
-   * - .opencode/swarm.db: Project-local fallback
-   */
-  private getDatabasePath(): string {
-    const centralized = join(homedir(), '.config', 'swarm-tools', 'swarm.db');
-    if (existsSync(centralized)) {
-      return `file:${centralized}`;
-    }
-
-    const projectLocal = join(process.cwd(), '.opencode', 'swarm.db');
-    return `file:${projectLocal}`;
   }
 
   /**

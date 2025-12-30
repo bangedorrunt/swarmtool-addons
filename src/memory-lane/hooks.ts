@@ -75,21 +75,21 @@ export async function triggerMemoryExtraction(
   outcomeData: SwarmCompletionData,
   shellHelper:
     | ((
-        cmd: TemplateStringsArray,
-        ...args: string[]
-      ) => {
-        quiet(): unknown;
-        nothrow(): unknown;
-        signal(signal: AbortSignal): unknown;
-        then(onfulfilled?: (value: unknown) => unknown): unknown;
-      })
+      cmd: TemplateStringsArray,
+      ...args: string[]
+    ) => {
+      quiet(): unknown;
+      nothrow(): unknown;
+      signal(signal: AbortSignal): unknown;
+      then(onfulfilled?: (value: unknown) => unknown): unknown;
+    })
     | null
 ): Promise<void> {
   logToFile(projectPath, `Triggering extraction for task ${outcomeData.bead_id || 'unknown'}`);
 
   const safeTranscript = outcomeData.transcript
     ? truncateTranscript(outcomeData.transcript)
-    : 'Not provided in immediate outcome. Memory-catcher will fetch from swarm-mail if needed.';
+    : 'Not provided in immediate outcome.';
 
   if (shellHelper) {
     const instruction = `SYSTEM: Memory Lane Extraction
@@ -115,7 +115,7 @@ INSTRUCTION:
     }, MEMORY_CATCHER_TIMEOUT_MS);
 
     try {
-      const shell = shellHelper`opencode run --agent "swarm/worker" ${instruction}`;
+      const shell = shellHelper`opencode run --agent "chief-of-staff/memory-catcher" ${instruction}`;
       const quietShell = (shell as { quiet(): unknown }).quiet();
       const nothrowShell = (quietShell as { nothrow(): unknown }).nothrow();
 

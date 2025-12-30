@@ -14,7 +14,7 @@ import {
 const testDir = join(process.cwd(), 'test');
 
 beforeEach(() => {
-  vi.spyOn(console, 'error').mockImplementation(() => { });
+  vi.spyOn(console, 'error').mockImplementation(() => {});
   // Ensure test directory exists
   if (!existsSync(testDir)) {
     mkdirSync(testDir, { recursive: true });
@@ -30,21 +30,21 @@ describe('loadConfig', () => {
 
   afterEach(() => {
     if (existsSync(testConfigPath)) {
-      rmSync(testConfigPath);
+      rmSync(testConfigPath, { recursive: true, force: true });
     }
   });
 
   it('should return default config when file does not exist', () => {
     if (existsSync(testConfigPath)) {
-      rmSync(testConfigPath);
+      rmSync(testConfigPath, { recursive: true, force: true });
     }
 
     const config = loadConfig(testConfigPath);
 
     expect(config).toBeDefined();
-    expect(config.models['swarm/planner'].model).toBe('opencode/big-pickle');
-    expect(config.models['swarm/worker'].model).toBe('opencode/glm-4.7-free');
-    expect(config.models['swarm/researcher'].model).toBe('opencode/grok-code');
+    expect(config.models['swarm/planner'].model).toBe('google/gemini-3-flash');
+    expect(config.models['swarm/worker'].model).toBe('google/gemini-3-flash');
+    expect(config.models['swarm/researcher'].model).toBe('google/gemini-3-flash');
   });
 
   it('should load and parse valid config file', () => {
@@ -77,7 +77,7 @@ describe('loadConfig', () => {
     const config = loadConfig(testConfigPath);
 
     expect(config).toBeDefined();
-    expect(config.models['swarm/planner'].model).toBe('opencode/big-pickle');
+    expect(config.models['swarm/planner'].model).toBe('google/gemini-3-flash');
   });
 
   it('should return default config when missing required models section', () => {
@@ -90,7 +90,7 @@ describe('loadConfig', () => {
     const config = loadConfig(testConfigPath);
 
     expect(config).toBeDefined();
-    expect(config.models['swarm/planner'].model).toBe('opencode/big-pickle');
+    expect(config.models['swarm/planner'].model).toBe('google/gemini-3-flash');
   });
 
   it('should return default config when models section is empty', () => {
@@ -103,7 +103,7 @@ describe('loadConfig', () => {
     const config = loadConfig(testConfigPath);
 
     expect(config).toBeDefined();
-    expect(config.models['swarm/planner'].model).toBe('opencode/big-pickle');
+    expect(config.models['swarm/planner'].model).toBe('google/gemini-3-flash');
   });
 
   it('should handle file read errors gracefully', () => {
@@ -112,7 +112,7 @@ describe('loadConfig', () => {
     const config = loadConfig(testConfigPath);
 
     expect(config).toBeDefined();
-    expect(config.models['swarm/planner'].model).toBe('opencode/big-pickle');
+    expect(config.models['swarm/planner'].model).toBe('google/gemini-3-flash');
 
     rmSync(testConfigPath, { recursive: true });
   });
@@ -161,8 +161,8 @@ describe('loadConfig', () => {
     ]);
     expect(config.models['swarm/worker'].disable).toBe(false);
     expect(config.models['swarm/worker'].forcedSkills).toEqual([]);
-    expect(config.models.oracle.model).toBe('openai/gpt-5.2');
-    expect(config.models.oracle.forcedSkills).toEqual(['oracle']);
+    expect(config.models['chief-of-staff/oracle'].model).toBe('google/gemini-3-flash');
+    expect(config.models['chief-of-staff/oracle'].forcedSkills).toBeUndefined();
   });
 });
 

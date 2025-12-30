@@ -1,41 +1,21 @@
 /**
- * Memory Lane Sidecar Tools
+ * Memory Lane Tools
  *
- * New implementation using SHARED database instance from swarm-mail.
- * CRITICAL FIX: No separate database connections created.
- *
- * Architecture:
- * - swarm-mail creates database during MemoryStore initialization
- * - Memory Lane receives same db instance via constructor
- * - All operations use shared instance, preventing lock conflicts
+ * OpenCode plugin tools for memory storage and retrieval.
+ * Uses standalone MemoryLaneStore with no swarm-mail dependencies.
  */
 
 import { tool } from '@opencode-ai/plugin';
-import { join } from 'node:path';
-import { homedir } from 'node:os';
-import { existsSync } from 'node:fs';
-import { MemoryLaneAdapter } from './adapter';
+import { getMemoryLaneStore } from './memory-store';
 import { MemoryTypeSchema } from './taxonomy';
 import { EntityResolver } from './resolver';
-
-/**
- * Get MemoryLaneAdapter instance
- *
- * MemoryLaneAdapter now creates its own database connection,
- * bypassing the MemoryAdapter wrapper and getClient() error.
- */
-async function getAdapter(_context: any): Promise<MemoryLaneAdapter> {
-  // MemoryLaneAdapter creates its own connection directly
-  // No need to pass database adapter - just instantiate
-  return new MemoryLaneAdapter();
-}
 
 /**
  * Smart search through Memory Lane
  */
 export const memory_lane_find = tool({
   description:
-    'Advanced semantic search through Memory Lane with intent boosting and entity awareness. If entity names are ambiguous, system will ask for clarification.',
+    'Advanced semantic search through Memory Lane with intent boosting and entity awareness.',
   args: {
     query: tool.schema.string().optional().describe('Search query'),
     entities: tool.schema
@@ -44,14 +24,13 @@ export const memory_lane_find = tool({
       .describe("Entity slugs or raw names (e.g. ['project:swarm', 'Mark'])"),
     limit: tool.schema.number().optional().default(5).describe('Max results'),
   },
-  async execute(args, _context) {
-    const adapter = await getAdapter(_context);
+  async execute(args) {
+    const store = getMemoryLaneStore();
 
     // Resolve entities before search
     const resolvedSlugs: string[] = [];
     const ambiguities: Record<string, string[]> = {};
 
-    // 1. Disambiguate Entities
     if (args.entities) {
       for (const entityQuery of args.entities) {
         const matches = await EntityResolver.disambiguate(entityQuery);
@@ -63,7 +42,7 @@ export const memory_lane_find = tool({
       }
     }
 
-    // 2. Handle Ambiguity
+    // Handle ambiguity
     if (Object.keys(ambiguities).length > 0) {
       return JSON.stringify(
         {
@@ -78,8 +57,8 @@ export const memory_lane_find = tool({
       );
     }
 
-    // 3. Execute Search
-    const result = await adapter.smartFind({
+    // Execute search
+    const result = await store.smartFind({
       ...args,
       entities: resolvedSlugs,
     });
@@ -102,9 +81,9 @@ export const memory_lane_store = tool({
       .describe('Entity slugs associated with this memory'),
     tags: tool.schema.string().optional().describe('Comma separated tags'),
   },
-  async execute(args, _context) {
-    const adapter = await getAdapter(_context);
-    const result = await adapter.storeLaneMemory(args);
+  async execute(args) {
+    const store = getMemoryLaneStore();
+    const result = await store.store(args);
 
     return JSON.stringify(result, null, 2);
   },
@@ -115,18 +94,16 @@ export const memory_lane_store = tool({
  */
 export const memory_lane_feedback = tool({
   description:
-    'Record feedback (helpful or harmful) on a memory to adjust future search rankings. Helpful feedback increases relevance (+10%), harmful decreases ranking (-50%).',
+    'Record feedback (helpful or harmful) on a memory to adjust future search rankings.',
   args: {
     id: tool.schema.string().describe('Memory ID to provide feedback on'),
     signal: tool.schema
       .enum(['helpful', 'harmful'])
-      .describe(
-        'Feedback type: helpful (increases future relevance) or harmful (decreases future relevance)'
-      ),
+      .describe('Feedback type: helpful increases relevance, harmful decreases'),
   },
-  async execute(args, _context) {
-    const adapter = await getAdapter(_context);
-    await adapter.recordFeedback(args.id, args.signal);
+  async execute(args) {
+    const store = getMemoryLaneStore();
+    await store.recordFeedback(args.id, args.signal);
 
     return JSON.stringify(
       {
@@ -142,19 +119,17 @@ export const memory_lane_feedback = tool({
 });
 
 /**
- * Transparent redirection from legacy semantic-memory_find to memory-lane_find
+ * Legacy semantic-memory_find redirect
  */
 export const semantic_memory_find = tool({
-  description:
-    'Find memories by semantic similarity. (REDIRECT: Use memory-lane_find instead for better results).',
+  description: 'Find memories by semantic similarity. (Use memory-lane_find instead)',
   args: {
     query: tool.schema.string().describe('Search query'),
     limit: tool.schema.number().optional().default(5).describe('Max results'),
-    collection: tool.schema.string().optional().describe('Collection name'),
   },
-  async execute(args, _context) {
-    const adapter = await getAdapter(_context);
-    const result = await adapter.smartFind({
+  async execute(args) {
+    const store = getMemoryLaneStore();
+    const result = await store.smartFind({
       query: args.query,
       limit: args.limit || 5,
     });
@@ -162,8 +137,7 @@ export const semantic_memory_find = tool({
     return JSON.stringify(
       {
         ...result,
-        _hint:
-          "SYSTEM: This call was transparently redirected to memory-lane_find. In the future, use 'memory-lane_find' directly for intent boosting and entity awareness.",
+        _hint: "Use 'memory-lane_find' directly for intent boosting and entity awareness.",
       },
       null,
       2
@@ -172,18 +146,16 @@ export const semantic_memory_find = tool({
 });
 
 /**
- * Transparent redirection from legacy semantic-memory_store to memory-lane_store
+ * Legacy semantic-memory_store redirect
  */
 export const semantic_memory_store = tool({
-  description: 'Store a memory. (REDIRECT: Use memory-lane_store instead for taxonomy support).',
+  description: 'Store a memory. (Use memory-lane_store instead)',
   args: {
     information: tool.schema.string().describe('The knowledge to store'),
-    metadata: tool.schema.string().optional().describe('Metadata JSON'),
   },
-  async execute(args, _context) {
-    const adapter = await getAdapter(_context);
-    // Default to 'learning' type for legacy stores
-    const result = await adapter.storeLaneMemory({
+  async execute(args) {
+    const store = getMemoryLaneStore();
+    const result = await store.store({
       information: args.information,
       type: 'learning',
     });
@@ -191,8 +163,7 @@ export const semantic_memory_store = tool({
     return JSON.stringify(
       {
         ...result,
-        _hint:
-          "SYSTEM: This memory was stored using memory-lane_store with type='learning'. Use 'memory-lane_store' directly to specify better taxonomy (decision, correction, etc).",
+        _hint: "Use 'memory-lane_store' directly to specify taxonomy.",
       },
       null,
       2

@@ -2,39 +2,41 @@
  * Centralized Database Path Resolution
  *
  * Provides a single source of truth for database path resolution
- * across all modules in swarm-tool-addons.
+ * across all modules in swarmtool-addons.
  *
  * Resolution Order:
- * 1. SWARM_DB_PATH environment variable (if set)
- * 2. ~/.config/swarm-tools/swarm.db (user-level)
- * 3. .opencode/swarm.db (project-local fallback)
+ * 1. OPENCODE_DB_PATH environment variable (if set)
+ * 2. ~/.opencode/memories.db (global)
+ * 3. .opencode/memories.db (project-local fallback)
  */
 
 import { join } from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 
-export const SWARM_DB_FILENAME = 'swarm.db';
-export const SWARM_DB_DIRNAME = 'swarm-tools';
+export const MEMORY_DB_FILENAME = 'memories.db';
 export const OPENCODE_DIRNAME = '.opencode';
-export const CONFIG_DIRNAME = '.config';
 
 export interface DatabasePathResult {
   path: string;
-  source: 'env' | 'user' | 'project' | 'default';
+  source: 'env' | 'global' | 'project';
 }
 
 function getEnvPath(): string | null {
-  return process.env.SWARM_DB_PATH ?? null;
+  return process.env.OPENCODE_DB_PATH ?? null;
 }
 
-function getUserPath(): string | null {
-  const userPath = join(homedir(), CONFIG_DIRNAME, SWARM_DB_DIRNAME, SWARM_DB_FILENAME);
-  return existsSync(userPath) ? userPath : null;
+function getGlobalPath(): string {
+  const globalDir = join(homedir(), OPENCODE_DIRNAME);
+  // Ensure directory exists
+  if (!existsSync(globalDir)) {
+    mkdirSync(globalDir, { recursive: true });
+  }
+  return join(globalDir, MEMORY_DB_FILENAME);
 }
 
 function getProjectPath(): string {
-  return join(process.cwd(), OPENCODE_DIRNAME, SWARM_DB_FILENAME);
+  return join(process.cwd(), OPENCODE_DIRNAME, MEMORY_DB_FILENAME);
 }
 
 export function resolveDatabasePath(): DatabasePathResult {
@@ -43,12 +45,9 @@ export function resolveDatabasePath(): DatabasePathResult {
     return { path: `file:${envPath}`, source: 'env' };
   }
 
-  const userPath = getUserPath();
-  if (userPath) {
-    return { path: `file:${userPath}`, source: 'user' };
-  }
-
-  return { path: `file:${getProjectPath()}`, source: 'project' };
+  // Prefer global path for cross-project memory persistence
+  const globalPath = getGlobalPath();
+  return { path: `file:${globalPath}`, source: 'global' };
 }
 
 export function getDatabasePath(): string {
@@ -58,3 +57,4 @@ export function getDatabasePath(): string {
 export function getDatabaseSource(): DatabasePathResult['source'] {
   return resolveDatabasePath().source;
 }
+

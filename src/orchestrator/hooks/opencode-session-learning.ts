@@ -15,7 +15,7 @@ import type { PluginInput } from '@opencode-ai/plugin';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { MemoryLaneAdapter } from '../../memory-lane/adapter';
+import { MemoryLaneStore } from '../../memory-lane/memory-store';
 import type { MemoryType } from '../../memory-lane/taxonomy';
 
 // Re-export for compatibility with standalone usage
@@ -261,14 +261,15 @@ export function createOpenCodeSessionLearningHook(
   const pendingCaptures = new Map<string, ReturnType<typeof setTimeout>>();
 
   // Memory Lane adapter (lazy initialized)
-  let memoryAdapter: MemoryLaneAdapter | null = null;
+  let memoryAdapter: MemoryLaneStore | null = null;
 
-  async function getAdapter(): Promise<MemoryLaneAdapter> {
+  async function getAdapter(): Promise<MemoryLaneStore> {
     if (!memoryAdapter) {
-      memoryAdapter = new MemoryLaneAdapter();
+      memoryAdapter = new MemoryLaneStore();
     }
     return memoryAdapter;
   }
+
 
   /**
    * Query Memory Lane for relevant learnings
@@ -284,7 +285,7 @@ export function createOpenCodeSessionLearningHook(
         return { results: [] };
       });
 
-    return result.results.map((r) => ({
+    return result.results.map((r: any) => ({
       id: r.id,
       type: r.metadata?.memory_type || 'insight',
       information: r.content,
@@ -303,12 +304,12 @@ export function createOpenCodeSessionLearningHook(
   ): Promise<void> {
     const adapter = await getAdapter();
     await adapter
-      .storeLaneMemory({
+      .store({
         information,
         type,
         entities,
       })
-      .catch(() => {});
+      .catch(() => { });
   }
 
   /**
@@ -351,7 +352,7 @@ export function createOpenCodeSessionLearningHook(
           user_corrections: corrections,
           session_id: sessionID,
         },
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }
 
@@ -516,9 +517,9 @@ export function createOpenCodeSessionLearningHook(
  * Use this to manually query learnings without the full session hook.
  */
 export async function queryLearnings(query: string, limit: number = 10): Promise<Memory[]> {
-  const adapter = new MemoryLaneAdapter();
+  const adapter = new MemoryLaneStore();
   const result = await adapter.smartFind({ query, limit }).finally(() => adapter.close());
-  return result.results.map((r) => ({
+  return result.results.map((r: any) => ({
     id: r.id,
     type: r.metadata?.memory_type || 'insight',
     information: r.content,
@@ -537,13 +538,13 @@ export async function storeLearning(
   type: MemoryType,
   entities?: string[]
 ): Promise<string> {
-  const adapter = new MemoryLaneAdapter();
-  const result = await adapter
-    .storeLaneMemory({
+  const memory = new MemoryLaneStore();
+  const result = await memory
+    .store({
       information,
       type,
       entities,
     })
-    .finally(() => adapter.close());
+    .finally(() => memory.close());
   return result.id;
 }

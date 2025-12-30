@@ -23,11 +23,12 @@
 
 The Orchestrator Module implements a **Skill-Based Subagent System** that enables:
 
+- **Resilient Orchestration**: Background supervisor for task health and auto-retry
+- **Sisyphus Loop**: Self-healing task execution with adaptive intervals
+- **LEDGER.md SSOT**: Project continuity via formal state projection
 - **Modular Expertise**: Package AI behaviors as SKILL.md files
 - **Isolated Contexts**: Each spawned agent gets fresh context (no pollution)
 - **Self-Learning**: Automatic memory injection at session start, capture at end
-- **Assumption Tracking**: Chief-of-Staff surfaces implicit decisions for user review
-- **Hook-Agnostic**: Works with OpenCode, Claude Code, or custom runtimes
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -209,15 +210,15 @@ Implicit decisions are tracked and periodically reviewed:
 │  └───────────────────────────────────────────────────────────────────────┘ │
 │                                    │                                        │
 │  ┌───────────────────────────────────────────────────────────────────────┐ │
-│  │  LAYER 3: SKILL-BASED AGENTS (YOUR INNOVATION)                        │ │
-│  │  skill_agent() + SKILL.md + skill_list + skill_spawn_batch            │ │
-│  │  → Hook-agnostic, works with any runtime                              │ │
+│  │  LAYER 3: RESILIENT ORCHESTRATION                                     │ │
+│  │  skill_agent() + Sisyphus Loop + Task Registry + LEDGER.md            │ │
+│  │  → Supervisor watchdog ensures task health and auto-retry              │ │
 │  └───────────────────────────────────────────────────────────────────────┘ │
 │                                    │                                        │
 │  ┌───────────────────────────────────────────────────────────────────────┐ │
-│  │  LAYER 2: STATE PERSISTENCE (CCv2-Inspired)                           │ │
-│  │  LEDGER.md + handoff-*.md + Memory Lane                      │ │
-│  │  → Pure file-based, no runtime dependency                             │ │
+│  │  LAYER 2: STATE PERSISTENCE (SSOT)                                    │ │
+│  │  LEDGER.md + Handoffs + Standalone Memory Lane                        │ │
+│  │  → pure file-based/local storage, no swarm-tools locks                 │ │
 │  └───────────────────────────────────────────────────────────────────────┘ │
 │                                    │                                        │
 │  ┌───────────────────────────────────────────────────────────────────────┐ │
@@ -259,11 +260,48 @@ Implicit decisions are tracked and periodically reviewed:
         └── librarian/
             └── SKILL.md             # External research
 
-.opencode/                           # Project state (file-based)
+.opencode/                           # Project state (SSOT)
 ├── LEDGER.md                        # Current state projection
 ├── handoff-*.md                     # Context wipe recovery files
-└── assumptions.json                 # Chief-of-Staff tracked assumptions
+└── registry.json                    # Persistent task registry state
 ```
+
+---
+
+## Resilient Orchestration: The Sisyphus Loop
+
+The Orchestrator implements a **Self-Healing Execution Loop** managed by the **Task Supervisor**.
+
+### 1. The Supervisor Watchdog
+A background process that monitors active tasks in the `TaskRegistry`.
+- **Adaptive Intervals**: Checks every 30s for simple tasks, up to 120s for high complexity.
+- **Heartbeat Monitoring**: Agents send periodic `task_heartbeat` signals.
+- **Auto-Retry**: If a task fails or times out, the supervisor re-spawns it (Sisyphus mechanism).
+
+### 2. Task Registry
+Internal state machine for all delegated tasks:
+- `pending`: Queued for execution
+- `running`: Active agent session
+- `completed`: Result captured and stored
+- `failed`/`timeout`: Trigger for retry or manual intervention
+
+### 3. LEDGER.md Synchronization
+Every state change in the loop is flushed to `LEDGER.md`:
+- **Epics**: High-level objectives
+- **Tasks**: Granular execution units
+- **Learnings**: Patterns and Anti-patterns extracted from successful/failed runs
+
+---
+
+## Access Control & Security
+
+The system implements **Hierarchical Access Control** to maintain session integrity:
+
+1. **Namespace isolation**: Agents are addressed via `chief-of-staff/{agent}`.
+2. **Limited Visibility**: Only the `Chief-of-Staff` is exposed as a top-level agent; all others are sub-agents reachable via tools.
+3. **Tool Gating**: Each `SKILL.md` defines its own `tool_access` whitelist.
+4. **Session Boxing**: Sub-agents run in isolated child sessions to prevent parent context pollution.
+
 
 ---
 

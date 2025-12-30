@@ -7,17 +7,12 @@
  * IMPORTANT: This module ONLY handles configuration file paths, NOT database paths.
  *
  * Database Path Resolution (separate concern):
- * - Database (swarm.db) path is determined by swarm-mail via getSwarmMailLibSQL()
- * - See src/memory-lane/tools.ts:17 for database path resolution logic
- * - See src/index.ts:194 for projectPath initialization
+ * - Database (memories.db) path is determined by src/utils/database-path.ts
+ * - See src/memory-lane/tools.ts for database-backed tools
+ * - See src/index.ts for overall plugin initialization
  *
- * Configuration file paths handled here:
- * - Config directory: ~/.config/opencode/ (macOS/Linux) or %APPDATA%\opencode\ (Windows)
- * - Config file: ~/.config/opencode/swarmtool-addons.json
- *
- * DATABASE vs CONFIG PATHS - They are DIFFERENT:
- * - Config: Global user settings (models, preferences)
- * - Database: Project-specific swarm.db located in .hive/ directory
+ * Migration Note:
+ * - memory-lane now operates independently with its own database (~/.opencode/memories.db)
  */
 
 import fs from 'node:fs';
@@ -94,7 +89,13 @@ export function loadConfig(configPath?: string): SwarmToolAddonsConfig {
       console.error(`[ERROR] Config validation failed for ${filePath}:\n${errorMessage}`);
     }
 
-    return config;
+    // Merge with default config to ensure all default models are present
+    const defaultConfig = getDefaultConfig();
+    return {
+      ...defaultConfig,
+      ...config,
+      models: { ...defaultConfig.models, ...config.models },
+    };
   } catch (error) {
     // Log error with [ERROR] prefix (no console.log errors)
     const errorMessage = error instanceof Error ? error.toString() : String(error);

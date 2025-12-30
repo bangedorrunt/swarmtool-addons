@@ -186,6 +186,9 @@ export function getDefaultConfig(): SwarmToolAddonsConfig {
       'swarm/researcher': {
         model: DEFAULT_MODELS['swarm/researcher'],
       },
+      'chief-of-staff/oracle': {
+        model: DEFAULT_MODELS['chief-of-staff/oracle'],
+      },
     },
     debug: false,
     logLevel: 'info',

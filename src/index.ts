@@ -110,8 +110,8 @@ export const SwarmToolAddons: Plugin = async (input) => {
   const projectPath = process.cwd();
 
   // Create tools with client access
-  const skillAgentTools = createSkillAgentTools(input.client);
-  const agentTools = createAgentTools(input.client);
+  const skillAgentTools = createSkillAgentTools(input.client as any);
+  const agentTools = createAgentTools(input.client as any);
   const eventLogTools = createEventLogTools();
 
   // Create session learning hook with skill_agent integration
@@ -123,7 +123,7 @@ export const SwarmToolAddons: Plugin = async (input) => {
       const skillArgs = args as SkillAgentArgs;
       const result = await skillAgentTools.skill_agent.execute(
         { ...skillArgs, async: true, timeout_ms: skillArgs.timeout_ms ?? 60000 },
-        { sessionID: '', messageID: '', agent: '', abort: () => {} } as any
+        { sessionID: '', messageID: '', agent: '', abort: () => { } } as any
       );
       return JSON.parse(result as string);
     },

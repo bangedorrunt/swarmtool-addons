@@ -5,7 +5,7 @@ import { join, dirname } from 'node:path';
 /**
  * Session Learning Hooks
  *
- * Implements the self-learning workflow from PLAN.md:
+ * Implements the self-learning workflow from SPEC.md:
  * - Session Start: Injects relevant past learnings into context
  * - Session End: Captures learnings via memory-catcher agent
  *
