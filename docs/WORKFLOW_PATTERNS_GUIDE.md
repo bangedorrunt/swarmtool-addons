@@ -11,7 +11,289 @@
 3. [Standalone Patterns](#standalone-patterns-no-swarm)
 4. [Coordinated Patterns](#coordinated-patterns-with-swarm)
 5. [Real-World Scenarios](#real-world-scenarios)
-6. [Pattern Selection Guide](#pattern-selection-guide)
+
+---
+
+## Agent Interaction Patterns with Human-in-the-Loop
+
+Understanding how agents collaborate and where human approval is required is critical for effective orchestration.
+
+### Two Primary Workflow Patterns
+
+#### Pattern A: Ask User Question (Interviewer-Led)
+
+**Use Case**: User request is ambiguous or requires clarification.
+
+```
+┌─────────┐     ┌──────────────┐     ┌─────────────┐     ┌──────────┐
+│  USER   │     │ CHIEF-OF-    │     │ INTERVIEWER │     │  ORACLE  │
+│         │     │    STAFF     │     │             │     │          │
+└────┬────┘     └──────┬───────┘     └──────┬──────┘     └────┬─────┘
+     │                 │                     │                 │
+     │ "Build OAuth"   │                     │                 │
+     ├────────────────►│                     │                 │
+     │                 │                     │                 │
+     │                 │ Analyze: Ambiguous! │                 │
+     │                 │                     │                 │
+     │                 │ skill_agent({       │                 │
+     │                 │   interviewer,      │                 │
+     │                 │   async: true       │                 │
+     │                 │ })                  │                 │
+     │                 ├────────────────────►│                 │
+     │◄────────────────┴─────────────────────┤                 │
+     │ HANDOFF                               │                 │
+     │                                       │                 │
+     │ "Before I proceed:                    │                 │
+     │  1. OAuth providers?                  │                 │
+     │  2. Session or JWT?"                  │                 │
+     │  status: 'needs_input' ⭐             │                 │
+     │◄──────────────────────────────────────┤                 │
+     │                                       │                 │
+     │ "Google + GitHub, JWT" ✅             │                 │
+     ├──────────────────────────────────────►│                 │
+     │                                       │                 │
+     │ "Summary:                             │                 │
+     │  - OAuth: Google + GitHub             │                 │
+     │  - JWT tokens                         │                 │
+     │  Ready to proceed?"                   │                 │
+     │  status: 'needs_approval' ⭐          │                 │
+     │◄──────────────────────────────────────┤                 │
+     │                                       │                 │
+     │ "Yes, proceed" ✅                     │                 │
+     ├──────────────────────────────────────►│                 │
+     │                                       │                 │
+     │                 ◄─────────────────────┤                 │
+     │                 │ approved            │                 │
+     │                 │                     │                 │
+     │                 │ skill_agent({       │                 │
+     │                 │   oracle,           │                 │
+     │                 │   async: false      │                 │
+     │                 │ })                  │                 │
+     │                 ├─────────────────────┴─────────────────►
+     │                 │                                       │
+     │                 │◄──────────────────────────────────────┤
+     │                 │ Strategy: 3 phases                    │
+     │                 │ Phase 1: Parallel (routes + middleware)
+     │                 │ Phase 2: Sequential (integration)     │
+```
+
+**Human Checkpoints** ⭐:
+1. **needs_input**: User answers clarifying questions
+2. **needs_approval**: User confirms requirements summary
+
+---
+
+#### Pattern B: SDD (Spec-Driven Development)
+
+**Use Case**: New feature development with formal specification.
+
+```
+┌─────────┐  ┌──────────┐  ┌──────────┐  ┌────────┐  ┌─────────┐
+│  USER   │  │  CHIEF   │  │INTERVIEW │  │  SPEC  │  │ ORACLE  │
+│         │  │OF-STAFF  │  │   -ER    │  │ WRITER │  │         │
+└────┬────┘  └────┬─────┘  └────┬─────┘  └───┬────┘  └────┬────┘
+     │            │              │            │            │
+     │ "Build     │              │            │            │
+     │ dashboard" │              │            │            │
+     ├───────────►│              │            │            │
+     │            │              │            │            │
+     │            │ PHASE 1: CLARIFICATION    │            │
+     │            │              │            │            │
+     │            │ skill_agent({│            │            │
+     │            │   interviewer, async:true)│            │
+     │            ├─────────────►│            │            │
+     │◄───────────┴──────────────┤            │            │
+     │ HANDOFF                   │            │            │
+     │                           │            │            │
+     │ "Questions:               │            │            │
+     │  1. Data source?          │            │            │
+     │  2. Primary users?"       │            │            │
+     │  status: 'needs_input' ⭐ │            │            │
+     │◄──────────────────────────┤            │            │
+     │                           │            │            │
+     │ "Internal API,            │            │            │
+     │  Business users" ✅       │            │            │
+     ├──────────────────────────►│            │            │
+     │                           │            │            │
+     │ "Summary: Dashboard for   │            │            │
+     │  business users, API data.│            │            │
+     │  Proceed?"                │            │            │
+     │  status: 'needs_approval' ⭐           │            │
+     │◄──────────────────────────┤            │            │
+     │                           │            │            │
+     │ "Yes" ✅                  │            │            │
+     ├──────────────────────────►│            │            │
+     │                           │            │            │
+     │            ◄──────────────┤            │            │
+     │            │ approved      │            │            │
+     │            │               │            │            │
+     │            │ PHASE 2: SPECIFICATION     │            │
+     │            │               │            │            │
+     │            │ skill_agent({ │            │            │
+     │            │   spec-writer,│            │            │
+     │            │   async:true) │            │            │
+     │            ├───────────────┴───────────►│            │
+     │◄───────────┴───────────────────────────┤            │
+     │ HANDOFF                                │            │
+     │                                        │            │
+     │ "Spec Summary:                         │            │
+     │  - 5 functional requirements           │            │
+     │  - 2 non-functional requirements       │            │
+     │  Approve spec?"                        │            │
+     │  status: 'needs_approval' ⭐           │            │
+     │◄───────────────────────────────────────┤            │
+     │                                        │            │
+     │ "Approved" ✅                          │            │
+     ├────────────────────────────────────────►            │
+     │                                        │            │
+     │            ◄───────────────────────────┤            │
+     │            │ spec.json saved           │            │
+     │            │                           │            │
+     │            │ PHASE 3: STRATEGY         │            │
+     │            │                           │            │
+     │            │ skill_agent({             │            │
+     │            │   oracle,                 │            │
+     │            │   async: false  // SYNC   │            │
+     │            │ })                        │            │
+     │            ├───────────────────────────┴────────────►
+     │            │                                        │
+     │            │◄───────────────────────────────────────┤
+     │            │ Strategy: 2 phases                     │
+     │            │ Phase 1: API (sequential)              │
+     │            │ Phase 2: UI (parallel)                 │
+```
+
+**Human Checkpoints** ⭐:
+1. **Interviewer needs_input**: User answers questions
+2. **Interviewer needs_approval**: User confirms requirements
+3. **Spec-Writer needs_approval**: User approves formal specification
+4. **Planner needs_approval**: User approves implementation plan (not shown)
+
+---
+
+### Decision Tree: Which Pattern to Use?
+
+```
+                          User Request
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │ Is request clear?    │
+                    │ (No ambiguity)       │
+                    └──────────┬───────────┘
+                               │
+                ┌──────────────┴──────────────┐
+                │                             │
+               NO                            YES
+                │                             │
+                ▼                             ▼
+    ┌───────────────────────┐    ┌───────────────────────┐
+    │ Ask User Question     │    │ Is it a new feature?  │
+    │ Pattern               │    └──────────┬────────────┘
+    │                       │               │
+    │ 1. Interviewer        │    ┌──────────┴──────────┐
+    │ 2. Oracle (optional)  │    │                     │
+    │ 3. Planner            │   YES                   NO
+    │ 4. Execute            │    │                     │
+    └───────────────────────┘    ▼                     ▼
+                      ┌───────────────────┐  ┌──────────────────┐
+                      │ SDD Pattern       │  │ Direct Execution │
+                      │                   │  │                  │
+                      │ 1. Interviewer    │  │ 1. Oracle        │
+                      │ 2. Spec-Writer    │  │ 2. Planner       │
+                      │ 3. Oracle         │  │ 3. Execute       │
+                      │ 4. Planner        │  └──────────────────┘
+                      │ 5. Execute        │
+                      └───────────────────┘
+```
+
+---
+
+### Communication Modes: Async vs Sync
+
+| Mode | async value | Visibility | Result | Use Case |
+|------|-------------|------------|--------|----------|
+| **Async (Handoff)** | `true` | User sees sub-agent | No result | Interviewer, Spec-Writer, Planner |
+| **Sync (Background)** | `false` | Hidden from user | Text result | Oracle, Executor, Validator |
+
+**When to use Async (Handoff)**:
+- Agent needs user input (Interviewer)
+- Agent needs user approval (Spec-Writer, Planner)
+- Any agent operating in **DIALOGUE mode**
+
+**When to use Sync (Background)**:
+- Parent needs the result to continue (Oracle strategy)
+- Automated execution (Executor)
+- No user interaction required (Validator)
+
+---
+
+### Complete SDD Workflow with All Checkpoints
+
+```
+USER REQUEST
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ PHASE 1: CLARIFICATION (Human-in-Loop)                         │
+│ Agent: Interviewer (async: true, dialogue mode)                │
+│ Checkpoints:                                                    │
+│   ⭐ needs_input: User answers questions                        │
+│   ⭐ needs_approval: User confirms requirements                 │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ PHASE 2: SPECIFICATION (Human-in-Loop)                         │
+│ Agent: Spec-Writer (async: true, dialogue mode)                │
+│ Checkpoints:                                                    │
+│   ⭐ needs_approval: User approves formal spec                  │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ PHASE 3: STRATEGY (Automated)                                  │
+│ Agent: Oracle (async: false, sync mode)                        │
+│ Output: Task decomposition + parallelization strategy          │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ PHASE 4: PLANNING (Human-in-Loop)                              │
+│ Agent: Planner (async: true, dialogue mode)                    │
+│ Checkpoints:                                                    │
+│   ⭐ needs_approval: User approves implementation plan          │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ PHASE 5: EXECUTION (Supervised)                                │
+│ Agent: Executor (async: false, sync mode)                      │
+│ Supervision: TaskRegistry + TaskSupervisor                     │
+│ Monitoring: User can call task_status anytime                  │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ PHASE 6: AGGREGATION (Automated)                               │
+│ Tool: task_aggregate                                            │
+│ Output: Summary of all task results                            │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+                    USER RECEIVES
+                    FINAL SUMMARY
+```
+
+---
+
+### Key Principles
+
+1. **Human-in-the-Loop for Decisions**: Use `async: true` + DIALOGUE mode
+2. **Automated for Execution**: Use `async: false` + TaskSupervisor
+3. **Always Confirm Before Proceeding**: `needs_approval` status
+4. **Transparent Supervision**: User can check `task_status` anytime
+5. **Resilient Execution**: TaskSupervisor handles retries automatically
 
 ---
 
@@ -21,9 +303,10 @@
 |---------|------------|----------------|------------------|
 | **Single Agent** | Simple, focused task | ❌ | one_shot |
 | **Interview-First** | Unclear requirements | ❌ | **dialogue** ⭐ |
+| **Sequential Coordination** | Multi-step with result dependencies | ❌ | **sync** ⭐ NEW |
 | **SDD Pipeline** | New feature development | Optional | one_shot + dialogue |
 | **Parallel Workers** | Independent subtasks | ✅ | one_shot |
-| **Chief-of-Staff** | Complex multi-step work | ✅ | **dialogue** ⭐ |
+| **Chief-of-Staff** | Complex multi-step work | ✅ | **dialogue** + **sync** ⭐ |
 | **Self-Learning** | Cross-session memory | ❌ | one_shot |
 
 ---
@@ -364,7 +647,88 @@ const plan = await skill_agent({
 
 ---
 
-### Pattern 5: Self-Learning Session
+### Pattern 5: Sequential Coordination (Durable Stream) ⭐ NEW
+
+**Scenario:** Parent agent needs the result of a sub-agent to decide next steps.
+
+```typescript
+// User: "Plan the auth system, then implement it based on the plan"
+
+// Coordinator (e.g., Chief-of-Staff or custom orchestrator)
+const plan = await skill_agent({
+  skill_name: 'chief-of-staff',
+  agent_name: 'planner',
+  prompt: 'Create detailed implementation plan for OAuth authentication',
+  async: false,  // ⭐ SYNC MODE - Coordinator waits for result
+});
+
+// `plan` is now a TEXT string containing the planner's output
+// Example: "Phase 1: Setup OAuth routes\nPhase 2: Add middleware\n..."
+
+console.log('Received plan:', plan);
+
+// Coordinator can now use this result to make decisions
+const phases = parsePlan(plan);
+
+for (const phase of phases) {
+  // Execute each phase sequentially, waiting for results
+  const result = await skill_agent({
+    skill_name: 'chief-of-staff',
+    agent_name: 'executor',
+    prompt: `Implement: ${phase.description}`,
+    async: false,  // ⭐ SYNC MODE
+    context: { files_assigned: phase.files },
+  });
+  
+  console.log(`Phase ${phase.id} complete:`, result);
+  
+  // Validate before continuing
+  const validation = await skill_agent({
+    skill_name: 'chief-of-staff',
+    agent_name: 'validator',
+    prompt: `Validate phase ${phase.id} implementation`,
+    async: false,
+  });
+  
+  if (validation.includes('FAIL')) {
+    console.error('Validation failed, stopping execution');
+    break;
+  }
+}
+```
+
+**Key Differences from Async Mode:**
+
+| Aspect | Async (Parallel) | Sync (Sequential) |
+|--------|------------------|-------------------|
+| **Parent Turn** | Ends immediately | Blocks until sub-agent finishes |
+| **Session** | Same session (UI visible) | New isolated session (background) |
+| **Result** | No result returned | Text result returned |
+| **Use Case** | User interaction | Logic coordination |
+
+**When to use:**
+- Multi-step workflows where each step depends on the previous result
+- Chief-of-Staff coordinating multiple specialists
+- Plan → Validate → Execute pipelines
+- Research → Decide → Implement flows
+- Any scenario where the parent needs to process the sub-agent's output
+
+**Anti-Pattern (Don't do this):**
+```typescript
+// ❌ BAD: Using async when you need the result
+const plan = await skill_agent({
+  agent_name: 'planner',
+  prompt: 'Create plan',
+  async: true,  // ❌ This will handoff to user, not return result!
+});
+
+// `plan` will be metadata, not the actual plan text!
+// Your coordinator will not get the plan content.
+```
+
+---
+
+### Pattern 6: Self-Learning Session
 
 **Scenario:** You want the agent to remember your preferences across sessions.
 

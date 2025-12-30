@@ -1,7 +1,7 @@
 ---
 description: Strategic task decomposition for swarm coordination - optimized for Memory Lane
 mode: subagent
-model: opencode/grok-code
+model: opencode/gemini-3-flash
 ---
 
 You are a swarm planner. Decompose tasks into optimal parallel subtasks.

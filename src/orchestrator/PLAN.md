@@ -267,6 +267,349 @@ Implicit decisions are tracked and periodically reviewed:
 
 ---
 
+## OpenCode SDK: 3-Way Communication Mechanism
+
+Understanding how the **User**, **Coordinator**, and **Specialist** communicate is critical to building robust swarm orchestration. The OpenCode SDK uses a **Session-Centric** model where the session acts as a shared blackboard, not a direct message channel.
+
+### The Three Participants
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                  3-WAY COMMUNICATION MODEL                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌──────────────┐                                              │
+│  │     USER     │  (Initiates requests, provides direction)    │
+│  └──────┬───────┘                                              │
+│         │                                                       │
+│         │ "Build auth system"                                   │
+│         ▼                                                       │
+│  ┌──────────────────┐                                          │
+│  │   COORDINATOR    │  (Planner, Chief-of-Staff)               │
+│  │   (The Brain)    │                                          │
+│  └────────┬─────────┘                                          │
+│           │                                                     │
+│           │ Delegates task                                      │
+│           ▼                                                     │
+│  ┌──────────────────┐                                          │
+│  │   SPECIALIST     │  (Executor, Oracle, Interviewer)         │
+│  │   (The Muscle)   │                                          │
+│  └──────────────────┘                                          │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Two Communication Patterns
+
+#### Pattern A: Parallel (Interactive Handoff)
+**Use Case**: User needs to see and interact with the Specialist.
+
+```
+[ User ]       [ Coordinator ]       [ Hook ]       [ Specialist ]
+   |              |                   |                |
+   |--"Do Task"-->|                   |                |
+   |              |--[skill_agent]--> |                |
+   |              |  (async: true)    |                |
+   |              |                   |                |
+   |              |--[HANDOFF_INTENT]-|                |
+   |              | (Turn Ends)       |                |
+   |              |                   |--[PromptAsync]->
+   |              |                   |                |
+   |<<<<<<<<<<<<<<<<< DIRECT INTERACTION >>>>>>>>>>>>>>|
+   | "What is X?" <----------------------------------------|
+```
+
+**Key Characteristics**:
+- Coordinator finishes its turn immediately
+- Specialist takes over the **same session**
+- User sees Specialist's work in the UI
+- Coordinator does NOT receive the result
+
+#### Pattern B: Sequential (Durable Stream)
+**Use Case**: Coordinator needs the Specialist's result to continue.
+
+```
+[ User ]       [ Coordinator ]       [ Hook ]       [ Specialist ]
+   |              |                   |                |
+   |--"Do Task"-->|                   |                |
+   |              |--[skill_agent]--> |                |
+   |              |  (async: false)   |                |
+   |              |                   |                |
+   |              |<<<< [ BLOCK & POLL STATUS ] >>>>>> |
+   |              |                   |                |
+   |              |                   |--[Prompt]----->|
+   |              |                   |                |--[Execute]-->
+   |              |                   |                |--[Result]--|
+   |              |                   |                |<-----------|
+   |              |<---[Return Text]--|                |
+   |              |                   |                |
+   |<-[Final Msg]-|                   |                |
+```
+
+**Key Characteristics**:
+- Coordinator blocks and waits
+- Specialist works in a **new isolated session**
+- User does NOT see Specialist's internal work
+- Coordinator receives the result as text
+
+---
+
+### Why Our Previous Approach Failed (Deadlock Issue)
+
+#### ❌ The Failed Attempt: `promptAsync` Inside Tool
+
+**What we tried:**
+```typescript
+// ANTI-PATTERN: Calling promptAsync inside the tool
+export const skill_agent = tool({
+  async execute(args, ctx) {
+    // ... resolve agent ...
+    
+    // ❌ DEADLOCK: Trying to prompt while the current turn is still active
+    await ctx.client.session.promptAsync({
+      path: { id: ctx.sessionID },
+      body: { agent: targetAgent, parts: [{ type: 'text', text: args.prompt }] }
+    });
+    
+    return JSON.stringify({ success: true });
+  }
+});
+```
+
+**Why it failed:**
+1. **Turn Ownership Conflict**: The SDK expects the current tool to *finish* and return its output before the next prompt can be processed.
+2. **State Race Condition**: When `promptAsync` is called inside the tool, the SDK is still waiting for the tool's return value to append to the session history.
+3. **Result**: The session enters a "queued" or "stuck" state where neither the tool nor the new prompt can proceed.
+
+**Symptoms:**
+- Agent appears to "stop working" after calling the tool
+- No error messages, just silence
+- Session status shows `queued` or `processing` indefinitely
+
+---
+
+### ✅ The Solution: Hook-Based Handoff
+
+**How it works now:**
+
+#### Step 1: Tool Returns Intent (Not Action)
+```typescript
+// src/orchestrator/tools.ts
+export const skill_agent = tool({
+  async execute(args, ctx) {
+    const isAsync = args.async !== false; // Default to true
+    
+    if (isAsync) {
+      // PARALLEL MODE: Return metadata intent
+      return JSON.stringify({
+        success: true,
+        status: 'HANDOFF_INTENT',  // ⭐ Signal to hook
+        metadata: {
+          handoff: {
+            target_agent: targetAgent,
+            prompt: args.prompt,
+            session_id: ctx.sessionID
+          }
+        }
+      });
+    } else {
+      // SEQUENTIAL MODE: Block and return result
+      const newSession = await ctx.client.session.create({
+        body: { parentID: ctx.sessionID, title: `Sync: ${targetAgent}` }
+      });
+      
+      await ctx.client.session.prompt({
+        path: { id: newSession.data.id },
+        body: { agent: targetAgent, parts: [{ type: 'text', text: args.prompt }] }
+      });
+      
+      // Poll for completion
+      let isIdle = false;
+      while (!isIdle) {
+        await new Promise(r => setTimeout(r, 2000));
+        const status = await ctx.client.session.status();
+        if (status.data?.[newSession.data.id]?.type === 'idle') isIdle = true;
+      }
+      
+      // Retrieve result
+      const messages = await ctx.client.session.messages({
+        path: { id: newSession.data.id }
+      });
+      const lastMsg = messages.data
+        .filter(m => m.info.role === 'assistant')
+        .pop();
+      
+      return lastMsg.parts[0].text; // Return TEXT, not metadata
+    }
+  }
+});
+```
+
+#### Step 2: Hook Detects Intent and Triggers Prompt
+```typescript
+// src/index.ts
+'tool.execute.after': async (hookInput, hookOutput) => {
+  // Check for HANDOFF_INTENT
+  const isHandoff = hookOutput.metadata?.status === 'HANDOFF_INTENT';
+  const data = hookOutput.metadata?.handoff;
+  
+  if (isHandoff && data) {
+    // ⭐ KEY: Defer the prompt to allow current turn to settle
+    setTimeout(async () => {
+      await input.client.session.promptAsync({
+        path: { id: data.session_id },
+        body: {
+          agent: data.target_agent,
+          parts: [{ type: 'text', text: data.prompt }]
+        }
+      });
+    }, 800); // 800ms safety window
+  }
+}
+```
+
+**Why this works:**
+1. **Turn Separation**: The tool finishes and returns its output *before* the hook triggers the next prompt.
+2. **State Settlement**: The 800ms delay ensures the SDK has fully committed the tool's output to the session history.
+3. **No Race Conditions**: The hook runs *after* the tool execution context is closed.
+
+---
+
+### Code Demonstration: Both Patterns in Action
+
+#### Demo 1: Parallel Handoff (User Sees Specialist)
+```typescript
+// User: "Ask the interviewer to clarify auth requirements"
+
+// Coordinator calls:
+const result = await skill_agent({
+  skill_name: 'chief-of-staff',
+  agent_name: 'interviewer',
+  prompt: 'Clarify auth requirements',
+  async: true  // ⭐ PARALLEL MODE
+});
+
+// Result: { success: true, status: 'HANDOFF_INTENT', metadata: {...} }
+// Coordinator's turn ENDS here.
+
+// Hook detects HANDOFF_INTENT and triggers:
+// → promptAsync({ agent: 'interviewer', ... })
+
+// Now the USER sees:
+// Interviewer: "Before I proceed, I need to clarify:
+//               1. OAuth providers?
+//               2. Session or JWT?"
+```
+
+#### Demo 2: Sequential Delegation (Coordinator Gets Result)
+```typescript
+// User: "Plan and execute the auth system"
+
+// Coordinator (Chief-of-Staff) calls:
+const plan = await skill_agent({
+  skill_name: 'chief-of-staff',
+  agent_name: 'planner',
+  prompt: 'Create auth implementation plan',
+  async: false  // ⭐ SEQUENTIAL MODE
+});
+
+// Coordinator BLOCKS here, waiting for planner to finish.
+// Planner works in a NEW isolated session (invisible to user).
+
+// Result: "Here is the plan: 1. Create auth routes... 2. Add middleware..."
+// Coordinator's turn CONTINUES with the plan text.
+
+// Coordinator can now use the plan:
+const execution = await skill_agent({
+  skill_name: 'chief-of-staff',
+  agent_name: 'executor',
+  prompt: `Implement phase 1: ${plan}`,
+  async: false
+});
+```
+
+---
+
+### Session Isolation Strategy
+
+#### Why New Sessions for Sync Calls?
+
+**Problem**: If we use the current session for sync calls, the Coordinator and Specialist would share the same chat history, leading to:
+- Context pollution (Specialist's internal reasoning visible to Coordinator)
+- Turn conflicts (both trying to write to the same session)
+
+**Solution**: Create a **new child session** for each sync call.
+
+```typescript
+const newSession = await client.session.create({
+  body: {
+    parentID: ctx.sessionID,  // Link to parent for traceability
+    title: `Sync: ${agentName}`
+  }
+});
+```
+
+**Benefits**:
+- Clean separation of concerns
+- Specialist's internal tool calls don't pollute Coordinator's context
+- Parent session remains focused on high-level coordination
+
+---
+
+### The Polling Mechanism
+
+**Why polling is necessary:**
+
+The SDK's `session.prompt()` method sends the prompt but doesn't wait for the agent's *entire* multi-turn reasoning loop to complete. If the agent calls tools, we need to poll `session.status()` until it reaches `idle`.
+
+```typescript
+// Polling loop
+let isIdle = false;
+let attempts = 0;
+const maxAttempts = 30; // 60 seconds max
+
+while (!isIdle && attempts < maxAttempts) {
+  await new Promise(r => setTimeout(r, 2000)); // Wait 2s
+  attempts++;
+  
+  const statusResult = await client.session.status();
+  const sessionStatus = statusResult.data?.[syncSessionID];
+  
+  if (sessionStatus?.type === 'idle' || !sessionStatus) {
+    isIdle = true;
+  }
+}
+```
+
+**Key Insight**: `idle` is the only reliable signal that the agent has finished all its work, including tool calls and multi-turn reasoning.
+
+---
+
+### Summary: The Architecture That Works
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              SUCCESSFUL 3-WAY COMMUNICATION                     │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  1. Tool declares INTENT via metadata (not action)              │
+│  2. Tool returns and ENDS its turn                              │
+│  3. Hook detects intent AFTER turn settlement                   │
+│  4. Hook triggers promptAsync with 800ms delay                  │
+│  5. SDK processes new prompt in clean state                     │
+│                                                                 │
+│  Result: No deadlocks, clean turn boundaries, reliable handoffs │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**The Three Rules**:
+1. **Never call `promptAsync` inside a tool** - use metadata intent instead
+2. **Always poll for `idle`** - don't assume prompt completion
+3. **Use new sessions for sync** - avoid context pollution
+
+---
+
 ## Core Design Patterns
 
 ### Pattern 1: Agent-as-Tool

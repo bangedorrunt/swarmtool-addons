@@ -218,6 +218,120 @@ The Orchestrator module provides skill-based agents that can be composed into po
 
 ---
 
+### Pattern 9: Sequential Coordination (Background Delegation) ⭐ NEW
+
+**When to use:** You need a sub-agent's output to decide what to do next.
+
+**Example prompts:**
+```
+"Plan the auth system, then use that plan to generate the code"
+
+"Ask the oracle for advice, then implement based on that advice"
+
+"Research the library, then create a migration plan"
+```
+
+**What happens:**
+1. Parent agent calls sub-agent with `async: false`
+2. System creates isolated session for sub-agent
+3. Parent **blocks** and polls for completion
+4. Sub-agent's final message is returned as text
+5. Parent continues with the result
+
+**Example code:**
+```typescript
+// Parent agent (e.g., Chief-of-Staff)
+const plan = await skill_agent({
+  agent_name: 'planner',
+  prompt: 'Create implementation plan',
+  async: false  // ⭐ SYNC MODE
+});
+
+// `plan` is now the text output
+console.log('Got plan:', plan);
+
+// Use the plan to execute
+const result = await skill_agent({
+  agent_name: 'executor',
+  prompt: `Implement: ${plan}`,
+  async: false
+});
+```
+
+**Key difference from Async:**
+- **Async**: Sub-agent takes over the UI, parent finishes
+- **Sync**: Sub-agent works in background, parent waits for result
+
+
+---
+
+## 🔄 Agent Interaction Patterns
+
+Understanding how agents collaborate with human-in-the-loop checkpoints.
+
+### Visual Workflow: SDD Pattern
+
+```
+USER: "Build dashboard"
+     │
+     ▼
+┌─────────────────────────────────────────┐
+│ PHASE 1: CLARIFICATION                 │
+│ Agent: Interviewer (async: true)       │
+│ ⭐ User answers questions               │
+│ ⭐ User approves requirements           │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────┐
+│ PHASE 2: SPECIFICATION                 │
+│ Agent: Spec-Writer (async: true)       │
+│ ⭐ User approves formal spec            │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────┐
+│ PHASE 3: STRATEGY                      │
+│ Agent: Oracle (async: false)           │
+│ Automated task decomposition           │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────┐
+│ PHASE 4: PLANNING                      │
+│ Agent: Planner (async: true)           │
+│ ⭐ User approves implementation plan    │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────┐
+│ PHASE 5: EXECUTION                     │
+│ Agent: Executor (async: false)         │
+│ Supervised by TaskRegistry             │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+          USER RECEIVES
+          FINAL SUMMARY
+```
+
+### Communication Modes
+
+| Mode | When to Use | Visibility | Result |
+|------|-------------|------------|--------|
+| **async: true** | User needs to see/approve | User sees agent | No result returned |
+| **async: false** | Parent needs result | Hidden from user | Text result returned |
+
+**Human Checkpoints** ⭐:
+- **Interviewer**: User answers questions + approves requirements
+- **Spec-Writer**: User approves formal specification
+- **Planner**: User approves implementation plan
+- **Execution**: User can monitor with `task_status` anytime
+
+See [docs/WORKFLOW_PATTERNS_GUIDE.md](../docs/WORKFLOW_PATTERNS_GUIDE.md) for detailed sequence diagrams and decision trees.
+
+---
+
 ## 🧠 Self-Learning
 
 The system learns from your interactions automatically:

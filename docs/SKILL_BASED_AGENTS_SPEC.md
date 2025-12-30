@@ -630,11 +630,39 @@ await swarmmail_send({
 skill_agent({
   agent_name: string,      // e.g., "chief-of-staff/planner"
   prompt: string,          // Task description or question
+  async?: boolean,         // ⭐ NEW: true (default) = parallel handoff, false = sequential with result
   context?: string         // Optional: prepended context
 })
-→ { "success": true, "agent": "...", "messageID": "...", "note": "..." }
+
+// ASYNC MODE (async: true, default):
+→ {
+    "success": true,
+    "status": "HANDOFF_INTENT",
+    "metadata": {
+      "handoff": {
+        "target_agent": "...",
+        "prompt": "...",
+        "session_id": "..."
+      }
+    }
+  }
+  // Hook will trigger promptAsync, user sees sub-agent in UI
+
+// SYNC MODE (async: false):
+→ "Text result from sub-agent's final message"
+  // Parent agent receives result and continues
+
+// ERROR:
 | { "success": false, "error": "SPAWN_FAILED", "message": "..." }
 ```
+
+**Mode Comparison:**
+
+| Mode | async value | Parent Behavior | Session | Result | Use Case |
+|------|-------------|-----------------|---------|--------|----------|
+| **Parallel** | `true` (default) | Ends turn immediately | Same (UI visible) | No result | User interaction |
+| **Sequential** | `false` | Blocks until complete | New (isolated) | Text returned | Logic coordination |
+
 
 ### Implemented: `skill_list` - Agent Discovery
 
