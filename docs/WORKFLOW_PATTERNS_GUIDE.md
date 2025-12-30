@@ -768,6 +768,158 @@ await capture.execute({
 
 ---
 
+## LEDGER.md: Single Source of Truth
+
+The **LEDGER.md** file is the central continuity system that tracks:
+- Active epic and tasks (hierarchical)
+- Accumulated learnings (patterns, anti-patterns, decisions)
+- Handoff context (for session breaks)
+- Archived epics (history)
+
+### LEDGER.md Structure
+
+```markdown
+# LEDGER
+
+## Meta
+session_id: sess_abc123
+status: active
+phase: EXECUTION
+last_updated: 2025-12-30T18:00:00Z
+tasks_completed: 2/3
+current_task: abc123.3
+
+---
+
+## Epic: abc123
+
+**Title**: Build E-commerce Checkout
+**Status**: in_progress
+
+### Tasks
+
+| ID | Title | Agent | Status | Outcome |
+|----|-------|-------|--------|---------|
+| abc123.1 | Payment Routes | executor | ✅ | SUCCEEDED |
+| abc123.2 | Order Logic | executor | ✅ | SUCCEEDED |
+| abc123.3 | Admin Dashboard | executor | ⏳ | - |
+
+### Context
+- Using Stripe Checkout
+- PostgreSQL for storage
+
+---
+
+## Learnings
+
+### Patterns ✅
+- **Stripe**: Use `stripe.checkout.sessions.create`
+- **PostgreSQL**: Row-level locking for inventory
+
+### Anti-Patterns ❌
+- Don't use `bcrypt.hashSync` in async routes
+
+### Decisions
+- Chose JWT over sessions
+
+---
+
+## Handoff
+*Empty when active*
+
+---
+
+## Archive
+| Epic | Title | Outcome | Date |
+|------|-------|---------|------|
+| xyz789 | User Auth | SUCCEEDED | 2025-12-29 |
+```
+
+### Key Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **Epic** | Top-level goal with max 3 tasks |
+| **Task** | Hash ID format: `abc123.1`, `abc123.2`, `abc123.3` |
+| **Learnings** | Patterns, anti-patterns, decisions, preferences |
+| **Handoff** | Context for session breaks (auto-populated) |
+| **Archive** | Last 5 completed epics (auto-cleaned) |
+
+### Session Lifecycle Hooks
+
+```
+SESSION START          WORKING               PRE-COMPACT          SESSION END
+┌──────────────┐      ┌──────────────┐      ┌──────────────┐     ┌──────────────┐
+│ Load LEDGER  │──▶   │ Update tasks │──▶   │ Create       │──▶  │ Mark outcome │
+│ Surface      │      │ Log progress │      │ handoff      │     │ Extract      │
+│ learnings    │      │ Extract      │      │              │     │ learnings    │
+└──────────────┘      │ learnings    │      └──────────────┘     │ Archive epic │
+                      └──────────────┘                           └──────────────┘
+```
+
+### Integrating with SDD Workflow
+
+```typescript
+// 1. Load LEDGER at session start
+const ledger = await loadLedger();
+
+// 2. Check for active epic (resume)
+if (ledger.epic) {
+  console.log(`Resuming: ${ledger.epic.title}`);
+}
+
+// 3. Surface recent learnings
+const patterns = ledger.learnings.patterns;
+console.log(`Known patterns: ${patterns.length}`);
+
+// 4. Create new epic with task decomposition
+const epicId = createEpic(ledger, {
+  title: 'Build Checkout',
+  userRequest: originalRequest,
+});
+
+// 5. Add tasks (max 3)
+createTask(ledger, epicId, {
+  id: `${epicId}.1`,
+  title: 'Payment Routes',
+  agent: 'executor',
+});
+createTask(ledger, epicId, {
+  id: `${epicId}.2`,
+  title: 'Order Logic',
+  agent: 'executor',
+  dependencies: [`${epicId}.1`],
+});
+
+// 6. Execute tasks, updating LEDGER
+for (const task of ledger.epic.tasks) {
+  const result = await skill_agent({
+    agent_name: task.agent,
+    prompt: task.title,
+    async: false,
+  });
+  
+  updateTaskStatus(ledger, task.id, 'completed', result);
+  extractLearnings(ledger, task, result);
+  await saveLedger(ledger);
+}
+
+// 7. Archive on completion
+archiveEpic(ledger, 'SUCCEEDED');
+await saveLedger(ledger);
+```
+
+### Benefits
+
+1. **Single File**: All state in one place
+2. **Human Readable**: Markdown format
+3. **Crash Recovery**: Resume from any phase
+4. **Learning Loop**: Accumulate knowledge over time
+5. **Auto Cleanup**: Archive keeps only recent epics
+
+---
+
+
 ## Coordinated Patterns (With Swarm)
 
 These patterns leverage SwarmMail for inter-agent communication.

@@ -12,9 +12,10 @@
 import { appendFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
-/**
- * Swarm completion hook data structure
- */
+export const TRANSCRIPT_MAX_CHARS = 16000;
+export const MEMORY_CATCHER_TIMEOUT_MS = 300000;
+export const HANDOFF_SETTLE_DELAY_MS = 800;
+
 export interface SwarmCompletionData {
   transcript?: string;
   summary: string;
@@ -51,10 +52,10 @@ function logToFile(projectPath: string, message: string) {
  * to prevent context window failures in local LLMs like Ollama.
  *
  * @param text - The full transcript text
- * @param maxChars - Maximum characters (default: 16000)
+ * @param maxChars - Maximum characters (default: TRANSCRIPT_MAX_CHARS)
  * @returns Truncated text with an indicator
  */
-function truncateTranscript(text: string, maxChars: number = 16000): string {
+export function truncateTranscript(text: string, maxChars: number = TRANSCRIPT_MAX_CHARS): string {
   if (!text || text.length <= maxChars) return text;
 
   const truncated = text.slice(0, maxChars);
@@ -67,24 +68,31 @@ function truncateTranscript(text: string, maxChars: number = 16000): string {
  *
  * @param projectPath - Project directory path
  * @param outcomeData - Data about the completed task
- * @param $ - Shell execution helper
+ * @param shellHelper - Shell execution helper ($)
  */
 export async function triggerMemoryExtraction(
   projectPath: string,
   outcomeData: SwarmCompletionData,
-  $: any
+  shellHelper:
+    | ((
+        cmd: TemplateStringsArray,
+        ...args: string[]
+      ) => {
+        quiet(): unknown;
+        nothrow(): unknown;
+        signal(signal: AbortSignal): unknown;
+        then(onfulfilled?: (value: unknown) => unknown): unknown;
+      })
+    | null
 ): Promise<void> {
   logToFile(projectPath, `Triggering extraction for task ${outcomeData.bead_id || 'unknown'}`);
 
-  // Truncate transcript to prevent Ollama context failures
   const safeTranscript = outcomeData.transcript
     ? truncateTranscript(outcomeData.transcript)
     : 'Not provided in immediate outcome. Memory-catcher will fetch from swarm-mail if needed.';
 
-  // Spawn memory-catcher using opencode CLI
-  if ($) {
-    try {
-      const instruction = `SYSTEM: Memory Lane Extraction
+  if (shellHelper) {
+    const instruction = `SYSTEM: Memory Lane Extraction
 CONTEXT: Task ${outcomeData.bead_id || 'unknown'} completed (Epic: ${outcomeData.epic_id || 'unknown'}).
 SUMMARY: ${outcomeData.summary}
 FILES: ${outcomeData.files_touched.join(', ')}
@@ -98,30 +106,30 @@ INSTRUCTION:
 4. Store learnings using memory-lane_store (NOT semantic-memory_store).
 5. Exit when done.`;
 
-      logToFile(projectPath, 'Spawning opencode CLI for memory-catcher...');
+    logToFile(projectPath, 'Spawning opencode CLI for memory-catcher...');
 
-      const controller = new globalThis.AbortController();
-      const timeoutId = globalThis.setTimeout(() => {
-        logToFile(projectPath, `Timeout: aborting process for ${outcomeData.bead_id}`);
-        controller.abort();
-      }, 300000); // 5 minutes
+    const controller = new globalThis.AbortController();
+    const timeoutId = globalThis.setTimeout(() => {
+      logToFile(projectPath, `Timeout: aborting process for ${outcomeData.bead_id}`);
+      controller.abort();
+    }, MEMORY_CATCHER_TIMEOUT_MS);
 
-      try {
-        const shell = $`opencode run --agent "swarm/worker" ${instruction}`
-          .quiet()
-          .nothrow()
-          .signal(controller.signal);
+    try {
+      const shell = shellHelper`opencode run --agent "swarm/worker" ${instruction}`;
+      const quietShell = (shell as { quiet(): unknown }).quiet();
+      const nothrowShell = (quietShell as { nothrow(): unknown }).nothrow();
 
-        const result = await shell;
+      const shellResult = await nothrowShell;
 
-        logToFile(projectPath, `CLI process exited with code ${result.exitCode}`);
-      } finally {
-        globalThis.clearTimeout(timeoutId);
-      }
+      const result = shellResult as { exitCode: number };
+      logToFile(projectPath, `CLI process exited with code ${result.exitCode}`);
     } catch (spawnError) {
-      logToFile(projectPath, `Spawn error: ${spawnError}`);
+      const errorMessage = spawnError instanceof Error ? spawnError.toString() : String(spawnError);
+      logToFile(projectPath, `Spawn error: ${errorMessage}`);
+    } finally {
+      globalThis.clearTimeout(timeoutId);
     }
   } else {
-    logToFile(projectPath, 'Shell helper ($) unavailable - skipping spawn');
+    logToFile(projectPath, 'Shell helper unavailable - skipping spawn');
   }
 }

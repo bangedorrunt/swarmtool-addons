@@ -11,7 +11,7 @@ import {
   getConfigPath,
 } from './loader';
 
-const testDir = join(process.cwd(), '.opencode-test');
+const testDir = join(process.cwd(), 'test');
 
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => { });

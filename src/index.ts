@@ -9,16 +9,33 @@
  */
 
 import type { Plugin } from '@opencode-ai/plugin';
-import path from 'path';
+import path from 'node:path';
 import fs from 'node:fs';
 import { memoryLaneTools, triggerMemoryExtraction } from './memory-lane';
 import { loadConfig, DEFAULT_MODELS } from './opencode';
 import { loadLocalAgents, loadSkillAgents, loadCommands } from './opencode';
-import { createSkillAgentTools } from './orchestrator/tools'; // Changed from './opencode'
+import { createSkillAgentTools } from './orchestrator/tools';
 import { createOpenCodeSessionLearningHook } from './orchestrator/hooks';
 import { loadChiefOfStaffSkills } from './opencode/config/skill-loader';
 import { createAgentTools } from './agent-spawn';
 import { createEventLogTools } from './event-log';
+import { HANDOFF_SETTLE_DELAY_MS } from './memory-lane/hooks';
+
+interface SkillAgentArgs {
+  skill_name?: string;
+  agent_name: string;
+  prompt: string;
+  session_id?: string;
+  context?: unknown;
+  async?: boolean;
+  timeout_ms?: number;
+}
+
+interface HandoffData {
+  target_agent: string;
+  prompt: string;
+  session_id: string;
+}
 
 /**
  * Auto-migrate chief-of-staff skills to .opencode/skill/ if not found.
@@ -102,10 +119,13 @@ export const SwarmToolAddons: Plugin = async (input) => {
     maxMemories: 10,
     captureEnabled: true,
     captureDelay: 2000,
-    skillAgent: async (args: any) => {
-      // Use the skill_agent tool for spawning memory-catcher
-      const result = await skillAgentTools.skill_agent.execute({ ...args, async: true }, {} as any);
-      return JSON.parse(result);
+    skillAgent: async (args: unknown) => {
+      const skillArgs = args as SkillAgentArgs;
+      const result = await skillAgentTools.skill_agent.execute(
+        { ...skillArgs, async: true, timeout_ms: skillArgs.timeout_ms ?? 60000 },
+        { sessionID: '', messageID: '', agent: '', abort: () => {} } as any
+      );
+      return JSON.parse(result as string);
     },
   });
 
@@ -133,15 +153,15 @@ export const SwarmToolAddons: Plugin = async (input) => {
       hookInput: { tool: string; sessionID: string; callID: string },
       hookOutput: { title: string; output: string; metadata: any }
     ) => {
-
       // Swarm Complete Handoff (Memory Extraction)
       if (hookInput.tool === 'swarm_complete') {
         try {
           if (hookOutput.metadata?.outcome) {
-            triggerMemoryExtraction(projectPath, hookOutput.metadata.outcome, input.$);
+            triggerMemoryExtraction(projectPath, hookOutput.metadata.outcome, input.$ as any);
           }
         } catch (error) {
-          // Learning injection failed - continue without learnings
+          const errorMessage = error instanceof Error ? error.toString() : String(error);
+          console.error('[ERROR] Memory extraction failed:', errorMessage);
         }
       }
 
@@ -166,28 +186,27 @@ export const SwarmToolAddons: Plugin = async (input) => {
         }
       }
 
-      // ONLY trigger if HANDOFF_INTENT is true. 
+      // ONLY trigger if HANDOFF_INTENT is true.
       // Synchronous tools return raw text/JSON without this intent to avoid duplicate prompts.
       if (handoffData && isHandoffIntent) {
-        const { target_agent, prompt, session_id } = handoffData;
+        const handoff = handoffData as HandoffData;
+        const { target_agent, prompt, session_id } = handoff;
 
         if (target_agent && prompt && session_id) {
-
-          // Defer to ensure the current tool turn is fully settled in the SDK
           setTimeout(async () => {
             try {
               await input.client.session.promptAsync({
                 path: { id: session_id },
                 body: {
                   agent: target_agent,
-                  parts: [{ type: 'text', text: prompt }]
-                }
+                  parts: [{ type: 'text', text: prompt }],
+                },
               });
-            } catch (err: any) {
-              // Error handling for failed prompt, removed console.error
+            } catch (err) {
+              const errorMessage = err instanceof Error ? err.toString() : String(err);
+              console.error('[ERROR] Handoff prompt failed:', errorMessage);
             }
-          }, 800); // 800ms for extra safety
-        } else {
+          }, HANDOFF_SETTLE_DELAY_MS);
         }
       }
     },
@@ -244,7 +263,21 @@ export const SwarmToolAddons: Plugin = async (input) => {
           config.agent[name] = { model };
         } else if (!config.agent[name].model || config.agent[name].model === 'opencode/grok-code') {
           // If it's a built-in like 'build' or 'plan', use the llama3.2 default
-          if (['Build', 'build', 'Plan', 'plan', 'Explore', 'explore', 'General', 'general', 'swarm/planner', 'swarm/worker', 'swarm/researcher'].includes(name)) {
+          if (
+            [
+              'Build',
+              'build',
+              'Plan',
+              'plan',
+              'Explore',
+              'explore',
+              'General',
+              'general',
+              'swarm/planner',
+              'swarm/worker',
+              'swarm/researcher',
+            ].includes(name)
+          ) {
             config.agent[name].model = model;
           }
         }

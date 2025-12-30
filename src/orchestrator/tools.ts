@@ -5,14 +5,50 @@ import { spawnChildAgent } from './session-coordination';
 import { loadActorState } from './actor/state';
 import { processMessage } from './actor/core';
 
-/**
- * Orchestrator Tool Suite
- *
- * Provides tools for spawning specialized subagents defined within skills.
- * Uses proper session coordination to avoid deadlocks.
- */
+interface AgentConfig {
+  name: string;
+  config: {
+    prompt?: string;
+    model?: string;
+    description?: string;
+    tools?: string[];
+    temperature?: number;
+    metadata?: Record<string, unknown>;
+  };
+}
 
-export function createSkillAgentTools(client: any) {
+interface ToolContext {
+  sessionID?: string;
+  messageID?: string;
+  agent?: string;
+  abort?: () => void;
+}
+
+export function createSkillAgentTools(client: {
+  session: {
+    create: (opts: { body: { parentID?: string; title: string } }) => Promise<{
+      error?: { message?: string };
+      data?: { id: string };
+    }>;
+    prompt: (opts: {
+      path: { id: string };
+      body: { agent: string; parts: Array<{ type: string; text: string }> };
+    }) => Promise<void>;
+    promptAsync: (opts: {
+      path: { id: string };
+      body: { agent: string; parts: Array<{ type: string; text: string }> };
+    }) => Promise<void>;
+    status: () => Promise<{
+      data?: Record<string, { type: string }>;
+    }>;
+    messages: (opts: { path: { id: string } }) => Promise<{
+      data?: Array<{
+        info?: { role?: string; time?: { created?: number } };
+        parts?: Array<{ type: string; text: string }>;
+      }>;
+    }>;
+  };
+}) {
   return {
     skill_agent: tool({
       description:
@@ -97,12 +133,14 @@ export function createSkillAgentTools(client: any) {
                 },
               });
               if (createResult.error) throw new Error(JSON.stringify(createResult.error));
+              if (!createResult.data?.id) throw new Error('Session ID not returned');
               targetSessionId = createResult.data.id;
-            } catch (err: any) {
+            } catch (err) {
+              const errorMessage = err instanceof Error ? err.message : String(err);
               return JSON.stringify({
                 success: false,
                 error: 'SESSION_CREATE_FAILED',
-                message: `Failed to create session: ${err.message}`,
+                message: `Failed to create session: ${errorMessage}`,
               });
             }
           } else {
@@ -180,15 +218,15 @@ export function createSkillAgentTools(client: any) {
               session_id: targetSessionId,
               result: responseText,
               dialogue_state: dialogueState,
-              continuation_hint: dialogueState?.status === 'needs_input'
-                ? `To continue dialogue, call skill_agent with session_id: "${targetSessionId}"`
-                : null,
+              continuation_hint:
+                dialogueState?.status === 'needs_input'
+                  ? `To continue dialogue, call skill_agent with session_id: "${targetSessionId}"`
+                  : null,
             },
             null,
             2
           );
         }
-
 
         // 3. Asynchronous Pattern - Handoff intent
         let activeSessionID = session_id || execContext?.sessionID;
@@ -202,12 +240,14 @@ export function createSkillAgentTools(client: any) {
               },
             });
             if (createResult.error) throw new Error(JSON.stringify(createResult.error));
+            if (!createResult.data?.id) throw new Error('Session ID not returned');
             activeSessionID = createResult.data.id;
-          } catch (err: any) {
+          } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
             return JSON.stringify({
               success: false,
               error: 'SESSION_CREATE_FAILED',
-              message: `Failed to create sub-session: ${err.message}`,
+              message: `Failed to create sub-session: ${errorMessage}`,
             });
           }
         }
@@ -384,7 +424,7 @@ export function createSkillAgentTools(client: any) {
             searchNames.push(`${task.skill_name}-${task.agent_name}`);
           }
 
-          const agent = allAgents.find((a: any) => searchNames.includes(a.name));
+          const agent = allAgents.find((a) => searchNames.includes(a.name));
           if (!agent) {
             return {
               task_id: index,

@@ -1052,6 +1052,91 @@ Return structured summary:
 
 ---
 
+## LEDGER.md: Single Source of Truth
+
+The **LEDGER.md** file consolidates all continuity state into a single, human-readable file.
+
+### Location
+
+`.opencode/LEDGER.md`
+
+### Structure
+
+```markdown
+# LEDGER
+
+## Meta
+session_id: sess_abc123
+status: active
+phase: EXECUTION
+tasks_completed: 2/3
+
+---
+
+## Epic: abc123
+
+**Title**: Build E-commerce Checkout
+**Status**: in_progress
+
+| ID | Title | Agent | Status |
+|----|-------|-------|--------|
+| abc123.1 | Payment Routes | executor | ✅ |
+| abc123.2 | Order Logic | executor | ✅ |
+| abc123.3 | Admin Dashboard | executor | ⏳ |
+
+---
+
+## Learnings
+
+### Patterns ✅
+- Stripe: Use `stripe.checkout.sessions.create`
+
+### Anti-Patterns ❌
+- Don't use `bcrypt.hashSync` in async routes
+
+---
+
+## Handoff
+*Empty when active*
+
+---
+
+## Archive
+| Epic | Title | Outcome | Date |
+|------|-------|---------|------|
+| xyz789 | User Auth | SUCCEEDED | 2025-12-29 |
+```
+
+### Key Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **Epic** | Top-level goal with max 3 tasks |
+| **Task IDs** | Hash format: `abc123.1`, `abc123.2` |
+| **Learnings** | Patterns, anti-patterns, decisions |
+| **Handoff** | Context for session breaks |
+| **Archive** | Last 5 completed epics |
+
+### Session Lifecycle
+
+1. **Start**: Load LEDGER, surface learnings, resume epic
+2. **Work**: Update task status, log progress, extract learnings
+3. **Break**: Create handoff in LEDGER
+4. **End**: Archive epic, compound learnings
+
+### Integration with SDD Workflow
+
+```
+PHASE 0: LOAD LEDGER
+PHASE 1: CLARIFICATION → Store in LEDGER Context
+PHASE 2: DECOMPOSITION → Write Epic to LEDGER
+PHASE 3: PLANNING → Update task details
+PHASE 4: EXECUTION → Update status per task, extract learnings
+PHASE 5: COMPLETION → Archive epic, cleanup
+```
+
+---
+
 ## Implementation Guide
 
 ### Step 1: Core Tools (Week 1)

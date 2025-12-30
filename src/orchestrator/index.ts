@@ -64,3 +64,76 @@ export {
     type SpawnResult,
     type SpawnOptions,
 } from './session-coordination';
+
+// Export LEDGER.md utilities
+export {
+    // Types
+    type Ledger,
+    type Epic,
+    type Task,
+    type Learnings,
+    type Handoff,
+    type ArchiveEntry,
+    type LedgerMeta,
+    type LedgerPhase,
+    type TaskStatus,
+    type TaskOutcome,
+    type EpicStatus,
+    // Core functions
+    loadLedger,
+    saveLedger,
+    createEpic,
+    createTask,
+    updateTaskStatus,
+    addLearning,
+    addContext,
+    createHandoff,
+    archiveEpic,
+    getProgress,
+    getReadyTasks,
+    canStartTask,
+    surfaceLearnings,
+    // Constants
+    DEFAULT_LEDGER_PATH,
+    MAX_TASKS_PER_EPIC,
+    MAX_ARCHIVE_ENTRIES,
+} from './ledger';
+
+// Export LEDGER session hooks
+export {
+    onSessionStart,
+    onTaskComplete,
+    onPreCompact,
+    onSessionEnd,
+    formatSessionContext,
+    type SessionContext,
+    type TaskResult,
+    type SessionStartResult,
+    type SessionEndResult,
+} from './ledger-hooks';
+
+// Export LEDGER tools for agents
+export { createLedgerTools, ledgerTools } from './ledger-tools';
+
+// Export Resilient Orchestration - Task Registry
+export {
+    TaskRegistry,
+    getTaskRegistry,
+    resetTaskRegistry,
+    type RegistryTask,
+    type RegistryTaskStatus,
+    type TaskRegistryOptions,
+} from './task-registry';
+
+// Export Resilient Orchestration - Task Supervisor
+export {
+    TaskSupervisor,
+    getTaskSupervisor,
+    startTaskSupervision,
+    stopTaskSupervision,
+    type SupervisorConfig,
+    type SupervisorStats,
+} from './supervisor';
+
+// Export Resilient Orchestration - Tools
+export { createResilienceTools, resilienceTools } from './resilience-tools';

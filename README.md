@@ -13,6 +13,39 @@ This is an addon to leverage amazing swarm-tools features
 - 🧪 Vitest testing setup
 - 🚀 GitHub Actions CI/CD
 - 📝 Release automation with release-please
+- 🔄 **Dual-mode orchestration (Sync/Async)** for robust agent coordination
+- 🧠 **Self-learning memory system** with cross-session continuity
+- 🎯 **Skill-based agent architecture** with hierarchical discovery
+
+## Orchestration Patterns
+
+This plugin implements two distinct orchestration modes for agent coordination:
+
+### 🔀 Async (Parallel) - Interactive Handoffs
+**Use Case**: User-facing interactions where the sub-agent's work should be visible in the UI.
+
+- Coordinator hands off the turn to a specialist
+- User sees the specialist's reasoning and can interact
+- Ideal for clarification dialogues, interviews, and interactive planning
+
+### 🔗 Sync (Sequential) - Durable Streams
+**Use Case**: Background coordination where the coordinator needs the specialist's result to continue.
+
+- Coordinator blocks and waits for the specialist to finish
+- Specialist works in an isolated session (invisible to user)
+- Coordinator receives the result as text and continues its logic
+- Ideal for Chief-of-Staff workflows, multi-step planning, and result-dependent execution
+
+**Example**:
+```typescript
+// Async: User sees the interviewer's questions
+await skill_agent({ agent: 'interviewer', prompt: 'Clarify requirements', async: true });
+
+// Sync: Coordinator gets the plan text to use in next step
+const plan = await skill_agent({ agent: 'planner', prompt: 'Create plan', async: false });
+```
+
+See [docs/REFLECTION.md](docs/REFLECTION.md) for architectural deep-dive and [src/orchestrator/PLAN.md](src/orchestrator/PLAN.md) for implementation details.
 
 ## Getting Started
 

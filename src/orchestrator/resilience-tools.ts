@@ -1,0 +1,299 @@
+/**
+ * Resilient Orchestration Tools
+ *
+ * New tools for task supervision:
+ * - task_status: Check status of delegated tasks
+ * - task_aggregate: Aggregate results from multiple tasks
+ * - task_heartbeat: Send heartbeat from running task
+ * - task_retry: Manually retry a failed task
+ */
+
+import { tool } from '@opencode-ai/plugin';
+import { getTaskRegistry, RegistryTask, RegistryTaskStatus } from './task-registry';
+import { getTaskSupervisor, startTaskSupervision, stopTaskSupervision } from './supervisor';
+
+// ============================================================================
+// Tool Definitions
+// ============================================================================
+
+export function createResilienceTools(client: {
+    session: {
+        create: (opts: any) => Promise<any>;
+        prompt: (opts: any) => Promise<void>;
+        status: () => Promise<any>;
+        messages: (opts: any) => Promise<any>;
+    };
+}) {
+    const registry = getTaskRegistry();
+
+    return {
+        /**
+         * Check the status of a delegated task
+         */
+        task_status: tool({
+            description: 'Check the status of a delegated task by ID',
+            args: {
+                task_id: tool.schema.string().describe('Task ID from skill_agent'),
+            },
+            async execute(args) {
+                const task = registry.getTask(args.task_id);
+
+                if (!task) {
+                    return JSON.stringify({
+                        error: 'Task not found',
+                        task_id: args.task_id,
+                    });
+                }
+
+                const elapsed = Date.now() - task.createdAt;
+                const runningFor = task.startedAt ? Date.now() - task.startedAt : 0;
+
+                return JSON.stringify(
+                    {
+                        id: task.id,
+                        status: task.status,
+                        agent: task.agentName,
+                        result: task.status === 'completed' ? task.result : undefined,
+                        error: task.status === 'failed' ? task.error : undefined,
+                        retryCount: task.retryCount,
+                        maxRetries: task.maxRetries,
+                        elapsed_ms: elapsed,
+                        running_for_ms: runningFor,
+                        hasResult: !!task.result,
+                        hasError: !!task.error,
+                    },
+                    null,
+                    2
+                );
+            },
+        }),
+
+        /**
+         * Aggregate results from multiple tasks
+         */
+        task_aggregate: tool({
+            description: 'Aggregate results from multiple delegated tasks',
+            args: {
+                task_ids: tool.schema.array(tool.schema.string()).describe('Array of task IDs'),
+                wait_for_completion: tool.schema
+                    .boolean()
+                    .optional()
+                    .default(false)
+                    .describe('Wait for all tasks to complete (max 30s)'),
+            },
+            async execute(args) {
+                let taskIds = args.task_ids;
+                const waitForCompletion = args.wait_for_completion ?? false;
+
+                // Optionally wait for tasks to complete
+                if (waitForCompletion) {
+                    const maxWait = 30000;
+                    const startTime = Date.now();
+
+                    while (Date.now() - startTime < maxWait) {
+                        const allDone = taskIds.every((id) => {
+                            const task = registry.getTask(id);
+                            return task && (task.status === 'completed' || task.status === 'failed');
+                        });
+
+                        if (allDone) break;
+                        await new Promise((r) => setTimeout(r, 1000));
+                    }
+                }
+
+                const results = taskIds.map((id) => {
+                    const task = registry.getTask(id);
+                    return {
+                        id,
+                        status: task?.status || 'not_found',
+                        agent: task?.agentName,
+                        result: task?.result,
+                        error: task?.error,
+                        retryCount: task?.retryCount,
+                    };
+                });
+
+                const summary = {
+                    total: results.length,
+                    completed: results.filter((r) => r.status === 'completed').length,
+                    failed: results.filter((r) => r.status === 'failed' || r.status === 'timeout').length,
+                    running: results.filter((r) => r.status === 'running').length,
+                    pending: results.filter((r) => r.status === 'pending').length,
+                    all_done:
+                        results.every((r) => r.status === 'completed' || r.status === 'failed'),
+                    results,
+                };
+
+                return JSON.stringify(summary, null, 2);
+            },
+        }),
+
+        /**
+         * Send heartbeat from a running task
+         */
+        task_heartbeat: tool({
+            description: 'Send heartbeat to indicate task is still alive. Call periodically in long-running tasks.',
+            args: {
+                task_id: tool.schema.string().describe('Task ID'),
+                progress: tool.schema.string().optional().describe('Optional progress message'),
+            },
+            async execute(args) {
+                registry.heartbeat(args.task_id);
+
+                return JSON.stringify({
+                    success: true,
+                    task_id: args.task_id,
+                    timestamp: new Date().toISOString(),
+                    progress: args.progress,
+                });
+            },
+        }),
+
+        /**
+         * Manually retry a failed task
+         */
+        task_retry: tool({
+            description: 'Manually retry a failed or timed-out task',
+            args: {
+                task_id: tool.schema.string().describe('Task ID'),
+            },
+            async execute(args) {
+                const task = registry.getTask(args.task_id);
+
+                if (!task) {
+                    return JSON.stringify({ error: 'Task not found' });
+                }
+
+                if (task.status !== 'failed' && task.status !== 'timeout') {
+                    return JSON.stringify({
+                        error: `Cannot retry task with status: ${task.status}`,
+                        hint: 'Only failed or timed-out tasks can be retried',
+                    });
+                }
+
+                try {
+                    const supervisor = getTaskSupervisor(client);
+                    await supervisor.checkNow(); // This will pick up the task for retry
+
+                    return JSON.stringify({
+                        success: true,
+                        task_id: args.task_id,
+                        message: 'Task queued for retry',
+                        retryCount: task.retryCount + 1,
+                    });
+                } catch (err: any) {
+                    return JSON.stringify({
+                        success: false,
+                        error: err.message,
+                    });
+                }
+            },
+        }),
+
+        /**
+         * Get supervisor statistics
+         */
+        supervisor_stats: tool({
+            description: 'Get task supervision statistics',
+            args: {},
+            async execute() {
+                const supervisor = getTaskSupervisor(client);
+                const stats = supervisor.getStats();
+                const registrySummary = registry.getSummary();
+
+                return JSON.stringify(
+                    {
+                        supervisor: stats,
+                        registry: registrySummary,
+                    },
+                    null,
+                    2
+                );
+            },
+        }),
+
+        /**
+         * Start/stop supervisor
+         */
+        supervisor_control: tool({
+            description: 'Start or stop the task supervisor',
+            args: {
+                action: tool.schema.enum(['start', 'stop']).describe('Action to perform'),
+            },
+            async execute(args) {
+                if (args.action === 'start') {
+                    startTaskSupervision(client, { verbose: true });
+                    return JSON.stringify({
+                        success: true,
+                        message: 'Task supervisor started',
+                    });
+                } else {
+                    stopTaskSupervision();
+                    return JSON.stringify({
+                        success: true,
+                        message: 'Task supervisor stopped',
+                    });
+                }
+            },
+        }),
+
+        /**
+         * List all tasks
+         */
+        task_list: tool({
+            description: 'List all tracked tasks',
+            args: {
+                status: tool.schema
+                    .enum(['all', 'pending', 'running', 'completed', 'failed', 'timeout'])
+                    .optional()
+                    .default('all')
+                    .describe('Filter by status'),
+                limit: tool.schema.number().optional().default(10).describe('Max tasks to return'),
+            },
+            async execute(args) {
+                const filterStatus = args.status || 'all';
+                const limit = args.limit || 10;
+
+                let tasks: RegistryTask[];
+                if (filterStatus === 'all') {
+                    tasks = registry.getAllTasks();
+                } else {
+                    tasks = registry.getTasksByStatus(filterStatus as RegistryTaskStatus);
+                }
+
+                // Sort by createdAt desc
+                tasks.sort((a, b) => b.createdAt - a.createdAt);
+
+                // Limit
+                tasks = tasks.slice(0, limit);
+
+                const summary = registry.getSummary();
+
+                return JSON.stringify(
+                    {
+                        summary,
+                        tasks: tasks.map((t) => ({
+                            id: t.id,
+                            agent: t.agentName,
+                            status: t.status,
+                            retryCount: t.retryCount,
+                            elapsed_ms: Date.now() - t.createdAt,
+                            hasResult: !!t.result,
+                            hasError: !!t.error,
+                        })),
+                    },
+                    null,
+                    2
+                );
+            },
+        }),
+    };
+}
+
+// ============================================================================
+// Combined export
+// ============================================================================
+
+export const resilienceTools = {
+    createResilienceTools,
+};

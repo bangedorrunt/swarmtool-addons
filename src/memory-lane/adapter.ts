@@ -11,9 +11,7 @@
 import { createClient, type Client } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 import type { LibSQLDatabase } from 'drizzle-orm/libsql';
-import { join } from 'node:path';
-import { existsSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { getDatabasePath } from '../utils/database-path';
 import {
   MemoryType,
   MemoryLaneMetadata,
@@ -59,18 +57,10 @@ export class MemoryLaneAdapter {
   }
 
   /**
-   * Resolve database path with centralized preference
-   * - swarm.db: Primary knowledge base (memories, entities)
-   * - .opencode/swarm.db: Project-local fallback
+   * Resolve database path using centralized resolver
    */
   private getDatabasePath(): string {
-    const centralized = join(homedir(), '.config', 'swarm-tools', 'swarm.db');
-    if (existsSync(centralized)) {
-      return `file:${centralized}`;
-    }
-
-    const projectLocal = join(process.cwd(), '.opencode', 'swarm.db');
-    return `file:${projectLocal}`;
+    return getDatabasePath();
   }
 
   /**
