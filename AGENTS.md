@@ -2,27 +2,34 @@
 
 ## Module Implementation Guide
 
-### OpenCode Hooks Integration Pattern
+### Skill-Based Agent Architecture
 
-Swarm-tool modules integrate as **non-invasive sidecars** on top of swarm-tools, using OpenCode hooks for event-driven coordination:
+This plugin implements a **Skill-Based Subagent** architecture where domain expertise is packaged into specialized, on-demand workers coordinated by a `chief-of-staff` agent.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   OpenCode Runtime                              │
+│                      OpenCode Runtime                           │
 │  ┌─────────────────────────────────────────────────────────────┐│
-│  │              Swarm-Mail Event Bus                           ││
-│  │  (async, decoupled message passing between agents)          ││
+│  │           Tool & Message Hooks Event Bus                    ││
+│  │       (async, decoupled event processing)                   ││
 │  └─────────────────────────────────────────────────────────────┘│
 │         │                              │                        │
 │         ▼                              ▼                        │
-│  ┌─────────────────┐           ┌──────────────┐                 │
-│  │  Your Module    │           │   swarm-tools│                 │
-│  │  (Sidecar)      │           │  (Core)      │                 │
-│  │  ┌───────────┐  │           │              │                 │
-│  │  │   Hooks   │◄─┴───────────┤   Agents     │                 │
-│  │  │ (Tool/Msg)│              │              │                 │
-│  │  └───────────┘              └──────────────┘                 │
-│  └─────────────────────────────────────────────────────────────┘│
+│  ┌─────────────────┐           ┌──────────────────────┐         │
+│  │ swarmtool-addons│           │    Chief-of-Staff    │         │
+│  │  (This Plugin)  │           │    (Coordinator)     │         │
+│  │  ┌───────────┐  │           │  ┌───────────────┐   │         │
+│  │  │  Tools &  │◄─┴───────────┤  │  Sub-Agents   │   │         │
+│  │  │   Hooks   │              │  │ (oracle, etc) │   │         │
+│  │  └───────────┘              │  └───────────────┘   │         │
+│  └─────────────────┬───────────┴──────────────────────┘         │
+│                    │                                            │
+│           ┌────────┴────────┐                                   │
+│           ▼                 ▼                                   │
+│   ┌──────────────┐  ┌──────────────┐                            │
+│   │  LEDGER.md   │  │  Memory Lane │                            │
+│   │ (Persistence)│  │  (Vector DB) │                            │
+│   └──────────────┘  └──────────────┘                            │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -30,53 +37,86 @@ Swarm-tool modules integrate as **non-invasive sidecars** on top of swarm-tools,
 
 1. **Tool Hooks** (`src/index.ts`):
    - Module exports tools that agents can call directly
-   - Example: `semantic-memory_store` tool available to all agents
+   - Example: `skill_agent`, `skill_list`, `memory-lane_store`
    - Tools should be idempotent and handle errors gracefully
 
 2. **Tool Execution Hooks** (`src/index.ts`):
-   - Module uses `tool.execute.after` to intercept tool calls directly
-   - Subscribe to specific tool completions (e.g., `swarm_complete`)
-   - Process immediately upon tool execution with access to results
+   - Uses `tool.execute.after` to intercept tool completions
+   - Processes events for session learning and state persistence
+   - Captures learnings from agent interactions
 
 3. **Storage**:
-   - Use libSQL via PGlite for persistent storage (see `src/memory-lane/index.ts`)
-   - Follow schema patterns in documentation
-   - Direct integration via OpenCode hooks ensures immediate processing
+   - `LEDGER.md` for durable state persistence and crash recovery
+   - SQLite/libSQL for Memory Lane semantic storage
+   - Agent definitions in `~/.config/opencode/skill/`
 
-### Module Structure Template
+4. **Access Control**:
+   - Protected sub-agents (`oracle`, `executor`, `planner`, etc.) only respond to `chief-of-staff`
+   - Hierarchical naming: `chief-of-staff/oracle`, `chief-of-staff/planner`
+
+---
+
+### Module Structure
 
 ```
 src/
-  module-name/
-    index.ts              # Main entry, exports tools
-    hooks.ts              # Tool event handlers (optional)
-    adapter.ts            # External service adapters
-    tools.ts              # Tool implementations
-    taxonomy.ts           # Type definitions
-    resolver.ts           # Query/computation logic
-  index.ts                # Plugin bootstrap, registers all modules
+  index.ts                    # Plugin bootstrap, registers all modules
+  agent-spawn.ts              # skill_agent tool implementation
+  event-log.ts                # Event logging utilities
+
+  memory-lane/
+    index.ts                  # Memory Lane entry, exports tools
+    hooks.ts                  # Session learning hooks
+    adapter.ts                # External service adapters
+    memory-store.ts           # SQLite storage implementation
+    resolver.ts               # Semantic query logic
+    taxonomy.ts               # Type definitions
+
+  opencode/
+    index.ts                  # OpenCode integration entry
+    loader.ts                 # Agent discovery & loading
+    skill/                    # Built-in skill definitions
+    config/                   # Configuration management
+
+  orchestrator/
+    index.ts                  # Orchestrator entry
+    ledger.ts                 # LEDGER.md persistence
+    session-coordination.ts   # Session state management
+    hooks/                    # Orchestration event hooks
+    chief-of-staff/           # Chief-of-Staff agent definition
 ```
+
+---
 
 ### Core Principles
 
-**Non-Invasive Sidecar Design:**
+**Skill-Based Subagent Design:**
 
-- Modules should NOT modify swarm-tools core behavior
-- Use hooks to observe/react to events, not to block/interrupt
-- Modules operate independently and degrade gracefully if dependencies fail
+- Each agent is a specialist with focused expertise
+- `chief-of-staff` coordinates complex multi-step workflows
+- Agents communicate via structured results, not shared state
+- 16x context reduction through partitioned agent contexts
+
+**LEDGER.md Persistence:**
+
+- Single source of truth for workflow state
+- Survives session clears and crashes
+- Tracks Epic progress, learnings, and handoffs
+- Located at `.opencode/LEDGER.md`
+
+**Access Control:**
+
+- Protected agents only respond to coordinator patterns
+- Prevents direct invocation of internal agents
+- Ensures proper state management and coordination
 
 **Event-Driven Architecture:**
 
 - Prefer asynchronous processing over synchronous blocking
-- Use swarm-mail for inter-agent communication (never direct imports)
-- Use tool execution hooks for immediate event processing
+- Use hooks for event observation (non-blocking)
 - Design for eventual consistency
 
-**Minimal Complexity:**
-
-- Question if harness/scaffolding is needed (The Bitter Lesson principle)
-- Prefer direct tool calls over complex orchestration layers
-- Keep documentation grounded in reality, avoid over-engineering
+---
 
 ## Build & Test Commands
 
@@ -87,6 +127,8 @@ src/
 - **Lint**: `mise run lint` (eslint)
 - **Fix Lint**: `mise run lint:fix` (eslint --fix)
 - **Format**: `mise run format` (prettier)
+
+---
 
 ## Code Style Guidelines
 
@@ -111,9 +153,8 @@ src/
 - **Strict mode**: enforced (`"strict": true`)
 - **Classes**: PascalCase (e.g., `MemoryLane`, `MemoryAdapter`)
 - **Methods/properties**: camelCase
-- **Status strings**: use union types (e.g., `'pending' | 'running' | 'completed' | 'failed' | 'cancelled'`)
+- **Status strings**: use union types (e.g., `'pending' | 'running' | 'completed' | 'failed'`)
 - **Explicit types**: prefer explicit type annotations over inference for complex types
-- **Return types**: optional (not required but recommended for public methods)
 - **Avoid `any`**: use `unknown` or more specific types
 
 ### Type System Rules
@@ -138,12 +179,17 @@ src/
 - `no-console`: error (minimize console logs)
 - `prettier/prettier`: error (formatting violations are errors)
 
+---
+
 ## Testing
 
 - Framework: **vitest** with `describe` & `it` blocks
 - Style: Descriptive nested test cases with clear expectations
 - Assertion library: `expect()` (vitest)
-- Test hooks/integration points with mock swarm-mail events
+- Test files: `*.test.ts` adjacent to source files
+- Mock patterns: Use vitest mocking for external dependencies
+
+---
 
 ## Documentation Standards
 
@@ -151,44 +197,48 @@ src/
 
 Every module MUST include:
 
-1. **`MODULE_ARCHITECTURE.md`** (or `ARCHITECTURE.md` in module directory):
-   - Architecture Decision Records (ADRs) for non-obvious design choices
-   - Reference material and research that informed implementation
-   - "Why" behind the implementation, not just "what"
+1. **`SPEC.md`** (in module directory):
+   - Technical specification and architecture
+   - ADRs for non-obvious design choices
+   - Integration points and dependencies
 
-2. **Visual Architecture**:
-   - **ASCII diagrams** for flowcharts, sequence diagrams, state machines
-   - Show integration points with swarm-mail, tools, hooks
-   - Consistent entity styling across diagrams (Agents, Stores, Hooks)
-   - Example: Lifecycle diagrams, event flow patterns
+2. **`README.md`** (for user-facing modules):
+   - Quick start and usage examples
+   - Available agents/tools and their purposes
+   - Workflow patterns with examples
 
-3. **SKILL.md** (for skill-based modules):
-   - High-level orchestration logic
-   - How it adheres to "Agent-as-Tool" pattern
-   - Design philosophy and minimal complexity rationale
-   - Context engineering contributions (raw > compaction > summarization)
+3. **`SKILL.md`** (for skill-based agents):
+   - Agent identity and role
+   - Available tools and capabilities
+   - Response format and communication style
 
 ### Automatic Documentation Updates
 
-Agents are responsible for keeping technical documentation in sync with the codebase.
+Agents are responsible for keeping documentation in sync with the codebase:
 
 1. **Proactive Updates**:
-   - Update `docs/adrs/` when making non-trivial architectural decisions.
-   - Update `src/{module}/SPEC.md` when internal module design changes.
-   - Update `README.md`, `src/{module}/README.md` if public APIs or installation steps change.
+   - Update `docs/adrs/` when making architectural decisions
+   - Update `src/{module}/SPEC.md` when internal design changes
+   - Update `README.md` files if public APIs change
 
 2. **Context Awareness**:
-   - Before completing an Epic, verify if any design choice contradicts existing documentation.
-   - Always prefer updating existing ADRs (with a "Update" or "Superseded" status) over leaving stale information.
+   - Verify documentation before completing major work
+   - Update existing docs rather than leaving stale information
 
 ### Documentation Tone
 
-- **Professional & Precise**: Use industry-standard terminology (Event Sourcing, Actor Model, Durable Streams)
-- **Direct & Grounded**: Avoid fluff; focus on actionable technical insights
+- **Professional & Precise**: Use industry-standard terminology
+- **Direct & Grounded**: Avoid fluff; focus on actionable insights
 - **No Redundancy**: Comments must add information, not restate code
+
+---
 
 ## Project Context
 
 - **Type**: ES Module package for OpenCode plugin system
 - **Target**: Bun runtime, ES2021+
-- **Purpose**: Non-invasive sidecar modules for swarm-tools via OpenCode hooks
+- **Purpose**: Skill-based multi-agent orchestration with durable state
+
+---
+
+_Last Updated: 2025-12-31_
