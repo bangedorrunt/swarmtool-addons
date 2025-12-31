@@ -51,10 +51,10 @@ Used for executing multiple independent tasks simultaneously.
 - **Tools**: `skill_spawn_batch` and `skill_gather`.
 - **Workflow**:
   1. `spawn_batch` registers multiple tasks in the `TaskRegistry`.
-  2. Supervisor monitors all sessions in parallel.
+  2. Observer monitors all sessions in parallel.
   3. `skill_gather` aggregates results into a structured array once all tasks reach `idle`.
 
-## 2. Task Supervision & Resilience
+## 2. Task Observation & Resilience
 
 ### I. Task Registry
 
@@ -65,9 +65,9 @@ Maintains an in-memory map of all delegated tasks:
 - `heartbeat`: Last activity timestamp for stuck detection.
 - `retryCount`: Tracks attempts (max 2).
 
-### II. Task States & Supervisor Actions
+### II. Task States & Observer Actions
 
-| State       | Description             | Supervisor Action            |
+| State       | Description             | Observer Action              |
 | ----------- | ----------------------- | ---------------------------- |
 | `pending`   | Registered, not started | None                         |
 | `running`   | Actively executing      | Check for timeout/stuck      |
@@ -76,13 +76,21 @@ Maintains an in-memory map of all delegated tasks:
 | `timeout`   | Exceeded `timeout_ms`   | Kill session & Retry         |
 | `blocked`   | Waiting for user input  | Alert Coordinator            |
 
-### III. Supervisor Loop
+### III. Observer Loop
 
 A background watchdog that runs every 30s-120s (adaptive interval):
 
 1. **Adaptive Interval**: Checks more frequently for high-complexity tasks.
 2. **Auto-Retry**: Creates a **new session** for retries to ensure a clean context.
 3. **Silent Sync**: Automatically updates `LEDGER.md` tasks upon state changes.
+
+### IV. Recovery Tools
+
+High-level agents (Chief-of-Staff) have explicit tools to handle deadlocks:
+
+- **`task_kill`**: Forcefully mark a stuck task as failed (stopping the clock).
+- **`task_fetch_context`**: Retrieve the full context snapshot (including memory and file state) from a failed task to pass to a replacement agent.
+- **`task_retry`**: Manually trigger a retry for a failed task (bypassing the Observer's schedule).
 
 ## 3. Durable Messaging (SwarmMail)
 
@@ -100,11 +108,11 @@ All task state is persisted to `.opencode/LEDGER.md` for resilience.
 ```typescript
 // On task update
 await updateTaskStatus(ledger, taskId, 'completed', result);
-await saveLedger(ledger);  // Persists to .opencode/LEDGER.md
+await saveLedger(ledger); // Persists to .opencode/LEDGER.md
 
 // On session start
 const ledger = await loadLedger();
-const tasks = await TaskRegistry.loadFromLedger();  // Restore running tasks
+const tasks = await TaskRegistry.loadFromLedger(); // Restore running tasks
 ```
 
 ### Crash Recovery Workflow
@@ -128,12 +136,12 @@ const tasks = await TaskRegistry.loadFromLedger();  // Restore running tasks
 
 ### Error Handling: User Rejection Flows
 
-| Agent | Rejection Response | Next Action |
-|-------|-------------------|-------------|
-| **Interviewer** | User rejects summary | Loop back to `needs_input`, re-gather |
-| **Spec-Writer** | User rejects spec | Revise specification, re-prompt |
-| **Planner** | User rejects plan | Return to Oracle with feedback |
-| **All** | User says "cancel" | Archive epic as CANCELLED, clear state |
+| Agent           | Rejection Response   | Next Action                            |
+| --------------- | -------------------- | -------------------------------------- |
+| **Interviewer** | User rejects summary | Loop back to `needs_input`, re-gather  |
+| **Spec-Writer** | User rejects spec    | Revise specification, re-prompt        |
+| **Planner**     | User rejects plan    | Return to Oracle with feedback         |
+| **All**         | User says "cancel"   | Archive epic as CANCELLED, clear state |
 
 ## 4. Interaction Patterns (Human-in-the-Loop)
 
@@ -229,7 +237,7 @@ async function orchestrateWithSupervision(plan: OracleStrategy) {
 }
 ```
 
-### II. TaskSupervisor Background Monitoring
+### II. TaskObserver Background Monitoring
 
 • Interval: Adaptive polling (every 10-30s).
 • Timeout Detection: Kills sessions and retries up to max_retries.

@@ -11,7 +11,7 @@ metadata:
   type: architect
   visibility: internal
   invocation: manual
-  version: "3.0.0"
+  version: '3.0.0'
   access_control:
     callable_by: [chief-of-staff]
     can_spawn: [interviewer, oracle, planner, spec-writer]
@@ -43,25 +43,29 @@ All workflows you design MUST integrate with LEDGER.md:
 ```markdown
 # LEDGER
 
-## Meta           ← Session state, phase, progress
-## Epic           ← ONE active goal with max 3 tasks
-## Learnings      ← Patterns, anti-patterns, decisions
-## Handoff        ← Context for session breaks
-## Archive        ← Completed epics (last 5)
+## Meta ← Session state, phase, progress
+
+## Epic ← ONE active goal with max 3 tasks
+
+## Learnings ← Patterns, anti-patterns, decisions
+
+## Handoff ← Context for session breaks
+
+## Archive ← Completed epics (last 5)
 ```
 
 ### Key Tools for LEDGER Integration
 
-| Tool | Purpose |
-|------|---------|
-| `ledger_status` | Check current LEDGER state |
-| `ledger_create_epic` | Create new epic (only ONE active) |
-| `ledger_create_task` | Add task to epic (max 3) |
-| `ledger_update_task` | Update task status |
-| `ledger_add_learning` | Record pattern/anti-pattern |
-| `ledger_add_context` | Add key decision to epic |
-| `ledger_create_handoff` | Prepare for session break |
-| `ledger_archive_epic` | Complete and archive epic |
+| Tool                    | Purpose                           |
+| ----------------------- | --------------------------------- |
+| `ledger_status`         | Check current LEDGER state        |
+| `ledger_create_epic`    | Create new epic (only ONE active) |
+| `ledger_create_task`    | Add task to epic (max 3)          |
+| `ledger_update_task`    | Update task status                |
+| `ledger_add_learning`   | Record pattern/anti-pattern       |
+| `ledger_add_context`    | Add key decision to epic          |
+| `ledger_create_handoff` | Prepare for session break         |
+| `ledger_archive_epic`   | Complete and archive epic         |
 
 ---
 
@@ -76,7 +80,7 @@ All workflows you design MUST integrate with LEDGER.md:
 ### Agent Hierarchy
 
 ```
-chief-of-staff (Supervisor - FULL ACCESS)
+chief-of-staff (Observer - FULL ACCESS)
 ├── workflow-architect (Design - can spawn planners)
 ├── oracle (Strategy - read-only)
 ├── interviewer (Clarify - user dialogue)
@@ -101,7 +105,7 @@ src/orchestrator/
 ├── ledger-hooks.ts                  # Session lifecycle hooks ⭐ NEW
 ├── ledger-tools.ts                  # LEDGER tools for agents ⭐ NEW
 ├── task-registry.ts                 # Task tracking ⭐ NEW
-├── supervisor.ts                    # Task supervision ⭐ NEW
+├── observer.ts                    # Task observation ⭐ NEW
 ├── resilience-tools.ts              # Resilience tools ⭐ NEW
 ├── hooks/
 │   ├── session-learning.ts          # Standalone hooks
@@ -109,7 +113,7 @@ src/orchestrator/
 ├── examples/
 │   └── sdd-pipeline-demo.ts         # Complete demo
 └── chief-of-staff/
-    ├── SKILL.md                     # Supervisor agent
+    ├── SKILL.md                     # Observer agent
     └── agents/
         ├── interviewer/             # Requirement clarification (DIALOGUE)
         ├── spec-writer/             # Requirements extraction (DIALOGUE)
@@ -143,6 +147,7 @@ User Question → chief-of-staff → interviewer → User
 ```
 
 **LEDGER Integration:**
+
 - Store clarified direction in `## Epic > Context`
 - Record user preferences as learnings
 
@@ -176,7 +181,7 @@ Phase 5: COMPLETION
 User Request
     │
     ▼
-chief-of-staff (Supervisor)
+chief-of-staff (Observer)
     │
     ├─→ Check LEDGER for active Epic
     │       └→ Resume if exists
@@ -201,23 +206,23 @@ chief-of-staff (Supervisor)
 
 ## Core Tools
 
-| Tool | Purpose | Signature |
-|------|---------|-----------| 
-| `skill_agent` | Spawn single agent | `{ skill_name, agent_name, prompt, context?, async? }` |
-| `skill_list` | Discover agents | `{ skill?, include_metadata? }` |
-| `skill_spawn_batch` | Parallel execution | `{ tasks: [...], wait?, timeout_ms? }` |
-| `skill_gather` | Collect results | `{ task_ids, timeout_ms?, partial? }` |
+| Tool                | Purpose            | Signature                                              |
+| ------------------- | ------------------ | ------------------------------------------------------ |
+| `skill_agent`       | Spawn single agent | `{ skill_name, agent_name, prompt, context?, async? }` |
+| `skill_list`        | Discover agents    | `{ skill?, include_metadata? }`                        |
+| `skill_spawn_batch` | Parallel execution | `{ tasks: [...], wait?, timeout_ms? }`                 |
+| `skill_gather`      | Collect results    | `{ task_ids, timeout_ms?, partial? }`                  |
 
 ### Resilience Tools ⭐ NEW
 
-| Tool | Purpose |
-|------|---------|
-| `task_status` | Check task by ID |
-| `task_aggregate` | Aggregate multiple results |
+| Tool             | Purpose                               |
+| ---------------- | ------------------------------------- |
+| `task_status`    | Check task by ID                      |
+| `task_aggregate` | Aggregate multiple results            |
 | `task_heartbeat` | Send heartbeat from long-running task |
-| `task_retry` | Manual retry failed task |
-| `task_list` | List all tracked tasks |
-| `supervisor_stats` | Get supervision statistics |
+| `task_retry`     | Manual retry failed task              |
+| `task_list`      | List all tracked tasks                |
+| `observer_stats` | Get observation statistics            |
 
 ---
 
@@ -231,7 +236,7 @@ interface SkillAgentContext {
     constraints?: string[];
     priorities?: string[];
   };
-  
+
   // Assumptions tracking
   assumptions?: Array<{
     worker?: string;
@@ -239,17 +244,17 @@ interface SkillAgentContext {
     confidence: number;
     verified?: boolean;
   }>;
-  
+
   // Memory Lane learnings
   relevant_memories?: Array<{
     type: string;
     information: string;
     confidence?: number;
   }>;
-  
+
   // File assignment
   files_assigned?: string[];
-  
+
   // LEDGER snapshot ⭐ NEW
   ledger_snapshot?: {
     phase: string;
@@ -258,11 +263,11 @@ interface SkillAgentContext {
     current_task?: string;
     recent_learnings?: string[];
   };
-  
+
   // Spec/Plan context
   spec?: any;
   plan?: any;
-  
+
   // Dialogue state for multi-turn
   dialogue_state?: DialogueState;
 }
@@ -291,13 +296,13 @@ Decompose work into exactly 1 Epic with max 3 Tasks:
 
 ```typescript
 await ledger_create_epic({
-  title: "Build Auth System",
-  request: "Add JWT authentication"
+  title: 'Build Auth System',
+  request: 'Add JWT authentication',
 });
 
-await ledger_create_task({ title: "API Routes", agent: "executor" });
-await ledger_create_task({ title: "Frontend", agent: "executor" });
-await ledger_create_task({ title: "Tests", agent: "validator" });
+await ledger_create_task({ title: 'API Routes', agent: 'executor' });
+await ledger_create_task({ title: 'Frontend', agent: 'executor' });
+await ledger_create_task({ title: 'Tests', agent: 'validator' });
 ```
 
 ### Pattern 3: Dialogue Mode
@@ -321,8 +326,8 @@ After significant work, record learnings:
 
 ```typescript
 await ledger_add_learning({
-  type: "pattern",
-  content: "Stripe: Use checkout.sessions.create for payments"
+  type: 'pattern',
+  content: 'Stripe: Use checkout.sessions.create for payments',
 });
 ```
 
@@ -340,13 +345,13 @@ await ledger_add_learning({
 
 Every workflow should map to LEDGER phases:
 
-| Workflow Step | LEDGER Phase |
-|---------------|--------------|
+| Workflow Step      | LEDGER Phase  |
+| ------------------ | ------------- |
 | Understand request | CLARIFICATION |
-| Break down work | DECOMPOSITION |
-| Create blueprint | PLANNING |
-| Do the work | EXECUTION |
-| Verify and learn | COMPLETION |
+| Break down work    | DECOMPOSITION |
+| Create blueprint   | PLANNING      |
+| Do the work        | EXECUTION     |
+| Verify and learn   | COMPLETION    |
 
 ### Step 3: Identify Agents
 
@@ -387,7 +392,7 @@ model: google/gemini-3-flash
 metadata:
   type: workflow
   visibility: internal
-  version: "3.0.0"
+  version: '3.0.0'
   access_control:
     callable_by: [chief-of-staff]
     can_spawn: [agent1, agent2]
@@ -409,9 +414,10 @@ metadata:
 
 1. Step 1 (update LEDGER)
 2. Step 2 (update LEDGER)
-...
+   ...
 
 ## Output Format
+
 ...
 ```
 
@@ -434,7 +440,7 @@ const clarification = await skill_agent({
   agent_name: 'interviewer',
   prompt: 'Clarify: ' + userRequest,
 });
-await ledger_add_context({ context: "Clarified: " + clarification.summary });
+await ledger_add_context({ context: 'Clarified: ' + clarification.summary });
 
 // Phase 2: Plan
 const plan = await skill_agent({
@@ -445,12 +451,12 @@ const plan = await skill_agent({
 });
 
 // Phase 3: Execute with task tracking
-await ledger_update_task({ task_id: "abc123.1", status: "running" });
+await ledger_update_task({ task_id: 'abc123.1', status: 'running' });
 // ... do work ...
-await ledger_update_task({ task_id: "abc123.1", status: "completed" });
+await ledger_update_task({ task_id: 'abc123.1', status: 'completed' });
 
 // Phase 4: Learn
-await ledger_add_learning({ type: "pattern", content: "What worked" });
+await ledger_add_learning({ type: 'pattern', content: 'What worked' });
 ```
 
 ---
@@ -458,32 +464,38 @@ await ledger_add_learning({ type: "pattern", content: "What worked" });
 ## Common Mistakes to Avoid
 
 ### ❌ DON'T: Ignore LEDGER state
+
 ```typescript
 // BAD: Starting fresh without checking LEDGER
 ```
 
 ### ✅ DO: Always check LEDGER first
+
 ```typescript
 // GOOD: Check and resume if needed
 const status = await ledger_status({});
 ```
 
 ### ❌ DON'T: Create more than 3 tasks
+
 ```typescript
 // BAD: 5 tasks in one epic
 ```
 
 ### ✅ DO: Keep tasks focused (max 3)
+
 ```typescript
 // GOOD: 3 well-defined tasks
 ```
 
 ### ❌ DON'T: Forget access control
+
 ```typescript
 // BAD: Any agent can spawn any other agent
 ```
 
 ### ✅ DO: Respect agent hierarchy
+
 ```typescript
 // GOOD: Only chief-of-staff spawns executors
 ```
@@ -498,18 +510,18 @@ When designing workflows, consult:
 - `src/orchestrator/ledger.ts` - LEDGER utilities
 - `src/orchestrator/ledger-hooks.ts` - Session lifecycle
 - `docs/workflow_patterns_guide.md` - Usage patterns
-- `chief-of-staff/SKILL.md` - Supervisor reference
+- `chief-of-staff/SKILL.md` - Observer reference
 
 ---
 
 ## RECOMMENDED SKILLS
 
 Invoke these skills for workflow design:
+
 - `use skill skill-creator` for authoring new skill definitions
 - `use skill multi-agent-patterns` for coordination strategies
 
 ---
 
-*You are the expert on this system. Help users create workflows that are
-composable, maintainable, LEDGER-integrated, and access-controlled.*
-
+_You are the expert on this system. Help users create workflows that are
+composable, maintainable, LEDGER-integrated, and access-controlled._
