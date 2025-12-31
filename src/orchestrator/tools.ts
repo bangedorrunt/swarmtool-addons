@@ -24,6 +24,16 @@ interface ToolContext {
   abort?: () => void;
 }
 
+// Import dialogue utilities from standalone module (enables testing without @opencode-ai/plugin)
+import {
+  extractDialogueState,
+  BLOCKING_STATUSES,
+  type DialogueState,
+} from './dialogue-utils';
+
+// Re-export for backwards compatibility
+export { extractDialogueState, BLOCKING_STATUSES, type DialogueState } from './dialogue-utils';
+
 export function createSkillAgentTools(client: {
   session: {
     create: (opts: { body: { parentID?: string; title: string } }) => Promise<{
@@ -58,7 +68,11 @@ export function createSkillAgentTools(client: {
           .string()
           .optional()
           .describe('Name of the skill (e.g., "chief-of-staff")'),
-        agent_name: tool.schema.string().describe('Name of the agent (e.g., "oracle")'),
+        agent_name: tool.schema
+          .string()
+          .optional()
+          .describe('Name of the agent (e.g., "oracle")'),
+        agent: tool.schema.string().optional().describe('Alias for agent_name'),
         prompt: tool.schema.string().describe('Task or message for the agent'),
         session_id: tool.schema.string().optional().describe('Existing sub-session ID to continue'),
         context: tool.schema.any().optional().describe('Metadata context for the agent'),
@@ -76,13 +90,24 @@ export function createSkillAgentTools(client: {
       async execute(args, execContext) {
         const {
           skill_name,
-          agent_name,
+          agent_name: raw_agent_name,
+          agent: agent_alias,
           prompt,
           session_id,
           context,
           async: isAsync = true,
           timeout_ms = 60000,
         } = args;
+
+        const agent_name = raw_agent_name || agent_alias;
+
+        if (!agent_name) {
+          return JSON.stringify({
+            success: false,
+            error: 'MISSING_ARGUMENT',
+            message: "Missing 'agent_name' or 'agent' parameter.",
+          });
+        }
 
         // Combine prompt with additional context if provided
         const finalPrompt = context
@@ -91,6 +116,13 @@ export function createSkillAgentTools(client: {
 
         // 1. Resolve agent
         const searchNames = [agent_name];
+
+        // If hierarchical name given (e.g. chief-of-staff/oracle), try parts too
+        if (agent_name.includes('/')) {
+          const [s, a] = agent_name.split('/');
+          searchNames.push(a);
+        }
+
         if (skill_name) {
           searchNames.push(`${skill_name}/${agent_name}`);
           searchNames.push(`${skill_name}-${agent_name}`);
@@ -204,10 +236,11 @@ export function createSkillAgentTools(client: {
             }
           }
 
-          // Wait for completion
+          // Wait for completion with timeout detection
           const startTime = Date.now();
           let pollInterval = 500;
           const maxPollInterval = 3000;
+          let timedOut = false;
 
           while (Date.now() - startTime < timeout_ms) {
             const statusResult = await client.session.status();
@@ -220,6 +253,9 @@ export function createSkillAgentTools(client: {
             await new Promise((r) => setTimeout(r, pollInterval));
             pollInterval = Math.min(pollInterval * 1.5, maxPollInterval);
           }
+
+          // Check if we timed out
+          timedOut = Date.now() - startTime >= timeout_ms;
 
           // Fetch the result
           const msgResult = await client.session.messages({ path: { id: targetSessionId } });
@@ -236,16 +272,8 @@ export function createSkillAgentTools(client: {
               .map((p: any) => p.text)
               .join('\n') || '';
 
-          // Parse for dialogue_state to detect if continuation needed
-          let dialogueState = null;
-          try {
-            const parsed = JSON.parse(responseText);
-            if (parsed.dialogue_state) {
-              dialogueState = parsed.dialogue_state;
-            }
-          } catch {
-            // Not JSON, just return as text
-          }
+          // Extract dialogue_state using robust multi-strategy parser
+          const dialogueState = extractDialogueState(responseText);
 
           // Return structured response with session_id for continuation
           return JSON.stringify(
@@ -255,8 +283,9 @@ export function createSkillAgentTools(client: {
               session_id: targetSessionId,
               result: responseText,
               dialogue_state: dialogueState,
+              timed_out: timedOut,
               continuation_hint:
-                dialogueState?.status === 'needs_input'
+                dialogueState?.status && BLOCKING_STATUSES.includes(dialogueState.status)
                   ? `To continue dialogue, call skill_agent with session_id: "${targetSessionId}"`
                   : null,
             },
@@ -341,12 +370,24 @@ export function createSkillAgentTools(client: {
       description: 'List available skill-based agents',
       args: {},
       async execute() {
-        const skills = await getAvailableSkillNames();
+        const [skillAgents, chiefOfStaffSkills] = await Promise.all([
+          loadSkillAgents(),
+          loadChiefOfStaffSkills(),
+        ]);
+
+        const allAgentNames = [
+          ...skillAgents.map((a) => a.name),
+          ...chiefOfStaffSkills.map((s) => s.name),
+        ];
+
+        // Deduplicate and sort
+        const uniqueAgents = [...new Set(allAgentNames)].sort();
+
         return JSON.stringify(
           {
             success: true,
-            agents: skills,
-            count: skills.length,
+            agents: uniqueAgents,
+            count: uniqueAgents.length,
           },
           null,
           2

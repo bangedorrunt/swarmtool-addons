@@ -66,6 +66,26 @@ export function parseFrontmatter(content: string): { frontmatter: any; body: str
 }
 
 /**
+ * Helper to find all .md files in a directory recursively
+ */
+function globMdFiles(dir: string): string[] {
+  const results: string[] = [];
+  if (!fs.existsSync(dir)) return results;
+
+  const list = fs.readdirSync(dir);
+  for (const file of list) {
+    const fullPath = path.join(dir, file);
+    const stat = fs.statSync(fullPath);
+    if (stat && stat.isDirectory()) {
+      results.push(...globMdFiles(fullPath));
+    } else if (file.endsWith('.md')) {
+      results.push(fullPath);
+    }
+  }
+  return results;
+}
+
+/**
  * Load all command .md files from a directory
  */
 export async function loadCommands(commandDir: string): Promise<any[]> {
@@ -75,10 +95,10 @@ export async function loadCommands(commandDir: string): Promise<any[]> {
     return commands;
   }
 
-  const glob = new Bun.Glob('**/*.md');
+  const files = globMdFiles(commandDir);
 
-  for await (const file of glob.scan({ cwd: commandDir, absolute: true })) {
-    const content = await Bun.file(file).text();
+  for (const file of files) {
+    const content = fs.readFileSync(file, 'utf8');
     const { frontmatter, body } = parseFrontmatter(content);
 
     // Extract command name from filename (e.g., "hello.md" -> "hello")
@@ -118,10 +138,10 @@ export async function loadLocalAgents(agentDir: string): Promise<ParsedAgent[]> 
     return agents;
   }
 
-  const glob = new Bun.Glob('**/*.md');
+  const files = globMdFiles(agentDir);
 
-  for await (const file of glob.scan({ cwd: agentDir, absolute: true })) {
-    const content = await Bun.file(file).text();
+  for (const file of files) {
+    const content = fs.readFileSync(file, 'utf8');
     const relativePath = path.relative(agentDir, file);
     const name = relativePath.replace(/\.md$/, '');
     const config = parseAgentMarkdown(content, name);
@@ -166,7 +186,7 @@ export async function loadSkillAgents(): Promise<ParsedAgent[]> {
       // 1. Check for flattened skill (SKILL.md in root)
       const rootSkillMdPath = path.join(skillPath, 'SKILL.md');
       if (fs.existsSync(rootSkillMdPath)) {
-        const content = await Bun.file(rootSkillMdPath).text();
+        const content = fs.readFileSync(rootSkillMdPath, 'utf8');
         const { frontmatter } = parseFrontmatter(content);
 
         // ONLY treat as agent if specifically marked as one
@@ -197,7 +217,7 @@ export async function loadSkillAgents(): Promise<ParsedAgent[]> {
               // Check for SKILL.md
               const skillMdPath = path.join(subAgentPath, 'SKILL.md');
               if (fs.existsSync(skillMdPath)) {
-                const content = await Bun.file(skillMdPath).text();
+                const content = fs.readFileSync(skillMdPath, 'utf8');
                 const { frontmatter } = parseFrontmatter(content);
                 // Use name from frontmatter or constructed name
                 const finalName = frontmatter.name ? String(frontmatter.name) : fullName;
@@ -208,7 +228,7 @@ export async function loadSkillAgents(): Promise<ParsedAgent[]> {
                 }
               }
             } else if (agentName.endsWith('.md')) {
-              const content = await Bun.file(subAgentPath).text();
+              const content = fs.readFileSync(subAgentPath, 'utf8');
               const name = agentName.replace(/\.md$/, '');
               const fullAgentName = `${skillName}/${name}`;
 

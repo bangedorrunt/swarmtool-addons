@@ -168,6 +168,19 @@ Every module MUST include:
    - Design philosophy and minimal complexity rationale
    - Context engineering contributions (raw > compaction > summarization)
 
+### Automatic Documentation Updates
+
+Agents are responsible for keeping technical documentation in sync with the codebase.
+
+1. **Proactive Updates**:
+   - Update `docs/adrs/` when making non-trivial architectural decisions.
+   - Update `src/{module}/SPEC.md` when internal module design changes.
+   - Update `README.md`, `src/{module}/README.md` if public APIs or installation steps change.
+
+2. **Context Awareness**:
+   - Before completing an Epic, verify if any design choice contradicts existing documentation.
+   - Always prefer updating existing ADRs (with a "Update" or "Superseded" status) over leaving stale information.
+
 ### Documentation Tone
 
 - **Professional & Precise**: Use industry-standard terminology (Event Sourcing, Actor Model, Durable Streams)

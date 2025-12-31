@@ -24,12 +24,12 @@ import { tool, type ToolContext } from '@opencode-ai/plugin';
  */
 export interface DialogueState {
   status:
-    | 'needs_input'
-    | 'needs_approval'
-    | 'needs_verification'
-    | 'approved'
-    | 'rejected'
-    | 'completed';
+  | 'needs_input'
+  | 'needs_approval'
+  | 'needs_verification'
+  | 'approved'
+  | 'rejected'
+  | 'completed';
   turn: number;
   message_to_user: string;
   pending_questions?: string[];
@@ -114,6 +114,10 @@ export function createAgentTools(client: any) {
           .string()
           .optional()
           .describe('Previous dialogue state JSON for continuing a conversation'),
+        session_id: tool.schema
+          .string()
+          .optional()
+          .describe('Existing session ID for dialogue continuation (reuses session instead of creating new)'),
         async: tool.schema
           .boolean()
           .optional()
@@ -129,6 +133,7 @@ export function createAgentTools(client: any) {
           context,
           interaction_mode = 'one_shot',
           dialogue_state,
+          session_id,
           async: isAsync = true,
         } = args;
 
@@ -154,19 +159,22 @@ export function createAgentTools(client: any) {
 
         // 1. Synchronous Pattern (Sequential orchestration)
         if (!isAsync) {
-          // NEW SESSION for sync to avoid deadlocks
-          let syncSessionID;
-          try {
-            const createResult = await client.session.create({
-              body: {
-                parentID: ctx.sessionID,
-                title: `Sync Spawn: ${agent}`,
-              },
-            });
-            if (createResult.error) throw new Error(JSON.stringify(createResult.error));
-            syncSessionID = createResult.data.id;
-          } catch (err: any) {
-            return `Error: Failed to create sync session for ${agent}: ${err.message}`;
+          // Reuse existing session if provided, otherwise create new
+          let syncSessionID = session_id;
+
+          if (!syncSessionID) {
+            try {
+              const createResult = await client.session.create({
+                body: {
+                  parentID: ctx.sessionID,
+                  title: `Sync Spawn: ${agent}`,
+                },
+              });
+              if (createResult.error) throw new Error(JSON.stringify(createResult.error));
+              syncSessionID = createResult.data.id;
+            } catch (err: any) {
+              return `Error: Failed to create sync session for ${agent}: ${err.message}`;
+            }
           }
 
           try {
@@ -185,12 +193,12 @@ export function createAgentTools(client: any) {
               await new Promise((r) => globalThis.setTimeout(r, 2000));
               attempts++;
               const statusResult = await client.session.status();
-              const sessionStatus = statusResult.data?.[syncSessionID];
+              const sessionStatus = statusResult.data?.[syncSessionID as string];
               if (sessionStatus?.type === 'idle' || !sessionStatus) isIdle = true;
             }
 
             // Get response
-            const msgResult = await client.session.messages({ path: { id: syncSessionID } });
+            const msgResult = await client.session.messages({ path: { id: syncSessionID as string } });
             if (msgResult.error) throw new Error(JSON.stringify(msgResult.error));
 
             const lastAssistantMsg = msgResult.data
@@ -221,9 +229,9 @@ export function createAgentTools(client: any) {
             dialogue_state:
               interaction_mode === 'dialogue'
                 ? {
-                    status: 'needs_input',
-                    message_to_user: 'Please check the main chat for the agent response.',
-                  }
+                  status: 'needs_input',
+                  message_to_user: 'Please check the main chat for the agent response.',
+                }
                 : undefined,
             metadata: {
               handoff: {

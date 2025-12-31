@@ -157,7 +157,7 @@ Read .opencode/LEDGER.md
 
 ### PHASE 1: CLARIFICATION (Human-in-Loop)
 ```
-Agent: chief-of-staff/interviewer (async: true)
+Agent: interviewer (async: true)
    ⭐ User answers questions
    ⭐ User approves requirements
 → Store decisions in LEDGER → Epic → Context
@@ -165,7 +165,7 @@ Agent: chief-of-staff/interviewer (async: true)
 
 ### PHASE 2: DECOMPOSITION
 ```
-Agent: chief-of-staff/oracle (async: false)
+Agent: oracle (async: false)
 - Query LEDGER Learnings for patterns
 - Create Epic with 1-3 tasks
 → Write Epic section to LEDGER
@@ -173,7 +173,7 @@ Agent: chief-of-staff/oracle (async: false)
 
 ### PHASE 3: PLANNING (Human-in-Loop)
 ```
-Agent: chief-of-staff/planner (async: true)
+Agent: planner (async: true)
    ⭐ User approves implementation plan
 → Update task details in LEDGER
 ```
@@ -182,7 +182,7 @@ Agent: chief-of-staff/planner (async: true)
 ```
 For each task:
   1. Update status to running in LEDGER
-  2. skill_agent({ agent: 'executor', async: false })
+  2. skill_agent({ agent_name: 'chief-of-staff/executor', async: false })
   3. Update status to completed in LEDGER
   4. Extract learnings from result
   5. Save LEDGER
@@ -229,16 +229,16 @@ Use these three patterns to structure work:
 ### Pattern 1: Sequential Chain
 One task after another. Use when tasks have dependencies.
 ```typescript
-const plan = await skill_agent({ agent: 'planner', async: false });
-const code = await skill_agent({ agent: 'executor', prompt: plan, async: false });
-const validation = await skill_agent({ agent: 'validator', prompt: code, async: false });
+const plan = await skill_agent({ agent_name: 'chief-of-staff/planner', async: false });
+const code = await skill_agent({ agent_name: 'chief-of-staff/executor', prompt: plan, async: false });
+const validation = await skill_agent({ agent_name: 'chief-of-staff/validator', prompt: code, async: false });
 ```
 
 ### Pattern 2: Parallel Fan-Out
 Independent tasks in parallel. Use when tasks don't depend on each other.
 ```typescript
 const tasks = ['auth', 'db', 'api'].map(area =>
-  skill_agent({ agent: 'executor', prompt: `Implement ${area}`, async: false })
+  skill_agent({ agent_name: 'chief-of-staff/executor', prompt: `Implement ${area}`, async: false })
 );
 const results = await Promise.all(tasks);
 ```
@@ -248,11 +248,11 @@ Parallel analysis followed by aggregation.
 ```typescript
 // Map: Parallel execution
 const analyses = await Promise.all(
-  files.map(file => skill_agent({ agent: 'explore', prompt: `Analyze ${file}`, async: false }))
+  files.map(file => skill_agent({ agent_name: 'chief-of-staff/explore', prompt: `Analyze ${file}`, async: false }))
 );
 // Reduce: Aggregate results
 const summary = await skill_agent({
-  agent: 'oracle',
+  agent_name: 'chief-of-staff/oracle',
   prompt: `Summarize: ${analyses.join('\n')}`,
   async: false
 });
