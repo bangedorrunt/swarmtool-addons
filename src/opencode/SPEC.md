@@ -40,7 +40,7 @@ The configuration system allows overriding models for **any agent** — both ski
 ```json
 {
   "models": {
-    "chief-of-staff": { "model": "google/gemini-3-pro-low" },
+    "chief-of-staff": { "model": "google/gemini-3-pro" },
     "chief-of-staff/oracle": { "model": "google/gemini-3-flash", "temperature": 0.1 },
     "chief-of-staff/executor": { "model": "google/gemini-3-pro", "disable": false },
     "Code": { "model": "anthropic/claude-3.5-sonnet" },

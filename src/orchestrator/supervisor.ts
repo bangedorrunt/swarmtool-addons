@@ -44,27 +44,9 @@ export interface SupervisorStats {
   lastCheck?: number;
 }
 
-type OpenCodeClient = {
-  session: {
-    create: (opts: { body: { parentID?: string; title: string } }) => Promise<{
-      error?: { message?: string };
-      data?: { id: string };
-    }>;
-    prompt: (opts: {
-      path: { id: string };
-      body: { agent: string; parts: Array<{ type: string; text: string }> };
-    }) => Promise<void>;
-    status: () => Promise<{
-      data?: Record<string, { type: string }>;
-    }>;
-    messages: (opts: { path: { id: string } }) => Promise<{
-      data?: Array<{
-        info?: { role?: string; time?: { created?: number } };
-        parts?: Array<{ type: string; text: string }>;
-      }>;
-    }>;
-  };
-};
+import type { PluginInput } from '@opencode-ai/plugin';
+
+type OpenCodeClient = PluginInput['client'];
 
 // ============================================================================
 // Task Supervisor
@@ -315,13 +297,14 @@ export class TaskSupervisor {
       });
 
       console.log(`[Supervisor] Task ${task.id} retried with new session ${newSession.data.id}`);
-    } catch (err: any) {
-      console.error(`[Supervisor] Retry failed for task ${task.id}:`, err.message);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error(`[Supervisor] Retry failed for task ${task.id}:`, errorMessage);
       await this.registry.updateStatus(
         task.id,
         'failed',
         undefined,
-        `Retry failed: ${err.message}`
+        `Retry failed: ${errorMessage}`
       );
       this.stats.tasksFailed++;
     }

@@ -19,7 +19,7 @@ Get expert advice for: **$ARGUMENTS**
 
 Use the skill_agent tool to invoke chief-of-staff/oracle **synchronously**:
 
-```
+```javascript
 skill_agent({
   agent_name: "chief-of-staff",
   prompt: "$ARGUMENTS",
@@ -32,10 +32,10 @@ skill_agent({
 If the Oracle returns a response structured as:
 **"Before I can recommend, I need to clarify:"**
 
-You MUST activate the **interviewer** to resolve ambiguities before getting the final recommendation.
+You MUST activate the **interviewer** to resolve ambiguities.
 
 ### 2a: Start Clarification Dialogue
-```
+```javascript
 skill_agent({
   agent_name: "chief-of-staff/interviewer",
   prompt: "Clarify these points for the Oracle: <paste Oracle's questions here>",
@@ -44,12 +44,14 @@ skill_agent({
 ```
 
 ### 2b: Dialogue Loop
-If `dialogue_state.status === "needs_input"` or `"needs_approval"`:
-1. Present the questions/summary to the user.
-2. Wait for user response.
-3. Continue with the SAME session_id:
+Monitor `dialogue_state.status` and repeat until it is `"approved"`.
 
-```
+1. **If `status === "needs_input"`**:
+   - Present the questions to the user.
+   - Capture user input.
+   - Continue with the SAME `session_id`.
+
+```javascript
 skill_agent({
   agent_name: "chief-of-staff/interviewer", 
   prompt: "<user's answer>",
@@ -58,20 +60,25 @@ skill_agent({
 })
 ```
 
-Repeat until `dialogue_state.status === "approved"`.
+2. **If `status === "needs_approval"`**:
+   - Present the summary/plan to the user.
+   - If user approves, send "I approve" or similar to the interviewer.
+
+### 2c: Error Handling & Edge Cases
+- **Timeout/Failure**: If the agent fails to respond or errors, inform the user and ask if they want to retry or abort.
+- **User Cancellation**: If the user wants to stop, exit the loop gracefully.
+- **Context Loss**: If `session_id` is missing or invalid, restart the dialogue from Step 2a with the last known context.
 
 ## Step 3: Final Recommendation
 
-Once clarified (or if no clarification was needed), present the Oracle's expert advice to the user. 
+Once `dialogue_state.status === "approved"`, invoke the Oracle with the **accumulated direction**:
 
-If clarification occurred, invoke the Oracle one last time with the **accumulated direction**:
-
-```
+```javascript
 skill_agent({
   agent_name: "chief-of-staff/oracle",
-  prompt: "Based on these clarified requirements: <paste accumulated_direction here>, provide final recommendation for: $ARGUMENTS",
+  prompt: "Based on these clarified requirements: <paste dialogue_state.accumulated_direction here>, provide final recommendation for: $ARGUMENTS",
   async: false
 })
 ```
 
-The Oracle will analyze and return expert advice. Display the final response to the user.
+The Oracle will return expert advice. Display the final response to the user.

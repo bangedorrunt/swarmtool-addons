@@ -13,6 +13,7 @@ import { readFile, writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { dirname } from 'path';
 import crypto from 'crypto';
+import { lock } from 'proper-lockfile';
 
 // ============================================================================
 // Types
@@ -559,13 +560,26 @@ export async function saveLedger(
       await mkdir(dir, { recursive: true });
     }
 
+    // Ensure file exists for locking (create empty if not)
+    if (!existsSync(path)) {
+      await writeFile(path, '', 'utf-8');
+    }
+
     // Update timestamp
     ledger.meta.lastUpdated = formatTimestamp();
-
-    // Render and save
     const content = renderLedgerMarkdown(ledger);
-    await writeFile(path, content, 'utf-8');
-    console.log(`[Ledger] Saved to ${path}`);
+
+    // Write with lock
+    // retries: 5 retries with randomized backoff logic (default)
+    const release = await lock(path, { retries: 5 });
+
+    try {
+      await writeFile(path, content, 'utf-8');
+      console.log(`[Ledger] Saved to ${path}`);
+    } finally {
+      await release();
+    }
+
   } catch (error) {
     console.error(`[Ledger] Failed to save: ${error}`);
     throw error;

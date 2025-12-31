@@ -1,9 +1,10 @@
-import { tool } from '@opencode-ai/plugin';
+import { tool, type PluginInput } from '@opencode-ai/plugin';
 import { loadSkillAgents } from '../opencode/loader';
 import { loadChiefOfStaffSkills, getAvailableSkillNames } from '../opencode/config/skill-loader';
 import { spawnChildAgent } from './session-coordination';
 import { loadActorState } from './actor/state';
 import { processMessage } from './actor/core';
+import { canCallAgent } from './access-control';
 
 interface AgentConfig {
   name: string;
@@ -34,31 +35,7 @@ import {
 // Re-export for backwards compatibility
 export { extractDialogueState, BLOCKING_STATUSES, type DialogueState } from './dialogue-utils';
 
-export function createSkillAgentTools(client: {
-  session: {
-    create: (opts: { body: { parentID?: string; title: string } }) => Promise<{
-      error?: { message?: string };
-      data?: { id: string };
-    }>;
-    prompt: (opts: {
-      path: { id: string };
-      body: { agent: string; parts: Array<{ type: string; text: string }> };
-    }) => Promise<void>;
-    promptAsync: (opts: {
-      path: { id: string };
-      body: { agent: string; parts: Array<{ type: string; text: string }> };
-    }) => Promise<void>;
-    status: () => Promise<{
-      data?: Record<string, { type: string }>;
-    }>;
-    messages: (opts: { path: { id: string } }) => Promise<{
-      data?: Array<{
-        info?: { role?: string; time?: { created?: number } };
-        parts?: Array<{ type: string; text: string }>;
-      }>;
-    }>;
-  };
-}) {
+export function createSkillAgentTools(client: PluginInput['client']) {
   return {
     skill_agent: tool({
       description:
@@ -117,17 +94,6 @@ export function createSkillAgentTools(client: {
         // 1. Resolve agent
         const searchNames = [agent_name];
 
-        // If hierarchical name given (e.g. chief-of-staff/oracle), try parts too
-        if (agent_name.includes('/')) {
-          const [s, a] = agent_name.split('/');
-          searchNames.push(a);
-        }
-
-        if (skill_name) {
-          searchNames.push(`${skill_name}/${agent_name}`);
-          searchNames.push(`${skill_name}-${agent_name}`);
-        }
-
         const [skillAgents, chiefOfStaffSkills] = await Promise.all([
           loadSkillAgents(),
           loadChiefOfStaffSkills(),
@@ -139,50 +105,25 @@ export function createSkillAgentTools(client: {
         ];
 
         const agent = allAgents.find((a: any) => searchNames.includes(a.name));
+        const targetAgentName = agent ? agent.name : agent_name;
 
-        if (!agent) {
-          return JSON.stringify({
-            success: false,
-            error: 'AGENT_NOT_FOUND',
-            message: `Agent '${agent_name}' not found under skill '${skill_name}'.`,
-          });
-        }
-
-        const targetAgentName = agent.name;
+        // If not found in custom skills, we assume it's a native agent and allow passthrough
+        // However, we must still respect access control for KNOWN internal agents
 
         // ============================================================================
-        // ACCESS CONTROL: Sub-agents only respond to chief-of-staff
+        // ACCESS CONTROL (Refactored)
         // ============================================================================
-        const PROTECTED_AGENTS = [
-          'planner',
-          'executor',
-          'validator',
-          'oracle',
-          'librarian',
-          'explore',
-          'interviewer',
-          'spec-writer',
-          'memory-catcher',
-          'workflow-architect',
-          'frontend-ui-ux-engineer',
-        ];
-
         const callingAgent = (execContext as unknown as ToolContext)?.agent || '';
-        const isProtected = PROTECTED_AGENTS.some(
-          (pa) => agent_name === pa || targetAgentName.endsWith(`/${pa}`)
-        );
-        const isChiefOfStaff =
-          callingAgent === 'chief-of-staff' ||
-          callingAgent.includes('chief-of-staff') ||
-          callingAgent === ''; // Root caller (user) is allowed
 
-        if (isProtected && !isChiefOfStaff) {
+        // Use our functional guard
+        const accessCheck = canCallAgent(callingAgent, targetAgentName, !!agent);
+
+        if (!accessCheck.allowed) {
           return JSON.stringify({
             success: false,
             error: 'ACCESS_DENIED',
-            message: `The ${agent_name} agent only responds to chief-of-staff.`,
-            suggestion:
-              'Use skill_agent to call chief-of-staff, who will coordinate sub-agents internally.',
+            message: accessCheck.reason,
+            suggestion: accessCheck.suggestion,
             caller: callingAgent,
           });
         }

@@ -38,7 +38,7 @@ The configuration supports a skill-based subagent architecture:
 | `chief-of-staff/validator` | Quality gate | google/gemini-3-flash |
 | `chief-of-staff/explore` | Codebase search | opencode/grok-code |
 | `chief-of-staff/librarian` | Library research | opencode/grok-code |
-| `chief-of-staff/frontend-ui-ux-engineer` | UI/UX implementation | google/gemini-3-pro-high |
+| `chief-of-staff/frontend-ui-ux-engineer` | UI/UX implementation | google/gemini-3-pro |
 | `chief-of-staff/memory-catcher` | Learning extraction | google/gemini-3-flash |
 | `chief-of-staff/workflow-architect` | Workflow design | google/gemini-3-pro |
 
@@ -53,7 +53,7 @@ The configuration supports overriding **both skill-based subagents and native Op
   "models": {
     // Override skill-based subagents
     "chief-of-staff": {
-      "model": "google/gemini-3-pro-low"
+      "model": "google/gemini-3-pro"
     },
     "chief-of-staff/oracle": {
       "model": "google/gemini-3-flash",
@@ -135,7 +135,7 @@ import { saveConfig } from './config';
 
 const myConfig = {
   models: {
-    'chief-of-staff': { model: 'google/gemini-3-pro-low' },
+    'chief-of-staff': { model: 'google/gemini-3-pro' },
     'chief-of-staff/oracle': { model: 'opencode/custom-model' },
     'chief-of-staff/planner': { model: 'opencode/custom-model' },
   },
@@ -192,7 +192,7 @@ import type { SwarmToolAddonsConfig, ModelOverride, AgentModelConfig, LogLevel }
 
 const config: SwarmToolAddonsConfig = {
   models: {
-    'chief-of-staff': { model: 'google/gemini-3-pro-low' },
+    'chief-of-staff': { model: 'google/gemini-3-pro' },
     'chief-of-staff/oracle': { model: 'google/gemini-3-flash' },
     'chief-of-staff/planner': { model: 'google/gemini-3-flash' },
   },

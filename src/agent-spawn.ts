@@ -61,10 +61,12 @@ export function createAgentTools(client: any) {
                 success: true,
                 count: agents.length,
                 agents: agents.map((a: any) => ({
-                  id: a.id,
+                  name: a.id, // ID is the actionable name
                   description: a.description || '',
+                  // If id has a slash, it's likely a skill agent
+                  type: a.id.includes('/') ? 'squad-agent' : 'root-agent',
                 })),
-                usage: 'Use agent_spawn to run any agent',
+                usage: 'Use agent_spawn or skill_agent with the "name" field value.',
               },
               null,
               2
