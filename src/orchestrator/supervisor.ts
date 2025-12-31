@@ -11,13 +11,8 @@
  */
 
 import { TaskRegistry, RegistryTask, getTaskRegistry } from './task-registry';
-import {
-  loadLedger,
-  saveLedger,
-  updateTaskStatus as updateLedgerTaskStatus,
-  addLearning,
-  Ledger,
-} from './ledger';
+import { loadLedger, saveLedger, addLearning } from './ledger';
+import { getDurableStreamOrchestrator } from './durable-stream';
 
 // ============================================================================
 // Types
@@ -59,6 +54,9 @@ export class TaskSupervisor {
   private intervalId?: ReturnType<typeof setInterval>;
   private stats: SupervisorStats;
   private isRunning: boolean = false;
+  private unsubscribeAgentSpawned?: () => void;
+  private unsubscribeAgentCompleted?: () => void;
+  private unsubscribeAgentFailed?: () => void;
 
   constructor(
     registry: TaskRegistry,
@@ -92,8 +90,35 @@ export class TaskSupervisor {
     }
 
     this.isRunning = true;
+    this.setupEventSubscriptions();
     this.scheduleNextCheck();
     console.log('[Supervisor] Started task supervision');
+  }
+
+  /**
+   * Setup event subscriptions for durable stream
+   */
+  private setupEventSubscriptions(): void {
+    const durableStream = getDurableStreamOrchestrator();
+
+    this.unsubscribeAgentSpawned = durableStream.subscribe('agent.spawned', (event) => {
+      if (this.config.verbose) {
+        console.log(`[Supervisor] Agent spawned: ${event.agent} in session ${event.sessionId}`);
+      }
+    });
+
+    this.unsubscribeAgentCompleted = durableStream.subscribe('agent.completed', (event) => {
+      if (this.config.verbose) {
+        console.log(`[Supervisor] Agent completed: ${event.agent} in session ${event.sessionId}`);
+      }
+    });
+
+    this.unsubscribeAgentFailed = durableStream.subscribe('agent.failed', (event) => {
+      console.warn(`[Supervisor] Agent failed: ${event.agent} in session ${event.sessionId}`);
+      if (event.payload.error) {
+        console.warn(`[Supervisor] Error: ${JSON.stringify(event.payload.error)}`);
+      }
+    });
   }
 
   /**
@@ -104,6 +129,11 @@ export class TaskSupervisor {
       clearTimeout(this.intervalId);
       this.intervalId = undefined;
     }
+
+    this.unsubscribeAgentSpawned?.();
+    this.unsubscribeAgentCompleted?.();
+    this.unsubscribeAgentFailed?.();
+
     this.isRunning = false;
     console.log('[Supervisor] Stopped task supervision');
   }
@@ -281,7 +311,11 @@ export class TaskSupervisor {
       });
 
       if (newSession.error || !newSession.data) {
-        throw new Error(newSession.error?.message || 'Failed to create session');
+        const errorMsg =
+          newSession.error && typeof newSession.error === 'object' && 'message' in newSession.error
+            ? (newSession.error as { message: string }).message
+            : 'Failed to create session';
+        throw new Error(errorMsg);
       }
 
       // Update registry with new session

@@ -15,6 +15,7 @@
 import { loadActorState } from './actor/state';
 import { processMessage } from './actor/core';
 import { queryLearnings } from './hooks/opencode-session-learning';
+import { getDurableStreamOrchestrator } from './durable-stream';
 
 /**
  * Result of spawning a child agent
@@ -27,6 +28,8 @@ export interface SpawnResult {
   result?: string;
   error?: string;
   learningsInjected?: number;
+  spawnEventId?: string;
+  completionEventId?: string;
 }
 
 /**
@@ -40,7 +43,7 @@ export interface SpawnOptions {
   /** Maximum wait time in ms (default: 60000) */
   timeoutMs?: number;
   /** Callback on status change */
-  onStatusChange?: (_: string) => void;
+  onStatusChange?: (_status: string) => void;
   /** Inject relevant learnings from Memory Lane (default: true) */
   injectLearnings?: boolean;
   /** Max learnings to inject (default: 5) */
@@ -129,6 +132,8 @@ export async function spawnChildAgent(
 
   let finalPrompt = prompt;
   let learningsInjected = 0;
+  let spawnEventId: string | undefined;
+  let completionEventId: string | undefined;
 
   // 1. Query and inject learnings if enabled
   if (injectLearnings) {
@@ -165,6 +170,15 @@ export async function spawnChildAgent(
 
     childSessionId = createResult.data.id;
     onStatusChange?.('created');
+
+    const durableStream = getDurableStreamOrchestrator();
+    const spawnEvent = await durableStream.spawnAgent(
+      childSessionId,
+      parentSessionId,
+      agent,
+      finalPrompt
+    );
+    spawnEventId = spawnEvent.id;
   } catch (err: any) {
     return {
       success: false,
@@ -219,10 +233,12 @@ export async function spawnChildAgent(
       agent,
       status: 'spawned',
       learningsInjected,
+      spawnEventId,
     };
   }
 
   // 6. Wait for completion using event-driven approach
+  const startTime = Date.now();
   const result = await waitForSessionCompletion(
     client,
     childSessionId,
@@ -230,8 +246,21 @@ export async function spawnChildAgent(
     timeoutMs,
     onStatusChange
   );
+  completionEventId = result.completionEventId;
 
-  // 7. Track completion/failure in actor state
+  // 7. Track completion/failure in actor state AND durable stream
+  const durableStream = getDurableStreamOrchestrator();
+  if (result.status === 'completed') {
+    await durableStream.completeAgent(
+      childSessionId,
+      agent,
+      result.result || '',
+      Date.now() - startTime
+    );
+  } else {
+    await durableStream.failAgent(childSessionId, agent, result.error || 'Unknown error');
+  }
+
   if (actorState) {
     const currentState = await loadActorState();
     if (currentState) {
@@ -250,7 +279,7 @@ export async function spawnChildAgent(
     }
   }
 
-  return { ...result, learningsInjected };
+  return { ...result, learningsInjected, spawnEventId, completionEventId };
 }
 
 /**
@@ -264,7 +293,7 @@ async function waitForSessionCompletion(
   sessionId: string,
   agent: string,
   timeoutMs: number,
-  onStatusChange?: (_: string) => void
+  onStatusChange?: (status: string) => void
 ): Promise<SpawnResult> {
   const startTime = Date.now();
   let pollInterval = 500; // Start with 500ms
@@ -296,6 +325,7 @@ async function waitForSessionCompletion(
           agent,
           status: 'failed',
           error: 'Session entered error state',
+          completionEventId: undefined,
         };
       }
 
@@ -317,6 +347,7 @@ async function waitForSessionCompletion(
       agent,
       status: 'failed',
       error: `Timeout after ${timeoutMs}ms`,
+      completionEventId: undefined,
     };
   }
 
@@ -348,6 +379,7 @@ async function waitForSessionCompletion(
         agent,
         status: 'failed',
         error: 'No response from agent',
+        completionEventId: undefined,
       };
     }
 
@@ -363,6 +395,7 @@ async function waitForSessionCompletion(
       agent,
       status: 'completed',
       result: responseText,
+      completionEventId: undefined,
     };
   } catch (err: any) {
     return {
@@ -371,6 +404,7 @@ async function waitForSessionCompletion(
       agent,
       status: 'failed',
       error: `Failed to fetch result: ${err.message}`,
+      completionEventId: undefined,
     };
   }
 }

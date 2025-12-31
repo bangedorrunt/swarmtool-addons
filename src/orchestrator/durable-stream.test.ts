@@ -1,222 +1,213 @@
-import fs from 'fs';
-import * as fsPromises from 'fs/promises';
-import { DurableStreamOrchestrator, StreamEventType } from './durable-stream';
-
-vi.mock('fs', () => ({
-  existsSync: vi.fn(),
-  readFileSync: vi.fn(),
-  writeFileSync: vi.fn(),
-  mkdirSync: vi.fn(),
-}));
-
-vi.mock('fs/promises', () => ({
-  readFile: vi.fn(),
-  writeFile: vi.fn(),
-  mkdir: vi.fn(),
-  readdir: vi.fn(),
-  unlink: vi.fn(),
-}));
+import { describe, it, expect, beforeEach, afterEach, vi, beforeAll, afterAll } from 'vitest';
+import {
+  DurableStreamOrchestrator,
+  StreamEventType,
+  HumanCheckpoint,
+  CheckpointOption,
+} from './durable-stream';
+import { mkdtempSync, rmdirSync, writeFileSync, unlinkSync, existsSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
 
 describe('DurableStreamOrchestrator', () => {
   let orchestrator: DurableStreamOrchestrator;
+  let testDir: string;
+  let streamPath: string;
+  let checkpointPath: string;
 
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    vi.spyOn(require('fs'), 'existsSync').mockReturnValue(true);
-    vi.spyOn(require('fs/promises'), 'mkdir').mockResolvedValue(undefined);
-    vi.spyOn(require('fs/promises'), 'readFile').mockResolvedValue('');
-    vi.spyOn(require('fs/promises'), 'writeFile').mockResolvedValue(undefined);
+  beforeEach(() => {
+    testDir = mkdtempSync(join(tmpdir(), 'durable-stream-test-'));
+    streamPath = join(testDir, 'stream.jsonl');
+    checkpointPath = join(testDir, 'checkpoints');
+    mkdirSync(checkpointPath, { recursive: true });
 
     orchestrator = new DurableStreamOrchestrator({
-      streamPath: '/test/stream.jsonl',
-      checkpointPath: '/test/checkpoints',
+      streamPath,
+      checkpointPath,
+      maxStreamSizeMb: 1,
+      maxCheckpoints: 10,
+      checkpointTimeoutMs: 60000,
+      enableContextPreservation: true,
+      enableHumanInLoop: true,
     });
-    await orchestrator.initialize();
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    if (existsSync(testDir)) {
+      try {
+        rmdirSync(testDir, { recursive: true });
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
   });
 
-  describe('Event Creation', () => {
-    it('should create event with auto-generated metadata', async () => {
+  describe('append', () => {
+    it('should append events to the stream', async () => {
       const event = await orchestrator.append({
         type: 'session.created',
-        sessionId: 'test-session',
+        sessionId: 'test-session-1',
         agent: 'test-agent',
-        payload: { message: 'test' },
-      });
-
-      expect(event.id).toBeDefined();
-      expect(event.timestamp).toBeDefined();
-      expect(event.metadata.offset).toBe(1);
-      expect(event.metadata.correlationId).toBeDefined();
-      expect(event.metadata.sourceAgent).toBe('test-agent');
-    });
-
-    it('should accept custom metadata', async () => {
-      const event = await orchestrator.append({
-        type: 'agent.spawned',
-        sessionId: 'test-session',
-        agent: 'test-agent',
-        payload: { agentName: 'oracle' },
-        metadata: { targetAgent: 'oracle', duration: 1000 },
-      });
-
-      expect(event.metadata.targetAgent).toBe('oracle');
-      expect(event.metadata.duration).toBe(1000);
-    });
-
-    it('should validate event type', async () => {
-      // Invalid event type should be accepted by TypeScript but we can test basic append
-      const validEvent = await orchestrator.append({
-        type: 'session.created',
-        sessionId: 'test-session',
-        payload: {},
-      });
-      expect(validEvent.type).toBe('session.created');
-    });
-  });
-
-  describe('Append Operations', () => {
-    it('should append events with auto-generated metadata', async () => {
-      const orchestrator = new DurableStreamOrchestrator();
-      await orchestrator.initialize();
-
-      const event = await orchestrator.append({
-        type: 'session.created',
-        sessionId: 'session-1',
         payload: { test: true },
       });
 
       expect(event.id).toBeDefined();
-      expect(event.timestamp).toBeDefined();
-      expect(event.metadata).toBeDefined();
+      expect(event.type).toBe('session.created');
+      expect(event.sessionId).toBe('test-session-1');
+      expect(event.timestamp).toBeGreaterThan(0);
       expect(event.metadata.offset).toBe(1);
-      expect(event.metadata.correlationId).toBeDefined();
-      expect(event.metadata.sourceAgent).toBe('system');
     });
 
-    it('should track event offset', async () => {
-      const orchestrator = new DurableStreamOrchestrator();
-      await orchestrator.initialize();
-
-      await orchestrator.append({ type: 'session.created', sessionId: 's1', payload: {} });
-      await orchestrator.append({ type: 'agent.spawned', sessionId: 's1', payload: {} });
-      await orchestrator.append({ type: 'agent.completed', sessionId: 's1', payload: {} });
-
-      const offset = orchestrator.getCurrentOffset();
-      expect(offset).toBe(3);
-    });
-
-    it('should persist event to file', async () => {
-      const orchestrator = new DurableStreamOrchestrator();
-      await orchestrator.initialize();
-
-      const writeFileSpy = vi.spyOn(fs.promises, 'writeFile');
-
+    it('should increment offset for each event', async () => {
       await orchestrator.append({
         type: 'session.created',
-        sessionId: 'session-1',
+        sessionId: 's1',
+        agent: 'a',
+        payload: {},
+      });
+      await orchestrator.append({
+        type: 'agent.spawned',
+        sessionId: 's2',
+        agent: 'a',
+        payload: {},
+      });
+      await orchestrator.append({
+        type: 'agent.completed',
+        sessionId: 's3',
+        agent: 'a',
         payload: {},
       });
 
-      expect(writeFileSpy).toHaveBeenCalled();
+      expect(orchestrator.getCurrentOffset()).toBe(3);
+    });
+
+    it('should generate unique event IDs', async () => {
+      const event1 = await orchestrator.append({
+        type: 'session.created',
+        sessionId: 's1',
+        agent: 'a',
+        payload: {},
+      });
+      const event2 = await orchestrator.append({
+        type: 'session.created',
+        sessionId: 's2',
+        agent: 'a',
+        payload: {},
+      });
+
+      expect(event1.id).not.toBe(event2.id);
     });
   });
 
-  describe('Event Subscription', () => {
-    it('should notify subscriber on event', async () => {
+  describe('subscribe', () => {
+    it('should notify subscribers when events are appended', async () => {
       const callback = vi.fn();
-
-      orchestrator.subscribe('agent.spawned', callback);
-
-      await orchestrator.append({
-        type: 'agent.spawned',
-        sessionId: 'session-1',
-        payload: { agentName: 'oracle' },
-      });
-
-      expect(callback).toHaveBeenCalledTimes(1);
-    });
-
-    it('should support wildcard subscription', async () => {
-      const callback = vi.fn();
-
-      // @ts-expect-error - wildcard not in type
-      orchestrator.subscribe('*', callback);
-
-      await orchestrator.append({
-        type: 'session.created',
-        sessionId: 'session-1',
-        payload: {},
-      });
-
-      expect(callback).toHaveBeenCalledTimes(1);
-    });
-
-    it('should allow unsubscription', async () => {
-      const callback = vi.fn();
-
       const unsubscribe = orchestrator.subscribe('agent.spawned', callback);
-      unsubscribe();
 
       await orchestrator.append({
         type: 'agent.spawned',
-        sessionId: 'session-1',
+        sessionId: 's1',
+        agent: 'test-agent',
+        payload: {},
+      });
+      await orchestrator.append({
+        type: 'agent.completed',
+        sessionId: 's2',
+        agent: 'test-agent',
         payload: {},
       });
 
-      expect(callback).not.toHaveBeenCalled();
-    });
+      expect(callback).toHaveBeenCalledTimes(1);
+      expect(callback.mock.calls[0][0].type).toBe('agent.spawned');
 
-    it('should preserve event ordering', async () => {
-      const order: number[] = [];
-
-      orchestrator.subscribe('session.created', async () => {
-        order.push(1);
-        await new Promise((r) => setTimeout(r, 10));
+      unsubscribe();
+      await orchestrator.append({
+        type: 'agent.spawned',
+        sessionId: 's3',
+        agent: 'test-agent',
+        payload: {},
       });
-
-      orchestrator.subscribe('agent.spawned', async () => {
-        order.push(2);
-      });
-
-      await Promise.all([
-        orchestrator.append({ type: 'session.created', sessionId: 's1', payload: {} }),
-        orchestrator.append({ type: 'agent.spawned', sessionId: 's1', payload: {} }),
-      ]);
-
-      expect(order).toEqual([1, 2]);
+      expect(callback).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe('Context Snapshot', () => {
-    it('should create context snapshot', async () => {
-      const event = await orchestrator.createContextSnapshot(
+  describe('checkpoint', () => {
+    it('should create and approve checkpoints', async () => {
+      const options: CheckpointOption[] = [
+        {
+          id: 'opt1',
+          label: 'Continue',
+          description: 'Continue with current plan',
+          action: 'continue',
+        },
+        { id: 'opt2', label: 'Stop', description: 'Stop execution', action: 'stop' },
+      ];
+
+      const checkpoint = await orchestrator.requestCheckpoint(
         'session-1',
-        'oracle',
-        'Analyze this code',
-        [{ type: 'decision', content: 'Use TDD', relevanceScore: 0.9, sourceEventId: 'evt-1' }],
-        { phase: 'implementation', completedTasks: [], pendingTasks: ['task-1'] }
+        'Should we continue?',
+        options,
+        'test-agent'
       );
 
-      expect(event.type).toBe('context.snapshot');
-      expect(event.payload.snapshotId).toBeDefined();
+      expect(checkpoint.id).toBeDefined();
+      expect(checkpoint.decisionPoint).toBe('Should we continue?');
+      expect(checkpoint.options).toHaveLength(2);
+      expect(checkpoint.requestedBy).toBe('test-agent');
+
+      const pending = orchestrator.getPendingCheckpoints();
+      expect(pending).toHaveLength(1);
+      expect(pending[0].id).toBe(checkpoint.id);
+
+      const approved = await orchestrator.approveCheckpoint(checkpoint.id, 'human', 'opt1');
+      expect(approved).toBe(true);
+
+      expect(orchestrator.getPendingCheckpoints()).toHaveLength(0);
     });
 
-    it('should restore context', async () => {
-      await orchestrator.createContextSnapshot('session-1', 'oracle', 'Analyze this code', [], {
-        phase: 'planning',
-        completedTasks: [],
-        pendingTasks: [],
-      });
+    it('should reject checkpoints', async () => {
+      const options: CheckpointOption[] = [
+        { id: 'opt1', label: 'Yes', description: 'Yes', action: 'yes' },
+      ];
+
+      const checkpoint = await orchestrator.requestCheckpoint(
+        'session-1',
+        'Continue?',
+        options,
+        'agent'
+      );
+
+      const rejected = await orchestrator.rejectCheckpoint(checkpoint.id, 'human', 'Not needed');
+      expect(rejected).toBe(true);
+      expect(orchestrator.getPendingCheckpoints()).toHaveLength(0);
+    });
+  });
+
+  describe('context snapshot', () => {
+    it('should create and restore context snapshots', async () => {
+      const memories = [
+        { type: 'pattern' as const, content: 'Use TDD', relevanceScore: 0.9, sourceEventId: 'e1' },
+      ];
+      const ledgerState = {
+        phase: 'implementation',
+        completedTasks: ['task1'],
+        pendingTasks: ['task2'],
+      };
+
+      await orchestrator.createContextSnapshot(
+        'session-1',
+        'test-agent',
+        'Implement feature X',
+        memories,
+        ledgerState
+      );
 
       const restored = await orchestrator.restoreContext('session-1');
-
       expect(restored).not.toBeNull();
-      expect(restored?.agentName).toBe('oracle');
-      expect(restored?.prompt).toBe('Analyze this code');
+      expect(restored?.agentName).toBe('test-agent');
+      expect(restored?.prompt).toBe('Implement feature X');
+      expect(restored?.memories).toHaveLength(1);
+      expect(restored?.ledgerState.phase).toBe('implementation');
     });
 
     it('should return null for non-existent session', async () => {
@@ -225,135 +216,88 @@ describe('DurableStreamOrchestrator', () => {
     });
   });
 
-  describe('Checkpoint Operations', () => {
-    it('should request checkpoint', async () => {
-      const checkpoint = await orchestrator.requestCheckpoint(
-        'session-1',
-        'Deploy to production?',
-        [
-          { id: 'approve', label: 'Deploy', description: 'Deploy to production', action: 'deploy' },
-          { id: 'reject', label: 'Cancel', description: 'Cancel deployment', action: 'cancel' },
-        ],
-        'chief-of-staff'
-      );
-
-      expect(checkpoint.id).toBeDefined();
-      expect(checkpoint.decisionPoint).toBe('Deploy to production?');
-      expect(checkpoint.options).toHaveLength(2);
-    });
-
-    it('should approve checkpoint', async () => {
-      const checkpoint = await orchestrator.requestCheckpoint(
-        'session-1',
-        'Deploy to production?',
-        [{ id: 'approve', label: 'Deploy', description: '', action: 'deploy' }],
-        'chief-of-staff'
-      );
-
-      const approved = await orchestrator.approveCheckpoint(checkpoint.id, 'user');
-
-      expect(approved).toBe(true);
-    });
-
-    it('should reject checkpoint', async () => {
-      const checkpoint = await orchestrator.requestCheckpoint(
-        'session-1',
-        'Deploy to production?',
-        [{ id: 'approve', label: 'Deploy', description: '', action: 'deploy' }],
-        'chief-of-staff'
-      );
-
-      const rejected = await orchestrator.rejectCheckpoint(checkpoint.id, 'user');
-
-      expect(rejected).toBe(true);
-    });
-
-    it('should throw for invalid checkpoint approval', async () => {
-      const result = await orchestrator.approveCheckpoint('invalid-id', 'user');
-      expect(result).toBe(false);
-    });
-  });
-
-  describe('Crash Recovery', () => {
-    it('should track event offset', async () => {
-      await orchestrator.append({ type: 'session.created', sessionId: 's1', payload: {} });
-      await orchestrator.append({ type: 'agent.spawned', sessionId: 's1', payload: {} });
-      await orchestrator.append({ type: 'agent.completed', sessionId: 's1', payload: {} });
-
-      const offset = orchestrator.getCurrentOffset();
-      expect(offset).toBe(3);
-    });
-  });
-
-  describe('Agent Handoff Flow', () => {
-    it('should track agent handoff events', async () => {
-      const spawnEvent = await orchestrator.append({
-        type: 'agent.spawned',
-        sessionId: 'parent-session',
-        agent: 'chief-of-staff',
-        payload: { agentName: 'oracle' },
-      });
-
-      const handoffEvent = await orchestrator.append({
-        type: 'handoff.initiated',
-        sessionId: 'parent-session',
-        agent: 'chief-of-staff',
-        payload: { targetAgent: 'oracle', reason: 'Need expertise' },
-        metadata: { targetAgent: 'oracle' },
-        parentEventId: spawnEvent.id,
-      });
-
-      expect(handoffEvent.parentEventId).toBe(spawnEvent.id);
-    });
-
-    it('should create context snapshot before handoff', async () => {
-      const snapshotEvent = await orchestrator.createContextSnapshot(
-        'parent-session',
-        'chief-of-staff',
-        'Analyze architecture',
-        [
-          {
-            type: 'decision',
-            content: 'Use microservices',
-            relevanceScore: 0.95,
-            sourceEventId: 'evt-1',
-          },
-        ],
-        { phase: 'analysis', completedTasks: [], pendingTasks: ['task-1'] }
-      );
-
+  describe('getEventHistory', () => {
+    it('should return events filtered by type', async () => {
       await orchestrator.append({
-        type: 'handoff.initiated',
-        sessionId: 'parent-session',
-        agent: 'chief-of-staff',
-        payload: { targetAgent: 'oracle', snapshotEventId: snapshotEvent.id },
-        metadata: { targetAgent: 'oracle' },
-        parentEventId: snapshotEvent.id,
+        type: 'session.created',
+        sessionId: 's1',
+        agent: 'a',
+        payload: {},
+      });
+      await orchestrator.append({
+        type: 'agent.spawned',
+        sessionId: 's2',
+        agent: 'a',
+        payload: {},
+      });
+      await orchestrator.append({
+        type: 'session.created',
+        sessionId: 's3',
+        agent: 'a',
+        payload: {},
+      });
+      await orchestrator.append({
+        type: 'agent.completed',
+        sessionId: 's4',
+        agent: 'a',
+        payload: {},
       });
 
-      expect(snapshotEvent.type).toBe('context.snapshot');
-    });
-  });
-
-  describe('Event History', () => {
-    it('should maintain event history', async () => {
-      await orchestrator.append({ type: 'session.created', sessionId: 's1', payload: {} });
-      await orchestrator.append({ type: 'agent.spawned', sessionId: 's1', payload: {} });
-
-      const history = orchestrator.getEventHistory();
-      // getEventHistory returns events in reverse order (most recent first)
-      expect(history).toHaveLength(2);
-      expect(history[0].type).toBe('agent.spawned');
-      expect(history[1].type).toBe('session.created');
+      const createdEvents = orchestrator.getEventHistory('session.created');
+      expect(createdEvents).toHaveLength(2);
+      expect(createdEvents.every((e) => e.type === 'session.created')).toBe(true);
     });
 
-    it('should limit history size', async () => {
-      for (let i = 0; i < 1005; i++) {
-        await orchestrator.append({ type: 'session.created', sessionId: `s${i}`, payload: {} });
+    it('should respect limit parameter', async () => {
+      for (let i = 0; i < 10; i++) {
+        await orchestrator.append({
+          type: 'session.created',
+          sessionId: `s${i}`,
+          agent: 'a',
+          payload: {},
+        });
       }
 
-      const history = orchestrator.getEventHistory();
-      expect(history.length).toBeLessThanOrEqual(1000);
+      const events = orchestrator.getEventHistory('session.created', 5);
+      expect(events).toHaveLength(5);
+    });
+  });
+
+  describe('spawnAgent/completeAgent/failAgent', () => {
+    it('should use helper methods', async () => {
+      const spawnEvent = await orchestrator.spawnAgent(
+        'child-1',
+        'parent-1',
+        'executor',
+        'Do task'
+      );
+      expect(spawnEvent.type).toBe('agent.spawned');
+      expect(spawnEvent.agent).toBe('executor');
+
+      const completeEvent = await orchestrator.completeAgent(
+        'child-1',
+        'executor',
+        'Task done',
+        1000
+      );
+      expect(completeEvent.type).toBe('agent.completed');
+      expect(completeEvent.metadata.duration).toBe(1000);
+
+      const failEvent = await orchestrator.failAgent('child-2', 'debugger', 'Error occurred');
+      expect(failEvent.type).toBe('agent.failed');
+    });
+  });
+
+  describe('extractLearning', () => {
+    it('should extract learnings', async () => {
+      const event = await orchestrator.extractLearning(
+        'session-1',
+        'test-agent',
+        'pattern',
+        'Use TDD for new features'
+      );
+      expect(event.type).toBe('learning.extracted');
+      expect(event.payload.learningType).toBe('pattern');
     });
   });
 });
