@@ -257,29 +257,33 @@ export const SwarmToolAddons: Plugin = async (input) => {
         };
       }
 
-      // 3. Apply DEFAULT_MODELS fallback for built-in or missing agents
+      // 3. Apply user config overrides for ANY agent path (including native OpenCode agents)
+      // This allows users to override native agents like 'Code', 'Ask', etc.
+      for (const [agentPath, modelConfig] of Object.entries(userConfig.models)) {
+        // Skip if disabled
+        if (modelConfig.disable) {
+          continue;
+        }
+
+        // If agent already exists, override its model
+        if (config.agent[agentPath]) {
+          config.agent[agentPath].model = modelConfig.model;
+          if (modelConfig.temperature !== undefined) {
+            config.agent[agentPath].temperature = modelConfig.temperature;
+          }
+        } else {
+          // Create new agent entry for native OpenCode agents or custom paths
+          config.agent[agentPath] = {
+            model: modelConfig.model,
+            ...(modelConfig.temperature !== undefined && { temperature: modelConfig.temperature }),
+          };
+        }
+      }
+
+      // 4. Apply DEFAULT_MODELS fallback for skill-based agents that are still missing
       for (const [name, model] of Object.entries(DEFAULT_MODELS)) {
         if (!config.agent[name]) {
           config.agent[name] = { model };
-        } else if (!config.agent[name].model || config.agent[name].model === 'opencode/grok-code') {
-          // If it's a built-in like 'build' or 'plan', use the llama3.2 default
-          if (
-            [
-              'Build',
-              'build',
-              'Plan',
-              'plan',
-              'Explore',
-              'explore',
-              'General',
-              'general',
-              'swarm/planner',
-              'swarm/worker',
-              'swarm/researcher',
-            ].includes(name)
-          ) {
-            config.agent[name].model = model;
-          }
         }
       }
     },

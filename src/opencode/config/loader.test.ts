@@ -14,7 +14,7 @@ import {
 const testDir = join(process.cwd(), 'test');
 
 beforeEach(() => {
-  vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'error').mockImplementation(() => { });
   // Ensure test directory exists
   if (!existsSync(testDir)) {
     mkdirSync(testDir, { recursive: true });
@@ -42,17 +42,17 @@ describe('loadConfig', () => {
     const config = loadConfig(testConfigPath);
 
     expect(config).toBeDefined();
-    expect(config.models['swarm/planner'].model).toBe('google/gemini-3-flash');
-    expect(config.models['swarm/worker'].model).toBe('google/gemini-3-flash');
-    expect(config.models['swarm/researcher'].model).toBe('google/gemini-3-flash');
+    expect(config.models['chief-of-staff'].model).toBe('google/gemini-3-pro-low');
+    expect(config.models['chief-of-staff/oracle'].model).toBe('google/gemini-3-flash');
+    expect(config.models['chief-of-staff/planner'].model).toBe('google/gemini-3-flash');
   });
 
   it('should load and parse valid config file', () => {
     const validConfig = {
       models: {
-        'swarm/planner': { model: 'opencode/custom-planner', temperature: 0.8 },
-        'swarm/worker': { model: 'opencode/custom-worker' },
-        'swarm/researcher': { model: 'opencode/custom-researcher', temperature: 0.3 },
+        'chief-of-staff/planner': { model: 'opencode/custom-planner', temperature: 0.8 },
+        'chief-of-staff/executor': { model: 'opencode/custom-executor' },
+        'chief-of-staff/oracle': { model: 'opencode/custom-oracle', temperature: 0.3 },
       },
       debug: true,
       logLevel: 'debug' as const,
@@ -62,11 +62,11 @@ describe('loadConfig', () => {
 
     const config = loadConfig(testConfigPath);
 
-    expect(config.models['swarm/planner'].model).toBe('opencode/custom-planner');
-    expect(config.models['swarm/planner'].temperature).toBe(0.8);
-    expect(config.models['swarm/worker'].model).toBe('opencode/custom-worker');
-    expect(config.models['swarm/researcher'].model).toBe('opencode/custom-researcher');
-    expect(config.models['swarm/researcher'].temperature).toBe(0.3);
+    expect(config.models['chief-of-staff/planner'].model).toBe('opencode/custom-planner');
+    expect(config.models['chief-of-staff/planner'].temperature).toBe(0.8);
+    expect(config.models['chief-of-staff/executor'].model).toBe('opencode/custom-executor');
+    expect(config.models['chief-of-staff/oracle'].model).toBe('opencode/custom-oracle');
+    expect(config.models['chief-of-staff/oracle'].temperature).toBe(0.3);
     expect(config.debug).toBe(true);
     expect(config.logLevel).toBe('debug');
   });
@@ -77,7 +77,7 @@ describe('loadConfig', () => {
     const config = loadConfig(testConfigPath);
 
     expect(config).toBeDefined();
-    expect(config.models['swarm/planner'].model).toBe('google/gemini-3-flash');
+    expect(config.models['chief-of-staff'].model).toBe('google/gemini-3-pro-low');
   });
 
   it('should return default config when missing required models section', () => {
@@ -90,7 +90,7 @@ describe('loadConfig', () => {
     const config = loadConfig(testConfigPath);
 
     expect(config).toBeDefined();
-    expect(config.models['swarm/planner'].model).toBe('google/gemini-3-flash');
+    expect(config.models['chief-of-staff'].model).toBe('google/gemini-3-pro-low');
   });
 
   it('should return default config when models section is empty', () => {
@@ -103,7 +103,7 @@ describe('loadConfig', () => {
     const config = loadConfig(testConfigPath);
 
     expect(config).toBeDefined();
-    expect(config.models['swarm/planner'].model).toBe('google/gemini-3-flash');
+    expect(config.models['chief-of-staff'].model).toBe('google/gemini-3-pro-low');
   });
 
   it('should handle file read errors gracefully', () => {
@@ -112,7 +112,7 @@ describe('loadConfig', () => {
     const config = loadConfig(testConfigPath);
 
     expect(config).toBeDefined();
-    expect(config.models['swarm/planner'].model).toBe('google/gemini-3-flash');
+    expect(config.models['chief-of-staff'].model).toBe('google/gemini-3-pro-low');
 
     rmSync(testConfigPath, { recursive: true });
   });
@@ -137,13 +137,13 @@ describe('loadConfig', () => {
   it('should preserve disable and forcedSkills fields from config file', () => {
     const validConfig = {
       models: {
-        'swarm/planner': {
+        'chief-of-staff/planner': {
           model: 'opencode/planner',
           disable: true,
           forcedSkills: ['system-design', 'swarm-coordination'],
         },
-        'swarm/worker': {
-          model: 'opencode/worker',
+        'chief-of-staff/executor': {
+          model: 'opencode/executor',
           disable: false,
           forcedSkills: [],
         },
@@ -154,13 +154,13 @@ describe('loadConfig', () => {
 
     const config = loadConfig(testConfigPath);
 
-    expect(config.models['swarm/planner'].disable).toBe(true);
-    expect(config.models['swarm/planner'].forcedSkills).toEqual([
+    expect(config.models['chief-of-staff/planner'].disable).toBe(true);
+    expect(config.models['chief-of-staff/planner'].forcedSkills).toEqual([
       'system-design',
       'swarm-coordination',
     ]);
-    expect(config.models['swarm/worker'].disable).toBe(false);
-    expect(config.models['swarm/worker'].forcedSkills).toEqual([]);
+    expect(config.models['chief-of-staff/executor'].disable).toBe(false);
+    expect(config.models['chief-of-staff/executor'].forcedSkills).toEqual([]);
     expect(config.models['chief-of-staff/oracle'].model).toBe('google/gemini-3-flash');
     expect(config.models['chief-of-staff/oracle'].forcedSkills).toBeUndefined();
   });
@@ -178,9 +178,9 @@ describe('saveConfig', () => {
   it('should save config to file', () => {
     const configToSave = {
       models: {
-        'swarm/planner': { model: 'saved/planner' },
-        'swarm/worker': { model: 'saved/worker' },
-        'swarm/researcher': { model: 'saved/researcher' },
+        'chief-of-staff/planner': { model: 'saved/planner' },
+        'chief-of-staff/executor': { model: 'saved/executor' },
+        'chief-of-staff/oracle': { model: 'saved/oracle' },
       },
       debug: true,
     };
@@ -190,7 +190,7 @@ describe('saveConfig', () => {
     expect(existsSync(testConfigPath)).toBe(true);
 
     const loaded = JSON.parse(readFileSync(testConfigPath, 'utf-8'));
-    expect(loaded.models['swarm/planner'].model).toBe('saved/planner');
+    expect(loaded.models['chief-of-staff/planner'].model).toBe('saved/planner');
     expect(loaded.debug).toBe(true);
   });
 
@@ -198,8 +198,8 @@ describe('saveConfig', () => {
     const nestedPath = join(process.cwd(), 'test-nested', 'dir', 'config.json');
     const configToSave = {
       models: {
-        'swarm/planner': { model: 'model' },
-        'swarm/worker': { model: 'model' },
+        'chief-of-staff/planner': { model: 'model' },
+        'chief-of-staff/executor': { model: 'model' },
       },
     };
 
@@ -213,7 +213,7 @@ describe('saveConfig', () => {
   it('should throw on invalid config', () => {
     const invalidConfig = {
       models: {
-        'swarm/planner': { model: 'model', temperature: 5.0 },
+        'chief-of-staff/planner': { model: 'model', temperature: 5.0 },
       },
     };
 
@@ -257,9 +257,9 @@ describe('loadConfigWithValidation', () => {
   it('should return config and validation result', () => {
     const configToSave = {
       models: {
-        'swarm/planner': { model: 'model' },
-        'swarm/worker': { model: 'model' },
-        'swarm/researcher': { model: 'model' },
+        'chief-of-staff/planner': { model: 'model' },
+        'chief-of-staff/executor': { model: 'model' },
+        'chief-of-staff/oracle': { model: 'model' },
       },
     };
 
@@ -276,8 +276,8 @@ describe('loadConfigWithValidation', () => {
   it('should return validation errors for invalid config', () => {
     const configToSave = {
       models: {
-        'swarm/planner': { model: 'model', temperature: 3.0 },
-        'swarm/worker': { model: 'model' },
+        'chief-of-staff/planner': { model: 'model', temperature: 3.0 },
+        'chief-of-staff/executor': { model: 'model' },
       },
     };
 

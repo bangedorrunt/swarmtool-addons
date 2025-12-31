@@ -19,25 +19,62 @@ Platform-specific default paths:
 - **macOS/Linux**: `~/.config/opencode/swarmtool-addons.json`
 - **Windows**: `%APPDATA%\Roaming\opencode\swarmtool-addons.json`
 
+## Agent Hierarchy
+
+The configuration supports a skill-based subagent architecture:
+
+### Primary Agent (User-Facing)
+- `chief-of-staff`: The main orchestrator agent exposed to users
+
+### Subagents (Internal, only callable by authorized agents)
+
+| Agent Path | Role | Default Model |
+|------------|------|---------------|
+| `chief-of-staff/oracle` | Strategic advisor | google/gemini-3-flash |
+| `chief-of-staff/planner` | Blueprint creator | google/gemini-3-flash |
+| `chief-of-staff/executor` | TDD code generator | google/gemini-3-pro |
+| `chief-of-staff/interviewer` | User clarification | google/gemini-3-flash |
+| `chief-of-staff/spec-writer` | Requirements extraction | google/gemini-3-flash |
+| `chief-of-staff/validator` | Quality gate | google/gemini-3-flash |
+| `chief-of-staff/explore` | Codebase search | opencode/grok-code |
+| `chief-of-staff/librarian` | Library research | opencode/grok-code |
+| `chief-of-staff/frontend-ui-ux-engineer` | UI/UX implementation | google/gemini-3-pro-high |
+| `chief-of-staff/memory-catcher` | Learning extraction | google/gemini-3-flash |
+| `chief-of-staff/workflow-architect` | Workflow design | google/gemini-3-pro |
+
 ## Configuration Schema
+
+The configuration supports overriding **both skill-based subagents and native OpenCode agents**.
+
+### Example Configuration
 
 ```json
 {
   "models": {
-    "planner": {
-      "model": "opencode/big-pickle",
-      "temperature": 0.7,
-      "maxTokens": 4096
+    // Override skill-based subagents
+    "chief-of-staff": {
+      "model": "google/gemini-3-pro-low"
     },
-    "worker": {
-      "model": "opencode/glm-4.7-free",
-      "temperature": 0.5,
-      "maxTokens": 2048
+    "chief-of-staff/oracle": {
+      "model": "google/gemini-3-flash",
+      "temperature": 0.1
     },
-    "researcher": {
-      "model": "opencode/grok-code",
-      "temperature": 0.3,
-      "maxTokens": 8192
+    "chief-of-staff/executor": {
+      "model": "google/gemini-3-pro",
+      "disable": false,
+      "forcedSkills": ["system-design"]
+    },
+
+    // Override native OpenCode agents
+    "Code": {
+      "model": "anthropic/claude-3.5-sonnet"
+    },
+    "Ask": {
+      "model": "openai/gpt-4o",
+      "temperature": 0.3
+    },
+    "Summarize": {
+      "model": "google/gemini-3-flash"
     }
   },
   "debug": false,
@@ -45,26 +82,37 @@ Platform-specific default paths:
 }
 ```
 
-### Required Fields
+### Native OpenCode Agents
 
-- `models.planner.model`: Model identifier for planner agent
-- `models.worker.model`: Model identifier for worker agent
-- `models.researcher.model`: Model identifier for researcher agent
+You can override any native OpenCode agent by using its exact name:
 
-### Optional Fields
+| Agent Name | Purpose |
+|------------|---------|
+| `Code` | Code generation and editing |
+| `Ask` | General questions and assistance |
+| `Summarize` | Code and content summarization |
+| `Plan` | Planning tasks |
+| `Build` | Build and compile tasks |
+| `Explore` | Codebase exploration |
 
-- `models.*.temperature`: Temperature (0.0 - 2.0) for generation
-- `models.*.maxTokens`: Maximum tokens to generate (positive integer)
-- `debug`: Enable debug logging (default: `false`)
-- `logLevel`: Logging level - `"debug" | "info" | "warn" | "error"`
+> **Note**: Agent names are case-sensitive. Use the exact name as shown in OpenCode.
 
-### Default Models
 
-If config file doesn't exist or is invalid, these defaults are used:
+### Model Override Fields
 
-- **planner**: `opencode/big-pickle`
-- **worker**: `opencode/glm-4.7-free`
-- **researcher**: `opencode/grok-code`
+| Field | Type | Description |
+|-------|------|-------------|
+| `model` | string | **Required**. Model identifier |
+| `temperature` | number | Optional. 0.0 - 2.0 for generation |
+| `disable` | boolean | Optional. Disable this agent |
+| `forcedSkills` | string[] | Optional. Force skills to load |
+
+### Top-Level Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `debug` | boolean | `false` | Enable debug logging |
+| `logLevel` | string | `"info"` | One of: `debug`, `info`, `warn`, `error` |
 
 ## Usage
 
@@ -87,9 +135,9 @@ import { saveConfig } from './config';
 
 const myConfig = {
   models: {
-    planner: { model: 'custom/model' },
-    worker: { model: 'custom/model' },
-    researcher: { model: 'custom/model' },
+    'chief-of-staff': { model: 'google/gemini-3-pro-low' },
+    'chief-of-staff/oracle': { model: 'opencode/custom-model' },
+    'chief-of-staff/planner': { model: 'opencode/custom-model' },
   },
 };
 
@@ -127,12 +175,11 @@ model: opencode/old-model
 Agent content goes here`;
 
 const config = {
-  planner: { model: 'opencode/new-model' },
-  worker: { model: 'opencode/worker' },
-  researcher: { model: 'opencode/researcher' },
+  'chief-of-staff/planner': { model: 'opencode/new-model' },
+  'chief-of-staff/executor': { model: 'opencode/executor' },
 };
 
-const modifiedPrompt = substituteModel(prompt, 'planner', config);
+const modifiedPrompt = substituteModel(prompt, 'chief-of-staff/planner', config);
 // Result: model line is replaced with opencode/new-model
 ```
 
@@ -145,9 +192,9 @@ import type { SwarmToolAddonsConfig, ModelOverride, AgentModelConfig, LogLevel }
 
 const config: SwarmToolAddonsConfig = {
   models: {
-    planner: { model: 'opencode/model' },
-    worker: { model: 'opencode/model' },
-    researcher: { model: 'opencode/model' },
+    'chief-of-staff': { model: 'google/gemini-3-pro-low' },
+    'chief-of-staff/oracle': { model: 'google/gemini-3-flash' },
+    'chief-of-staff/planner': { model: 'google/gemini-3-flash' },
   },
   logLevel: 'debug', // TypeScript enforces valid log levels
 };

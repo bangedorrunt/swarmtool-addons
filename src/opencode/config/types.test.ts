@@ -10,51 +10,32 @@ describe('SwarmToolAddonsConfig', () => {
     it('should allow creating a valid config with path-based model overrides', () => {
       const config: SwarmToolAddonsConfig = {
         models: {
-          'swarm/planner': {
-            model: 'opencode/custom-model',
-            temperature: 0.7,
-          },
-          'swarm/worker': {
-            model: 'opencode/worker-model',
-            temperature: 0.5,
-          },
-          'swarm/researcher': {
-            model: 'opencode/researcher-model',
+          'chief-of-staff/oracle': {
+            model: 'opencode/oracle-model',
             temperature: 0.3,
           },
         },
       };
 
-      expect(config.models['swarm/planner'].model).toBe('opencode/custom-model');
-      expect(config.models['swarm/worker'].model).toBe('opencode/worker-model');
-      expect(config.models['swarm/researcher'].model).toBe('opencode/researcher-model');
+      expect(config.models['chief-of-staff/oracle'].model).toBe('opencode/oracle-model');
     });
 
     it('should allow partial model config with optional fields', () => {
       const config: SwarmToolAddonsConfig = {
         models: {
-          'swarm/planner': {
-            model: 'opencode/simple-model',
-          },
-          'swarm/worker': {
-            model: 'opencode/another-model',
-          },
-          'custom/path/agent': {
-            model: 'opencode/third-model',
+          'chief-of-staff/oracle': {
+            model: 'opencode/oracle-model',
           },
         },
       };
 
-      expect(config.models['swarm/planner'].temperature).toBeUndefined();
-      expect(config.models['swarm/worker'].temperature).toBeUndefined();
+      expect(config.models['chief-of-staff/oracle'].temperature).toBeUndefined();
     });
 
     it('should allow optional top-level settings', () => {
       const config: SwarmToolAddonsConfig = {
         models: {
-          'swarm/planner': { model: 'opencode/model' },
-          'swarm/worker': { model: 'opencode/model' },
-          'swarm/researcher': { model: 'opencode/model' },
+          'chief-of-staff/oracle': { model: 'opencode/oracle-model' },
         },
         debug: false,
         logLevel: 'error',
@@ -74,27 +55,15 @@ describe('SwarmToolAddonsConfig', () => {
     it('should parse valid JSON config string', () => {
       const jsonStr = JSON.stringify({
         models: {
-          'swarm/planner': {
-            model: 'opencode/planner-model',
-            temperature: 0.8,
-          },
-          'swarm/worker': {
-            model: 'opencode/worker-model',
-          },
-          'swarm/researcher': {
-            model: 'opencode/researcher-model',
-            temperature: 0.3,
-          },
+          'chief-of-staff/oracle': { model: 'opencode/oracle-model', temperature: 0.3, },
         },
       });
 
       const config = parseConfig(jsonStr);
 
       expect(config).toBeDefined();
-      expect(config.models['swarm/planner'].model).toBe('opencode/planner-model');
-      expect(config.models['swarm/planner'].temperature).toBe(0.8);
-      expect(config.models['swarm/worker'].model).toBe('opencode/worker-model');
-      expect(config.models['swarm/researcher'].model).toBe('opencode/researcher-model');
+      expect(config.models['chief-of-staff/oracle'].model).toBe('opencode/oracle-model');
+      expect(config.models['chief-of-staff/oracle'].temperature).toBe(0.3);
     });
 
     it('should throw on invalid JSON', () => {
@@ -116,8 +85,8 @@ describe('SwarmToolAddonsConfig', () => {
     it('should throw on missing model field', () => {
       const jsonStr = JSON.stringify({
         models: {
-          'swarm/planner': { model: 'opencode/model' },
-          'swarm/worker': {}, // missing model field
+          'chief-of-staff/oracle': { model: 'opencode/oracle' },
+          'chief-of-staff/planner': {}, // missing model field
         },
       });
 
@@ -129,9 +98,9 @@ describe('SwarmToolAddonsConfig', () => {
     it('should validate complete config', () => {
       const config: SwarmToolAddonsConfig = {
         models: {
-          'swarm/planner': { model: 'opencode/model' },
-          'swarm/worker': { model: 'opencode/model' },
-          'swarm/researcher': { model: 'opencode/model' },
+          'chief-of-staff/planner': { model: 'opencode/model' },
+          'chief-of-staff/executor': { model: 'opencode/model' },
+          'chief-of-staff/oracle': { model: 'opencode/model' },
         },
       };
 
@@ -156,8 +125,8 @@ describe('SwarmToolAddonsConfig', () => {
     it('should return errors for invalid temperature values', () => {
       const config: SwarmToolAddonsConfig = {
         models: {
-          'swarm/planner': { model: 'opencode/model', temperature: 2.1 },
-          'swarm/worker': { model: 'opencode/model' },
+          'chief-of-staff/planner': { model: 'opencode/model', temperature: 2.1 },
+          'chief-of-staff/executor': { model: 'opencode/model' },
         },
       };
 
@@ -169,8 +138,8 @@ describe('SwarmToolAddonsConfig', () => {
     it('should return errors for negative temperature', () => {
       const config: SwarmToolAddonsConfig = {
         models: {
-          'swarm/planner': { model: 'opencode/model', temperature: -0.5 },
-          'swarm/worker': { model: 'opencode/model' },
+          'chief-of-staff/planner': { model: 'opencode/model', temperature: -0.5 },
+          'chief-of-staff/executor': { model: 'opencode/model' },
         },
       };
 
@@ -182,9 +151,9 @@ describe('SwarmToolAddonsConfig', () => {
     it('should validate logLevel if provided', () => {
       const config: SwarmToolAddonsConfig = {
         models: {
-          'swarm/planner': { model: 'opencode/model' },
-          'swarm/worker': { model: 'opencode/model' },
-          'swarm/researcher': { model: 'opencode/model' },
+          'chief-of-staff/planner': { model: 'opencode/model' },
+          'chief-of-staff/executor': { model: 'opencode/model' },
+          'chief-of-staff/oracle': { model: 'opencode/model' },
         },
         logLevel: 'invalid' as unknown as SwarmToolAddonsConfig['logLevel'],
       };
@@ -204,9 +173,9 @@ describe('SwarmToolAddonsConfig', () => {
       for (const level of validLevels) {
         const config: SwarmToolAddonsConfig = {
           models: {
-            'swarm/planner': { model: 'opencode/model' },
-            'swarm/worker': { model: 'opencode/model' },
-            'swarm/researcher': { model: 'opencode/model' },
+            'chief-of-staff/planner': { model: 'opencode/model' },
+            'chief-of-staff/executor': { model: 'opencode/model' },
+            'chief-of-staff/oracle': { model: 'opencode/model' },
           },
           logLevel: level,
         };
@@ -219,8 +188,8 @@ describe('SwarmToolAddonsConfig', () => {
     it('should return errors for empty model string', () => {
       const config: SwarmToolAddonsConfig = {
         models: {
-          'swarm/planner': { model: '' },
-          'swarm/worker': { model: 'opencode/model' },
+          'chief-of-staff/planner': { model: '' },
+          'chief-of-staff/executor': { model: 'opencode/model' },
         },
       };
 
@@ -234,11 +203,11 @@ describe('SwarmToolAddonsConfig', () => {
     it('should accept disable field in model config', () => {
       const config: SwarmToolAddonsConfig = {
         models: {
-          'swarm/planner': {
+          'chief-of-staff/planner': {
             model: 'opencode/model',
             disable: true,
           },
-          'swarm/worker': {
+          'chief-of-staff/executor': {
             model: 'opencode/model',
             disable: false,
           },
@@ -247,14 +216,14 @@ describe('SwarmToolAddonsConfig', () => {
 
       const result = validateConfig(config);
       expect(result.valid).toBe(true);
-      expect(config.models['swarm/planner'].disable).toBe(true);
-      expect(config.models['swarm/worker'].disable).toBe(false);
+      expect(config.models['chief-of-staff/planner'].disable).toBe(true);
+      expect(config.models['chief-of-staff/executor'].disable).toBe(false);
     });
 
     it('should accept forcedSkills field in model config', () => {
       const config: SwarmToolAddonsConfig = {
         models: {
-          'swarm/planner': {
+          'chief-of-staff/planner': {
             model: 'opencode/model',
             forcedSkills: ['system-design', 'swarm-coordination'],
           },
@@ -263,7 +232,7 @@ describe('SwarmToolAddonsConfig', () => {
 
       const result = validateConfig(config);
       expect(result.valid).toBe(true);
-      expect(config.models['swarm/planner'].forcedSkills).toEqual([
+      expect(config.models['chief-of-staff/planner'].forcedSkills).toEqual([
         'system-design',
         'swarm-coordination',
       ]);
@@ -272,7 +241,7 @@ describe('SwarmToolAddonsConfig', () => {
     it('should accept empty forcedSkills array', () => {
       const config: SwarmToolAddonsConfig = {
         models: {
-          'swarm/planner': {
+          'chief-of-staff/planner': {
             model: 'opencode/model',
             forcedSkills: [],
           },
@@ -281,13 +250,13 @@ describe('SwarmToolAddonsConfig', () => {
 
       const result = validateConfig(config);
       expect(result.valid).toBe(true);
-      expect(config.models['swarm/planner'].forcedSkills).toEqual([]);
+      expect(config.models['chief-of-staff/planner'].forcedSkills).toEqual([]);
     });
 
     it('should accept all optional fields together', () => {
       const config: SwarmToolAddonsConfig = {
         models: {
-          'swarm/planner': {
+          'chief-of-staff/planner': {
             model: 'opencode/model',
             temperature: 0.7,
             disable: false,
@@ -298,14 +267,14 @@ describe('SwarmToolAddonsConfig', () => {
 
       const result = validateConfig(config);
       expect(result.valid).toBe(true);
-      expect(config.models['swarm/planner'].disable).toBe(false);
-      expect(config.models['swarm/planner'].forcedSkills).toEqual(['system-design']);
+      expect(config.models['chief-of-staff/planner'].disable).toBe(false);
+      expect(config.models['chief-of-staff/planner'].forcedSkills).toEqual(['system-design']);
     });
 
     it('should parse config with disable and forcedSkills from JSON', () => {
       const jsonStr = JSON.stringify({
         models: {
-          'swarm/planner': {
+          'chief-of-staff/planner': {
             model: 'opencode/model',
             disable: true,
             forcedSkills: ['skill1', 'skill2'],
@@ -314,21 +283,21 @@ describe('SwarmToolAddonsConfig', () => {
       });
 
       const config = parseConfig(jsonStr);
-      expect(config.models['swarm/planner'].disable).toBe(true);
-      expect(config.models['swarm/planner'].forcedSkills).toEqual(['skill1', 'skill2']);
+      expect(config.models['chief-of-staff/planner'].disable).toBe(true);
+      expect(config.models['chief-of-staff/planner'].forcedSkills).toEqual(['skill1', 'skill2']);
     });
 
     it('should preserve disable and forcedSkills when undefined', () => {
       const config: SwarmToolAddonsConfig = {
         models: {
-          'swarm/planner': {
+          'chief-of-staff/planner': {
             model: 'opencode/model',
           },
         },
       };
 
-      expect(config.models['swarm/planner'].disable).toBeUndefined();
-      expect(config.models['swarm/planner'].forcedSkills).toBeUndefined();
+      expect(config.models['chief-of-staff/planner'].disable).toBeUndefined();
+      expect(config.models['chief-of-staff/planner'].forcedSkills).toBeUndefined();
     });
   });
 

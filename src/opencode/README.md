@@ -236,7 +236,6 @@ Then spawn it via the `skill_agent` tool.
 The OpenCode module is the foundation for other modules:
 
 - **Orchestrator**: Re-exports `skill_agent` tool for coordination patterns
-- **Conductor**: Uses agent loading for task execution
 - **Memory Lane**: No direct dependency, but agents can use memory tools
 
 ## Testing
@@ -253,5 +252,3 @@ bun test src/opencode/agent/tools.test.ts
 ## See Also
 
 - **AGENTS.md**: Module implementation guide and integration patterns
-- **SKILL_SUBAGENTS.md**: Skill-based subagent architecture
-- **Hybrid Delegator Pattern**: Research on agent spawning patterns
