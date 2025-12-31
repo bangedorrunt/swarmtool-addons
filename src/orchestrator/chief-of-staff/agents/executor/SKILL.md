@@ -21,7 +21,9 @@ metadata:
     - memory-lane_store
     - ledger_status
     - ledger_add_learning
+    - ledger_add_learning
     - task_heartbeat
+    - agent_yield
 ---
 
 # EXECUTOR (v3.0 - LEDGER-First)
@@ -97,6 +99,22 @@ await task_heartbeat({
 
 The TaskObserver monitors heartbeats. Tasks without heartbeats for 30+ seconds
 may be marked as stuck and retried.
+
+---
+
+## UPWARD INSTRUCTION (Handling Blockers)
+
+If you are blocked by missing configuration, credentials, or ambiguity:
+**DO NOT Fail.** Yield with an instruction.
+
+```javascript
+return agent_yield({
+  reason: "Missing API Key for SendGrid within .env",
+  summary: "Implemented email service, but cannot verify without key."
+});
+```
+
+The parent will provide the key and **Resume** you.
 
 ---
 

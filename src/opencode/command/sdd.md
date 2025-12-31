@@ -131,12 +131,26 @@ skill_agent({
    - Mark task as `[x] Completed` in `.opencode/LEDGER.md`.
    - Log any specific learnings or decisions.
 
-4. **Verify:**
+3. **Verify:**
    ```
    skill_agent({
      agent_name: "chief-of-staff/validator",
      prompt: "Verify output of Task <ID>",
      async: false
+   })
+   ```
+
+### Handling "Upward Instructions" (Yields)
+
+If an agent yields (e.g., "Missing API Key", "Need Approval"):
+
+1. **Detect**: `result.status === "HANDOFF_INTENT"`
+2. **Act**: Perform the requested action (Ask User, Check System)
+3. **Resume**:
+   ```javascript
+   agent_resume({
+     session_id: result.metadata.handoff.session_id,
+     signal_data: "Here is the API Key: sk-..."
    })
    ```
 

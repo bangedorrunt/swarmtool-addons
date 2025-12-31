@@ -25,80 +25,66 @@ This design is inspired by advanced agentic coordination patterns observed in mo
 
 ## Decision
 
-We will implement a Durable Subagent Orchestration layer built upon `LEDGER.md`, `TaskRegistry`, and `EventLog`.
+We will implement a Durable Subagent Orchestration layer built upon `LEDGER.md`, `TaskRegistry`, and a new **Event-Driven Signal Buffer**.
 
 ### 1. Extended Task State Machine
 
-We will add a `suspended` state to the Task status enum.
+We will add a `suspended` state to the Task status enum in the `TaskRegistry`.
 • **`suspended`**: The task is alive but waiting for an external event (signal) to resume.
 
-### 2. Context Snapshots
+### 2. Context Snapshots via Session References via
 
-The `Task` schema in `TaskRegistry` and `LEDGER.md` will be extended with a `snapshot` field (JSON). This field will store:
-• Partial conversation history of the subagent.
-• Internal meta-data required to re-hydrate the agent's thinking process.
-• The specific reason/query for suspension.
+Instead of serializing raw conversation history (which is expensive and error-prone), we will use **Session References**.
+• The `Task` schema in `LEDGER.md` will store a `session_id`.
+• The **OpenCode Session Graph** natively persists the conversation history.
+• The "Snapshot" is simply a pointer: `{ session_id: "sess-123", yield_reason: "Ask User", reasoning_summary: "..." }`.
 
 ### 3. Yield/Resume Protocol
 
-• **`agent_yield(reason, snapshot)`**: A new internal tool that allows a subagent to persist its state to the LEDGER and return control to the parent.
-• **`agent_resume(task_id, signal_data)`**: A tool for the Parent/Orchestrator to wake up a suspended subagent, injecting the `signal_data` back into its context.
+• **`agent_yield(reason, summary)`**:
+  - Captures the current `session_id`.
+  - Updates `LEDGER.md` to `suspended` with the provided reason.
+  - Returns a system-level `HANDOFF_INTENT` signal (invisible to the LLM context) to notify the orchestrator.
 
-### 4. Upward Instruction via EventLog
+• **`agent_resume(task_id, signal_data)`**:
+  - Looks up the `session_id` from the ledger.
+  - Calls `client.session.promptAsync()` to inject the behavior signal back into the suspended session.
 
-Subagents will use the `EventLog` to emit "Signal Events" targeted at the Parent Agent.
-• **Type**: `UPWARD_SIGNAL`
-• **Payload**: `{ action: 'ASK_USER' | 'SPAWN_HELPER' | 'LOG_METRIC', data: any }`
-• The Parent Agent (Chief of Staff) will use tool hooks to monitor the `EventLog` and process these signals while the subagent remains in the background or moves to `suspended` state.
+### 4. Event-Driven Signal Buffering (solving "Parent Busy")
+
+To handle cases where the Parent Agent is busy (e.g., streaming) when a child yields, we introduces a **Signal Buffer**:
+
+• **Signal Queue**: A persistent queue (in Ledger) for `UPWARD_SIGNAL`s.
+• **Event Listener**: A plugin hook listens for `session.status` events.
+• **Auto-Flush**: When the Parent Session transitions to `idle`, the buffer automatically flushes pending signals using `client.session.promptAsync`.
+
+This ensures "Wake Up" notifications are never lost, even if the parent is mid-thought.
 
 ## Workflow Improvements & Examples
 
 ### Improvement 1: "Ask User Question" (Simplified Loop)
 
-**Current Pattern (`ama.md`)**:
-
-1. CoS spawns Oracle.
-2. Oracle returns a specific string "Before I can recommend...".
-3. CoS parses the string, switches to Interviewer.
-4. CoS runs Interviewer loop manually.
-5. CoS re-spawns Oracle with accumulated results. (Context loss: Oracle starts from scratch).
-
 **Durable Pattern**:
 
-1. CoS spawns Oracle.
-2. Oracle hits ambiguity, calls `agent_yield(reason: "clarify auth method", snapshot: { ... })`.
-3. CoS sees `suspended` status, spawns Interviewer to resolve the _specific reason_.
-4. Once resolved, CoS calls `agent_resume(oracle_id, signal: "User chose OAuth")`.
-5. **Benefit**: Oracle resumes exactly where it left off, retaining its "thinking" context.
-
-### Improvement 2: SDD (Autonomous Background Executor)
-
-**Current Pattern (`sdd.md`)**:
-
-1. CoS runs SDD phases sequentially.
-2. If Executor hits a blocker (e.g., "Which port for the DB?"), it usually fails or waits for CoS.
-
-**Durable Pattern**:
-
-1. CoS spawns Executor for a task.
-2. User wants to do something else, presses `CTRL+B`.
-3. Executor is moved to background (via `Supervisor`).
-4. Executor discovers it needs a port choice, sends `UPWARD_SIGNAL(action: 'ASK_USER', query: 'DB Port?')`.
-5. Parent Agent receives "wake up" notification: "Executor-123 needs input".
-6. User provides port, Parent forwards to Executor via `agent_resume`.
-7. **Benefit**: Multitasking without blocking the main interaction thread.
+1. **Spawn**: CoS spawns Oracle.
+2. **Yield**: Oracle hits ambiguity, calls `agent_yield(reason: "clarify auth")`. System marks task `suspended`.
+3. **Signal**: System emits `UPWARD_SIGNAL`.
+4. **Buffer/Deliver**:
+   - If CoS is `idle`: Signal is delivered immediately.
+   - If CoS is `busy`: Signal is queued. Once CoS finishes, system pushes: *"Oracle-123 needs input: clarify auth"*.
+5. **Resume**: CoS calls `agent_resume(oracle_id, signal: "OAuth")`.
+6. **Continue**: Oracle receives "OAuth" in its existing session constraints and continues.
 
 ## Consequences
 
 ### Positive
 
-• **Reliability**: Workflows can survive session crashes and network interruptions.
-• **Efficiency**: Parent agents are freed from busy-waiting for child results.
-• **HITL (Human-In-The-Loop)**: Enables complex scenarios where a background agent can "pop up" to ask a question and then go back to work.
-• **Context Optimization**: Reduces parent context by delegating long-running state to child snapshots.
+• **Reliability**: Workflows survive crashes/restarts because `session_id` pointers are durable in `LEDGER.md`.
+• **Efficiency**: Parent context is not polluted with child history; only the "Yield Reason" is surfaced.
+• **Robustness**: The Signal Buffer prevents race conditions where child agents try to interrupt a busy parent.
+• **Simplicity**: No need to implement complex state serialization; we leverage the native OpenCode session storage.
 
 ### Negative
 
-• **Complexity**: Managing state snapshots increases the complexity of the `TaskRegistry`.
-• **Concurrency**: Risk of race conditions if multiple agents attempt to update the same `LEDGER.md` entries (requires atomic file operations or locking).
-• **Storage**: `LEDGER.md` size may grow significantly with large snapshots (requires a cleanup/archiving strategy).
+• **Latency**: Buffering signals means a subagent might wait longer if the parent is extremely chatty.
+• **Tool Overhead**: Requires strict implementation of `agent_yield` so agents don't "forget" to yield when stuck.

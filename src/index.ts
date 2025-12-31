@@ -12,6 +12,7 @@ import type { Plugin } from '@opencode-ai/plugin';
 import path from 'node:path';
 import { memoryLaneTools, triggerMemoryExtraction } from './memory-lane';
 import { loadConfig, DEFAULT_MODELS } from './opencode';
+import { SignalBuffer } from './orchestrator/signal-buffer';
 import { loadLocalAgents, loadSkillAgents, loadCommands } from './opencode';
 import { createSkillAgentTools } from './orchestrator/tools';
 import { createOpenCodeSessionLearningHook } from './orchestrator/hooks';
@@ -202,6 +203,62 @@ export const SwarmToolAddons: Plugin = async (input) => {
       // ONLY trigger if HANDOFF_INTENT is true.
       // Synchronous tools return raw text/JSON without this intent to avoid duplicate prompts.
       if (handoffData && isHandoffIntent) {
+        // New: Handle UPWARD_SIGNAL for Yielding
+        if (handoffData.type === 'UPWARD_SIGNAL') {
+          // We need to route this to the PARENT session. 
+          // Current limitation: We don't easily know the parentID here unless we passed it.
+          // But wait, the child session's parent IS the target.
+          // We can get the session struct to find parentID.
+          try {
+            const sessionRes = await input.client.session.get({ path: { id: hookInput.sessionID } });
+            const parentID = sessionRes.data?.parentID;
+
+            if (parentID) {
+              const buffer = SignalBuffer.getInstance();
+              // Check Parent Status
+              const statusRes = await input.client.session.status();
+              const parentStatus = statusRes.data?.[parentID];
+
+              const signalPayload = {
+                id: crypto.randomUUID(),
+                sourceAgent: handoffData.target_agent || 'child',
+                targetSessionId: parentID,
+                createdAt: Date.now(),
+                payload: {
+                  type: 'ASK_USER',
+                  reason: handoffData.reason,
+                  data: { summary: handoffData.summary }
+                }
+              };
+
+              // If Parent is IDLE using our buffer logic, we can push immediately,
+              // BUT effectively we should just use the buffer logic generally to be safe.
+              // Or if we specifically want to "Wake Up" we might check status.
+
+              if (parentStatus?.type === 'idle') {
+                // Push immediately
+                await input.client.session.promptAsync({
+                  path: { id: parentID },
+                  body: {
+                    agent: 'system',
+                    parts: [{
+                      type: 'text',
+                      text: `[SYSTEM: SUBAGENT SIGNAL]\nSource: ${signalPayload.sourceAgent}\nMessage: ${handoffData.reason}\n\n(Agent yielded)`
+                    }]
+                  }
+                });
+              } else {
+                // Queue it
+                await buffer.enqueue(signalPayload as any);
+              }
+            }
+          } catch (e) {
+            console.error('[UPWARD_SIGNAL] Failed to process:', e);
+          }
+          return; // Done with Upward Signal
+        }
+
+        // Standard Handoff (Lateral)
         const handoff = handoffData as HandoffData;
         const { target_agent, prompt, session_id } = handoff;
 
@@ -226,7 +283,43 @@ export const SwarmToolAddons: Plugin = async (input) => {
 
     // Session learning hook (unified event handler)
     event: async (eventInput: { event: any }) => {
+      const { event } = eventInput;
+
+      // 1. Session Learning
       await sessionLearningHook(eventInput);
+
+      // 2. SignalBuffer Auto-Flush (Parent Busy Resolution)
+      if (event.type === 'session.status') {
+        // event.data object keys are sessionIds, values are Status({type: 'idle'|'busy'})
+        const statuses = event.data || {};
+        const buffer = SignalBuffer.getInstance();
+
+        for (const [sessionId, status] of Object.entries(statuses)) {
+          // If a session becomes IDLE and has pending signals, flush them!
+          if ((status as any).type === 'idle' && buffer.hasSignals(sessionId)) {
+            const signals = buffer.flush(sessionId);
+            for (const sig of signals) {
+              console.log(`[SignalBuffer] Auto-flushing signal to ${sessionId}: ${sig.payload.reason}`);
+              // Prompt the parent with the wake-up signal
+              try {
+                await input.client.session.promptAsync({
+                  path: { id: sessionId },
+                  body: {
+                    agent: 'system',
+                    parts: [{
+                      type: 'text',
+                      text: `[SYSTEM: SUBAGENT SIGNAL]\nSource: ${sig.sourceAgent}\nMessage: ${sig.payload.reason}\nSummary: ${sig.payload.data?.summary || 'N/A'}\n\nReview the request and use 'agent_resume' when ready.`
+                    }]
+                  }
+                });
+              } catch (e) {
+                console.error(`[SignalBuffer] Failed to flush signal: ${(e as Error).message}`);
+                // Re-queue if critical? For now log and drop to avoid loop.
+              }
+            }
+          }
+        }
+      }
     },
 
     // 3. Config Hook - Apply model overrides

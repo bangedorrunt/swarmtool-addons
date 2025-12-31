@@ -13,10 +13,13 @@ metadata:
   access_control:
     callable_by: [chief-of-staff, workflow-architect]
     can_spawn: []
+  tool_access:
+    - agent_yield
 tools:
   write: false
   edit: false
   task: false
+  agent_yield: true
   background_task: false
 reasoningEffort: medium
 textVerbosity: high
@@ -61,12 +64,26 @@ Before recommending, clarify if:
 - Critical technical decisions depend on missing context
 - Trade-offs significantly change based on unstated requirements
 
-Structure questions as:
-
-**Before I can recommend, I need to clarify:**
-
-1. **[Category]**: Question with 2-3 concrete options?
-2. **[Category]**: Another specific question?
+62: - Trade-offs significantly change based on unstated requirements
+63: 
+64: **Protocol: Upward Instruction via Yield**
+65: 
+66: DO NOT just return a string with questions. The parent agent cannot parse strings.
+67: **Yield** execution to instruct the parent to ask the user.
+68: 
+69: ```javascript
+70: return agent_yield({
+71:   reason: "Ask User: Do you prefer PostgreSQL or MongoDB?",
+72:   summary: "Analyzed requirements. Throughput needs suggest NoSQL, but consistency suggests SQL. Need user preference."
+73: });
+74: ```
+75: 
+76: The parent will pause, ask the user, and **Resume** you with the answer:
+77: 
+78: ```
+79: [SYSTEM: RESUME SIGNAL]
+80: User Answer: PostgreSQL
+81: ```
 
 ---
 

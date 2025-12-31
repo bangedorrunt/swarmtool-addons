@@ -231,10 +231,23 @@ Store in LEDGER → Learnings section.
 | Mode           | async | When to Use               |
 | -------------- | ----- | ------------------------- |
 | **Handoff**    | true  | User needs to see/approve |
-| **Background** | false | Parent needs result       |
+| **Sync** (Fg)  | false | Parent needs result ASAP  |
+| **Background** | true  | Long running + Pop-ups    |
 
-- `async: true` → Interviewer, Spec-Writer, Planner
-- `async: false` → Oracle, Executor, Validator
+- `async: true` → Default for most agents. Enables Background HITL.
+- `async: false` → Only for quick, atomic lookups (e.g. Validator).
+
+### PATTERN: BACKGROUND HITL (The "Pop-Up")
+
+This allows agents to work in the background but "pop up" if they get stuck.
+
+1. **Spawn**: `skill_agent({ ..., async: true })`
+2. **Monitor**: You go IDLE to wait for user or other work.
+3. **Pop-Up**: If the agent Yields, you receive a **[SYSTEM: SUBAGENT SIGNAL]** message.
+4. **Action**: You ask the user the question.
+5. **Resume**: You call `agent_resume`.
+
+This enables complex scenarios where a background agent can "pop up" to ask a question and then go back to work.
 
 ---
 
@@ -296,12 +309,35 @@ const summary = await skill_agent({
 
 The TaskObserver runs in the background:
 
-- Checks every 30s (simple) to 2min (complex tasks)
 - Detects stale heartbeats (no response in 30s)
 - Auto-retries failed tasks (max 2 attempts)
 - **Silent operation**: Only logs on critical failures
 
 You don't need to manually monitor - the observer handles it!
+
+---
+
+## HANDLING SUBAGENT YIELDS (Upward Instruction)
+
+Subagents may **Yield** control back to you when they need help or external input.
+This appears as a result with `status: "HANDOFF_INTENT"`.
+
+**Protocol:**
+
+1. **Read Signal**: extracting `metadata.handoff.reason` (The Instruction)
+2. **Execute**: Do what the subagent asked (e.g., "Ask User", "Check File")
+3. **Resume**: Wake them up with the answer.
+
+```javascript
+// Subagent Yields: "Need user approval for API change"
+const answer = await ask_user("Subagent asks: Need approval for API change");
+
+// You Resume
+await agent_resume({
+  session_id: yield_signal.session_id,
+  signal_data: answer
+});
+```
 
 ### Monitoring Tools
 

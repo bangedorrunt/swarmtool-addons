@@ -5,6 +5,7 @@ import { spawnChildAgent } from './session-coordination';
 import { loadActorState } from './actor/state';
 import { processMessage } from './actor/core';
 import { canCallAgent } from './access-control';
+import { loadLedger, saveLedger, updateTaskStatus } from './ledger';
 
 interface AgentConfig {
   name: string;
@@ -35,12 +36,13 @@ export function createSkillAgentTools(client: PluginInput['client']) {
   return {
     agent_yield: tool({
       description:
-        'Suspend execution and save state. Use when waiting for long-running external events.',
+        'Suspend execution and save state to LEDGER. Use when waiting for user input or external events.',
       args: {
-        reason: tool.schema.string().describe('Reason for yielding'),
+        reason: tool.schema.string().describe('Reason for yielding (e.g. "Ask User about Port")'),
+        summary: tool.schema.string().describe('Summary of current reasoning state to resume from'),
       },
       async execute(args, execContext) {
-        const { reason } = args;
+        const { reason, summary } = args;
         const sessionId = execContext?.sessionID;
         const agent = (execContext as unknown as ToolContext)?.agent;
 
@@ -52,47 +54,85 @@ export function createSkillAgentTools(client: PluginInput['client']) {
           });
         }
 
-        // Notify orchestrator via ActorState
-        const actorState = await loadActorState();
-        if (actorState) {
-          await processMessage(actorState, {
-            type: 'agent.yield',
-            payload: { agent, sessionId, reason },
-          });
+        // 1. Update Ledger
+        try {
+          const ledger = await loadLedger();
+          if (ledger.epic) {
+            // Find task for this agent/session
+            const task = ledger.epic.tasks.find((t) => t.sessionId === sessionId || t.agent === agent && t.status === 'running');
+            if (task) {
+              task.status = 'suspended';
+              task.yieldReason = reason;
+              await saveLedger(ledger);
+            }
+          }
+        } catch (e) {
+          console.error('[agent_yield] Failed to update ledger:', (e as Error).message);
         }
 
+        // 2. Return Handoff Intent (Signal)
         return JSON.stringify({
           success: true,
-          status: 'SUSPENDED',
-          message: `Agent ${agent} yielded: ${reason}`,
+          status: 'HANDOFF_INTENT',
+          message: `Agent suspended: ${reason}`,
+          metadata: {
+            handoff: {
+              type: 'UPWARD_SIGNAL',
+              target_agent: 'parent', // System resolves this
+              reason: reason,
+              summary: summary,
+              session_id: sessionId
+            },
+          },
         });
       },
     }),
 
     agent_resume: tool({
-      description: 'Resume execution of a suspended agent',
+      description: 'Resume execution of a suspended agent by injecting a signal.',
       args: {
-        session_id: tool.schema.string().describe('Session ID to resume'),
-        signal_data: tool.schema.any().optional().describe('Data to inject into resumption'),
+        task_id: tool.schema.string().optional().describe('Task ID to resume (from Ledger)'),
+        session_id: tool.schema.string().optional().describe('Session ID to resume'),
+        signal_data: tool.schema.string().describe('Instruction/Data to inject to resume the agent'),
       },
       async execute(args, execContext) {
-        const { session_id, signal_data } = args;
-        const callingAgent = (execContext as unknown as ToolContext)?.agent || 'unknown';
+        const { task_id, session_id, signal_data } = args;
 
-        const actorState = await loadActorState();
-        if (actorState) {
-          await processMessage(actorState, {
-            type: 'agent.resume',
-            payload: { agent: callingAgent, sessionId: session_id, signalData: signal_data },
+        let targetSessionId = session_id;
+
+        // 1. Resolve Session ID from Ledger if task_id provided
+        const ledger = await loadLedger();
+        if (task_id && ledger.epic) {
+          const task = ledger.epic.tasks.find(t => t.id === task_id);
+          if (task) {
+            targetSessionId = task.sessionId;
+            // Update status back to running
+            task.status = 'running';
+            task.yieldReason = undefined;
+            await saveLedger(ledger);
+          }
+        }
+
+        if (!targetSessionId) {
+          return JSON.stringify({ success: false, error: 'NOT_FOUND', message: 'Target session not found' });
+        }
+
+        // 2. Trigger Resume Prompt
+        try {
+          await client.session.promptAsync({
+            path: { id: targetSessionId },
+            body: {
+              agent: 'system', // or implicit
+              parts: [{ type: 'text', text: `[SYSTEM: RESUME SIGNAL]\n${signal_data}` }]
+            }
           });
-
-          // Trigger resumption in the session if needed (e.g. send a prompt)
-          // For now, we just update state. The Orchestrator loop would handle the actual wake up.
+        } catch (e) {
+          return JSON.stringify({ success: false, error: 'PROMPT_FAILED', message: (e as Error).message });
         }
 
         return JSON.stringify({
           success: true,
-          message: `Resumed session ${session_id}`,
+          message: `Resumed session ${targetSessionId}`,
         });
       },
     }),

@@ -27,38 +27,59 @@ skill_agent({
 })
 ```
 
-## Step 2: Handle Clarification (Ask User Question Pattern)
+## Step 2: Handle Clarification (Upward Instruction Pattern)
 
-If the Oracle returns a response structured as:
-**"Before I can recommend, I need to clarify:"**
+The Oracle may **yield** with an instruction (e.g., "Ask user for database preference").
+The system will detect this `HANDOFF_INTENT` and the `skill_agent` tool will return a `status: "HANDOFF_INTENT"`.
 
-You MUST activate the **interviewer** to resolve ambiguities.
-
-### 2a: Start Clarification Dialogue
-```javascript
-skill_agent({
-  agent_name: "chief-of-staff/interviewer",
-  prompt: "Clarify these points for the Oracle: <paste Oracle's questions here>",
-  async: false
-})
-```
-
-### 2b: Dialogue Loop
-Monitor `dialogue_state.status` and repeat until it is `"approved"`.
-
-1. **If `status === "needs_input"`**:
-   - Present the questions to the user.
-   - Capture user input.
-   - Continue with the SAME `session_id`.
+**You MUST process this signal:**
 
 ```javascript
-skill_agent({
-  agent_name: "chief-of-staff/interviewer", 
-  prompt: "<user's answer>",
-  session_id: "<session_id from previous response>",
-  async: false
-})
+// Example re-entry loop
+let current_session_id = null; // Track session
+
+function runOracle(input_prompt, session_id) {
+    const response = skill_agent({
+      agent_name: "chief-of-staff/oracle",
+      prompt: input_prompt,
+      session_id: session_id,
+      async: false
+    });
+    
+    // Parse response (OpenCode tools return JSON in strings)
+    const result = JSON.parse(response);
+
+    // CASE A: Subagent Yielded (Upward Instruction)
+    if (result.status === "HANDOFF_INTENT" && result.metadata?.handoff?.type === "UPWARD_SIGNAL") {
+        const signal = result.metadata.handoff;
+        
+        // 1. Perform the requested instruction (e.g., Ask User)
+        // In a real slash command, we might print the question and return, 
+        // asking the user to re-run with the answer, OR use an interactive prompt if available.
+        
+        // "Signal: Need user database preference"
+        const userAnswer = ask_user(signal.reason); // Hypothetical interactive function or stop & return
+        
+        // 2. Resume the agent
+        return agent_resume({
+            session_id: signal.session_id,
+            signal_data: userAnswer
+        });
+    }
+
+    // CASE B: Standard Success
+    return result;
+}
 ```
+
+> [!NOTE]
+> In this interactive /slash command environment, the `UPWARD_SIGNAL` might simply output the question to you.
+> You will then need to **Resume** manually or via a helper command.
+
+**Manual Resume Pattern:**
+If the Oracle stops and asks a question:
+1. Answer the question.
+2. Run: `/resume <session_id> <your_answer>` (or equivalent logic).
 
 2. **If `status === "needs_approval"`**:
    - Present the summary/plan to the user.

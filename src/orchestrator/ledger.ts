@@ -19,7 +19,7 @@ import { lock } from 'proper-lockfile';
 // Types
 // ============================================================================
 
-export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'timeout';
+export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'timeout' | 'suspended';
 export type TaskOutcome = 'SUCCEEDED' | 'PARTIAL' | 'FAILED' | '-';
 export type EpicStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
 export type LedgerPhase =
@@ -40,6 +40,8 @@ export interface Task {
   error?: string;
   startedAt?: number;
   completedAt?: number;
+  sessionId?: string; // Durable Subagent Reference
+  yieldReason?: string;
 }
 
 export interface Epic {
@@ -275,7 +277,9 @@ function parseLedgerMarkdown(content: string): Ledger {
               ? 'completed'
               : cols[3].includes('❌')
                 ? 'failed'
-                : 'pending',
+                : cols[3].includes('⏸️')
+                  ? 'suspended'
+                  : 'pending',
             outcome,
             dependencies: [],
           });
@@ -423,7 +427,13 @@ function renderLedgerMarkdown(ledger: Ledger): string {
     lines.push('|----|-------|-------|--------|---------|');
     for (const task of ledger.epic.tasks) {
       const statusIcon =
-        task.status === 'completed' ? '✅' : task.status === 'failed' ? '❌' : '⏳';
+        task.status === 'completed'
+          ? '✅'
+          : task.status === 'failed'
+            ? '❌'
+            : task.status === 'suspended'
+              ? '⏸️'
+              : '⏳';
       lines.push(
         `| ${task.id} | ${task.title} | ${task.agent} | ${statusIcon} ${task.status} | ${task.outcome} |`
       );
