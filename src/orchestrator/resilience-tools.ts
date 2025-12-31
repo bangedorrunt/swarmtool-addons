@@ -10,7 +10,7 @@
 
 import { tool } from '@opencode-ai/plugin';
 import { getTaskRegistry, RegistryTask, RegistryTaskStatus } from './task-registry';
-import { getTaskSupervisor, startTaskSupervision, stopTaskSupervision } from './supervisor';
+import { getTaskObserver, startTaskObservation, stopTaskObservation } from './observer';
 
 // ============================================================================
 // Tool Definitions
@@ -165,10 +165,10 @@ export function createResilienceTools(client: any) {
         }
 
         try {
-          const supervisor = getTaskSupervisor(client);
+          const observer = getTaskObserver(client);
 
           // Use forceRetry instead of checkNow for explicit retries
-          const success = await supervisor.forceRetry(args.task_id);
+          const success = await observer.forceRetry(args.task_id);
 
           if (!success) {
             return JSON.stringify({
@@ -277,19 +277,19 @@ export function createResilienceTools(client: any) {
     }),
 
     /**
-     * Get supervisor statistics
+     * Get observer statistics
      */
-    supervisor_stats: tool({
-      description: 'Get task supervision statistics',
+    observer_stats: tool({
+      description: 'Get task observation statistics',
       args: {},
       async execute() {
-        const supervisor = getTaskSupervisor(client);
-        const stats = supervisor.getStats();
+        const observer = getTaskObserver(client);
+        const stats = observer.getStats();
         const registrySummary = registry.getSummary();
 
         return JSON.stringify(
           {
-            supervisor: stats,
+            observer: stats,
             registry: registrySummary,
           },
           null,
@@ -299,25 +299,25 @@ export function createResilienceTools(client: any) {
     }),
 
     /**
-     * Start/stop supervisor
+     * Start/stop observer
      */
-    supervisor_control: tool({
-      description: 'Start or stop the task supervisor',
+    observer_control: tool({
+      description: 'Start or stop the task observer',
       args: {
         action: tool.schema.enum(['start', 'stop']).describe('Action to perform'),
       },
       async execute(args) {
         if (args.action === 'start') {
-          startTaskSupervision(client, { verbose: true });
+          startTaskObservation(client, { verbose: true });
           return JSON.stringify({
             success: true,
-            message: 'Task supervisor started',
+            message: 'Task observer started',
           });
         } else {
-          stopTaskSupervision();
+          stopTaskObservation();
           return JSON.stringify({
             success: true,
-            message: 'Task supervisor stopped',
+            message: 'Task observer stopped',
           });
         }
       },

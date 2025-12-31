@@ -1,8 +1,8 @@
 /**
- * Task Supervisor - Background watchdog for task health
+ * Task Observer - Background watchdog for task health
  *
  * Features:
- * - Periodic supervision loop
+ * - Periodic observation loop
  * - Adaptive intervals based on task complexity
  * - Timeout detection with auto-retry
  * - Stuck task detection via heartbeat
@@ -18,7 +18,7 @@ import { getDurableStreamOrchestrator } from './durable-stream';
 // Types
 // ============================================================================
 
-export interface SupervisorConfig {
+export interface ObserverConfig {
   /** Base check interval (default: 30s for low, scales up for high complexity) */
   baseIntervalMs: number;
   /** Max interval for high complexity tasks */
@@ -31,7 +31,7 @@ export interface SupervisorConfig {
   verbose: boolean;
 }
 
-export interface SupervisorStats {
+export interface ObserverStats {
   checksPerformed: number;
   tasksRetried: number;
   tasksCompleted: number;
@@ -44,15 +44,15 @@ import type { PluginInput } from '@opencode-ai/plugin';
 type OpenCodeClient = PluginInput['client'];
 
 // ============================================================================
-// Task Supervisor
+// Task Observer
 // ============================================================================
 
-export class TaskSupervisor {
+export class TaskObserver {
   private registry: TaskRegistry;
   private client: OpenCodeClient;
-  private config: SupervisorConfig;
+  private config: ObserverConfig;
   private intervalId?: ReturnType<typeof setInterval>;
-  private stats: SupervisorStats;
+  private stats: ObserverStats;
   private isRunning: boolean = false;
   private unsubscribeAgentSpawned?: () => void;
   private unsubscribeAgentCompleted?: () => void;
@@ -61,7 +61,7 @@ export class TaskSupervisor {
   constructor(
     registry: TaskRegistry,
     client: OpenCodeClient,
-    config: Partial<SupervisorConfig> = {}
+    config: Partial<ObserverConfig> = {}
   ) {
     this.registry = registry;
     this.client = client;
@@ -81,18 +81,18 @@ export class TaskSupervisor {
   }
 
   /**
-   * Start the supervision loop
+   * Start the observation loop
    */
   start(): void {
     if (this.isRunning) {
-      console.log('[Supervisor] Already running');
+      console.log('[Observer] Already running');
       return;
     }
 
     this.isRunning = true;
     this.setupEventSubscriptions();
     this.scheduleNextCheck();
-    console.log('[Supervisor] Started task supervision');
+    console.log('[Observer] Started task observation');
   }
 
   /**
@@ -103,26 +103,26 @@ export class TaskSupervisor {
 
     this.unsubscribeAgentSpawned = durableStream.subscribe('agent.spawned', (event) => {
       if (this.config.verbose) {
-        console.log(`[Supervisor] Agent spawned: ${event.agent} in session ${event.sessionId}`);
+        console.log(`[Observer] Agent spawned: ${event.agent} in session ${event.sessionId}`);
       }
     });
 
     this.unsubscribeAgentCompleted = durableStream.subscribe('agent.completed', (event) => {
       if (this.config.verbose) {
-        console.log(`[Supervisor] Agent completed: ${event.agent} in session ${event.sessionId}`);
+        console.log(`[Observer] Agent completed: ${event.agent} in session ${event.sessionId}`);
       }
     });
 
     this.unsubscribeAgentFailed = durableStream.subscribe('agent.failed', (event) => {
-      console.warn(`[Supervisor] Agent failed: ${event.agent} in session ${event.sessionId}`);
+      console.warn(`[Observer] Agent failed: ${event.agent} in session ${event.sessionId}`);
       if (event.payload.error) {
-        console.warn(`[Supervisor] Error: ${JSON.stringify(event.payload.error)}`);
+        console.warn(`[Observer] Error: ${JSON.stringify(event.payload.error)}`);
       }
     });
   }
 
   /**
-   * Stop the supervision loop
+   * Stop the observation loop
    */
   stop(): void {
     if (this.intervalId) {
@@ -135,21 +135,41 @@ export class TaskSupervisor {
     this.unsubscribeAgentFailed?.();
 
     this.isRunning = false;
-    console.log('[Supervisor] Stopped task supervision');
+    console.log('[Observer] Stopped task observation');
   }
 
   /**
-   * Get supervision statistics
+   * Get observation statistics
    */
-  getStats(): SupervisorStats {
+  getStats(): ObserverStats {
     return { ...this.stats };
   }
 
   /**
-   * Manually trigger a supervision check
+   * Manually trigger a observation check
    */
   async checkNow(): Promise<void> {
-    await this.supervise();
+    await this.observe();
+  }
+
+  /**
+   * Force retry a specific task (used by task_retry tool)
+   */
+  async forceRetry(taskId: string): Promise<boolean> {
+    const task = this.registry.getTask(taskId);
+    if (!task) {
+      console.warn(`[Observer] Cannot force retry: Task ${taskId} not found`);
+      return false;
+    }
+
+    if (task.status !== 'failed' && task.status !== 'timeout') {
+      console.warn(`[Observer] Cannot force retry: Task ${taskId} is not in failed state`);
+      return false;
+    }
+
+    console.log(`[Observer] Forcing retry for task ${taskId}`);
+    await this.retryTask(task);
+    return true;
   }
 
   // ============================================================================
@@ -157,7 +177,7 @@ export class TaskSupervisor {
   // ============================================================================
 
   /**
-   * Schedule next supervision check with adaptive interval
+   * Schedule next observation check with adaptive interval
    */
   private scheduleNextCheck(): void {
     if (!this.isRunning) return;
@@ -165,7 +185,7 @@ export class TaskSupervisor {
     const interval = this.calculateAdaptiveInterval();
 
     this.intervalId = setTimeout(async () => {
-      await this.supervise();
+      await this.observe();
       this.scheduleNextCheck();
     }, interval);
   }
@@ -194,28 +214,28 @@ export class TaskSupervisor {
   }
 
   /**
-   * Main supervision loop
+   * Main observation loop
    */
-  private async supervise(): Promise<void> {
+  private async observe(): Promise<void> {
     this.stats.checksPerformed++;
     this.stats.lastCheck = Date.now();
 
     if (this.config.verbose) {
-      console.log('[Supervisor] Running supervision check...');
+      console.log('[Observer] Running observation check...');
     }
 
     try {
       // 1. Check for timed-out tasks
       const timedOut = this.registry.getTimedOutTasks();
       for (const task of timedOut) {
-        console.warn(`[Supervisor] Task ${task.id} timed out after ${task.timeoutMs}ms`);
+        console.warn(`[Observer] Task ${task.id} timed out after ${task.timeoutMs}ms`);
         await this.handleTimeout(task);
       }
 
       // 2. Check for stuck tasks (no heartbeat)
       const stuck = this.registry.getStuckTasks(this.config.stuckThresholdMs);
       for (const task of stuck) {
-        console.warn(`[Supervisor] Task ${task.id} appears stuck`);
+        console.warn(`[Observer] Task ${task.id} appears stuck`);
         await this.handleStuck(task);
       }
 
@@ -228,7 +248,7 @@ export class TaskSupervisor {
       // 4. Cleanup old completed/failed tasks
       this.registry.cleanup();
     } catch (error) {
-      console.error('[Supervisor] Error during supervision:', error);
+      console.error('[Observer] Error during observation:', error);
     }
   }
 
@@ -239,12 +259,12 @@ export class TaskSupervisor {
     if (task.retryCount < task.maxRetries) {
       // Retry the task
       console.log(
-        `[Supervisor] Retrying task ${task.id} (attempt ${task.retryCount + 1}/${task.maxRetries})`
+        `[Observer] Retrying task ${task.id} (attempt ${task.retryCount + 1}/${task.maxRetries})`
       );
       await this.retryTask(task);
     } else {
       // Mark as failed and cleanup
-      console.error(`[Supervisor] Task ${task.id} failed after ${task.maxRetries} retries`);
+      console.error(`[Observer] Task ${task.id} failed after ${task.maxRetries} retries`);
       await this.registry.updateStatus(
         task.id,
         'timeout',
@@ -272,13 +292,13 @@ export class TaskSupervisor {
 
     if (isIdle) {
       // Session is idle but we never got the result - try to fetch it
-      console.log(`[Supervisor] Task ${task.id} session is idle, fetching result`);
+      console.log(`[Observer] Task ${task.id} session is idle, fetching result`);
       await this.fetchTaskResult(task);
       return;
     }
 
     // Session is running but no heartbeat - truly stuck
-    console.log(`[Supervisor] Killing stuck session ${task.sessionId}`);
+    console.log(`[Observer] Killing stuck session ${task.sessionId}`);
     await this.cleanupSession(task.sessionId);
 
     if (task.retryCount < task.maxRetries) {
@@ -330,10 +350,10 @@ export class TaskSupervisor {
         },
       });
 
-      console.log(`[Supervisor] Task ${task.id} retried with new session ${newSession.data.id}`);
+      console.log(`[Observer] Task ${task.id} retried with new session ${newSession.data.id}`);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error(`[Supervisor] Retry failed for task ${task.id}:`, errorMessage);
+      console.error(`[Observer] Retry failed for task ${task.id}:`, errorMessage);
       await this.registry.updateStatus(
         task.id,
         'failed',
@@ -368,7 +388,7 @@ export class TaskSupervisor {
         await this.fetchTaskResult(task);
       }
     } catch (err: any) {
-      console.error(`[Supervisor] Error checking task ${task.id}:`, err.message);
+      console.error(`[Observer] Error checking task ${task.id}:`, err.message);
     }
   }
 
@@ -393,14 +413,14 @@ export class TaskSupervisor {
 
       await this.registry.updateStatus(task.id, 'completed', result);
       this.stats.tasksCompleted++;
-      console.log(`[Supervisor] Task ${task.id} completed`);
+      console.log(`[Observer] Task ${task.id} completed`);
 
       // Record pattern if successful
       if (result && result.length > 0) {
         await this.recordLearning('pattern', `${task.agentName}: Task completed successfully`);
       }
     } catch (err: any) {
-      console.error(`[Supervisor] Failed to fetch result for task ${task.id}:`, err.message);
+      console.error(`[Observer] Failed to fetch result for task ${task.id}:`, err.message);
       await this.registry.updateStatus(
         task.id,
         'failed',
@@ -419,10 +439,10 @@ export class TaskSupervisor {
 
     try {
       const ledger = await loadLedger(this.config.ledgerPath);
-      addLearning(ledger, type, `[Supervisor] ${content}`);
+      addLearning(ledger, type, `[Observer] ${content}`);
       await saveLedger(ledger, this.config.ledgerPath);
     } catch (error) {
-      console.error('[Supervisor] Failed to record learning:', error);
+      console.error('[Observer] Failed to record learning:', error);
     }
   }
 
@@ -432,7 +452,7 @@ export class TaskSupervisor {
   private async cleanupSession(sessionId: string): Promise<void> {
     // OpenCode SDK doesn't have session.delete()
     // We just log it for now
-    console.log(`[Supervisor] Marked session ${sessionId} for cleanup`);
+    console.log(`[Observer] Marked session ${sessionId} for cleanup`);
     // Future: If SDK adds session.delete(), call it here
   }
 }
@@ -441,34 +461,34 @@ export class TaskSupervisor {
 // Singleton instance
 // ============================================================================
 
-let globalSupervisor: TaskSupervisor | null = null;
+let globalObserver: TaskObserver | null = null;
 
-export function getTaskSupervisor(
+export function getTaskObserver(
   client: OpenCodeClient,
-  config?: Partial<SupervisorConfig>
-): TaskSupervisor {
-  if (!globalSupervisor) {
+  config?: Partial<ObserverConfig>
+): TaskObserver {
+  if (!globalObserver) {
     const registry = getTaskRegistry({
       ledgerPath: config?.ledgerPath,
       syncToLedger: true,
     });
-    globalSupervisor = new TaskSupervisor(registry, client, config);
+    globalObserver = new TaskObserver(registry, client, config);
   }
-  return globalSupervisor;
+  return globalObserver;
 }
 
-export function startTaskSupervision(
+export function startTaskObservation(
   client: OpenCodeClient,
-  config?: Partial<SupervisorConfig>
-): TaskSupervisor {
-  const supervisor = getTaskSupervisor(client, config);
-  supervisor.start();
-  return supervisor;
+  config?: Partial<ObserverConfig>
+): TaskObserver {
+  const observer = getTaskObserver(client, config);
+  observer.start();
+  return observer;
 }
 
-export function stopTaskSupervision(): void {
-  if (globalSupervisor) {
-    globalSupervisor.stop();
-    globalSupervisor = null;
+export function stopTaskObservation(): void {
+  if (globalObserver) {
+    globalObserver.stop();
+    globalObserver = null;
   }
 }

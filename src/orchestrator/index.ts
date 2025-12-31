@@ -125,15 +125,15 @@ export {
   type TaskRegistryOptions,
 } from './task-registry';
 
-// Export Resilient Orchestration - Task Supervisor
+// Export Resilient Orchestration - Task Observer
 export {
-  TaskSupervisor,
-  getTaskSupervisor,
-  startTaskSupervision,
-  stopTaskSupervision,
-  type SupervisorConfig,
-  type SupervisorStats,
-} from './supervisor';
+  TaskObserver,
+  getTaskObserver,
+  startTaskObservation,
+  stopTaskObservation,
+  type ObserverConfig,
+  type ObserverStats,
+} from './observer';
 
 // Export Resilient Orchestration - Tools
 export { createResilienceTools, resilienceTools } from './resilience-tools';

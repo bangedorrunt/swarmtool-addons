@@ -1,11 +1,11 @@
 /**
- * TaskSupervisor Unit Tests
+ * TaskObserver Unit Tests
  *
- * Tests for supervision loop, timeout handling, stuck detection, and retry logic.
+ * Tests for observation loop, timeout handling, stuck detection, and retry logic.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
-import { TaskSupervisor, getTaskSupervisor, stopTaskSupervision } from './supervisor';
+import { TaskObserver, getTaskObserver, stopTaskObservation } from './observer';
 import { TaskRegistry, resetTaskRegistry } from './task-registry';
 
 // Mock the ledger module
@@ -33,16 +33,16 @@ const createMockClient = () => ({
   },
 });
 
-describe('TaskSupervisor', () => {
+describe('TaskObserver', () => {
   let registry: TaskRegistry;
   let mockClient: ReturnType<typeof createMockClient>;
-  let supervisor: TaskSupervisor;
+  let observer: TaskObserver;
 
   beforeEach(() => {
     resetTaskRegistry();
     registry = new TaskRegistry({ syncToLedger: false });
     mockClient = createMockClient();
-    supervisor = new TaskSupervisor(registry, mockClient as any, {
+    observer = new TaskObserver(registry, mockClient as any, {
       baseIntervalMs: 100,
       maxIntervalMs: 200,
       stuckThresholdMs: 50,
@@ -51,27 +51,27 @@ describe('TaskSupervisor', () => {
   });
 
   afterEach(() => {
-    supervisor.stop();
-    stopTaskSupervision();
+    observer.stop();
+    stopTaskObservation();
     resetTaskRegistry();
     vi.clearAllMocks();
   });
 
   describe('start/stop', () => {
-    it('should start and stop supervision', () => {
-      supervisor.start();
-      expect(supervisor.getStats().checksPerformed).toBe(0);
+    it('should start and stop observation', () => {
+      observer.start();
+      expect(observer.getStats().checksPerformed).toBe(0);
 
-      supervisor.stop();
+      observer.stop();
       // Should not throw when stopped twice
-      supervisor.stop();
+      observer.stop();
     });
   });
 
   describe('checkNow', () => {
-    it('should perform a supervision check', async () => {
-      await supervisor.checkNow();
-      expect(supervisor.getStats().checksPerformed).toBe(1);
+    it('should perform a observation check', async () => {
+      await observer.checkNow();
+      expect(observer.getStats().checksPerformed).toBe(1);
     });
   });
 
@@ -90,11 +90,11 @@ describe('TaskSupervisor', () => {
       // Wait for timeout
       await new Promise((r) => setTimeout(r, 100));
 
-      await supervisor.checkNow();
+      await observer.checkNow();
 
       // Should have retried
       expect(mockClient.session.create).toHaveBeenCalled();
-      expect(supervisor.getStats().tasksRetried).toBe(1);
+      expect(observer.getStats().tasksRetried).toBe(1);
     });
 
     it('should mark as failed after max retries', async () => {
@@ -109,11 +109,11 @@ describe('TaskSupervisor', () => {
       await registry.updateStatus(taskId, 'running');
       await new Promise((r) => setTimeout(r, 100));
 
-      await supervisor.checkNow();
+      await observer.checkNow();
 
       const task = registry.getTask(taskId);
       expect(task?.status).toBe('timeout');
-      expect(supervisor.getStats().tasksFailed).toBe(1);
+      expect(observer.getStats().tasksFailed).toBe(1);
     });
   });
 
@@ -135,7 +135,7 @@ describe('TaskSupervisor', () => {
       // Mock session as idle (task completed but we didn't get the result)
       mockClient.session.status.mockResolvedValue({ data: {} });
 
-      await supervisor.checkNow();
+      await observer.checkNow();
 
       // Should have tried to fetch result
       expect(mockClient.session.messages).toHaveBeenCalled();
@@ -158,7 +158,7 @@ describe('TaskSupervisor', () => {
       // Mock session as idle
       mockClient.session.status.mockResolvedValue({ data: {} });
 
-      await supervisor.checkNow();
+      await observer.checkNow();
 
       expect(mockClient.session.messages).toHaveBeenCalled();
 
@@ -169,11 +169,11 @@ describe('TaskSupervisor', () => {
   });
 
   describe('stats', () => {
-    it('should track supervision statistics', async () => {
-      await supervisor.checkNow();
-      await supervisor.checkNow();
+    it('should track observation statistics', async () => {
+      await observer.checkNow();
+      await observer.checkNow();
 
-      const stats = supervisor.getStats();
+      const stats = observer.getStats();
       expect(stats.checksPerformed).toBe(2);
       expect(stats.lastCheck).toBeDefined();
     });
@@ -182,19 +182,19 @@ describe('TaskSupervisor', () => {
 
 describe('Singleton Functions', () => {
   beforeEach(() => {
-    stopTaskSupervision();
+    stopTaskObservation();
     resetTaskRegistry();
   });
 
   afterEach(() => {
-    stopTaskSupervision();
+    stopTaskObservation();
     resetTaskRegistry();
   });
 
-  it('getTaskSupervisor should return singleton instance', () => {
+  it('getTaskObserver should return singleton instance', () => {
     const mockClient = createMockClient();
-    const supervisor1 = getTaskSupervisor(mockClient as any);
-    const supervisor2 = getTaskSupervisor(mockClient as any);
-    expect(supervisor1).toBe(supervisor2);
+    const observer1 = getTaskObserver(mockClient as any);
+    const observer2 = getTaskObserver(mockClient as any);
+    expect(observer1).toBe(observer2);
   });
 });
