@@ -99,24 +99,30 @@ export async function loadCommands(commandDir: string): Promise<any[]> {
 
   for (const file of files) {
     const content = fs.readFileSync(file, 'utf8');
-    const { frontmatter, body } = parseFrontmatter(content);
-
-    // Extract command name from filename (e.g., "hello.md" -> "hello")
     const relativePath = path.relative(commandDir, file);
     const name = relativePath.replace(/\.md$/, '').replace(/\//g, '-');
-
-    commands.push({
-      name,
-      frontmatter,
-      template: body,
-    });
+    const command = processCommandMarkdown(content, name);
+    commands.push(command);
   }
 
   return commands;
 }
 
 /**
- * Simple frontmatter parser for markdown agents
+ * Pure logic to process command markdown content
+ */
+export function processCommandMarkdown(content: string, name: string) {
+  const { frontmatter, body } = parseFrontmatter(content);
+  return {
+    name,
+    frontmatter,
+    template: body,
+  };
+}
+
+/**
+   * Simple frontmatter parser for markdown agents
+
  */
 export function parseAgentMarkdown(content: string, name: string): AgentConfig {
   const { frontmatter, body } = parseFrontmatter(content);
