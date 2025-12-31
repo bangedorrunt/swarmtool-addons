@@ -1,5 +1,8 @@
 # ADR 001: LEDGER.md as Single Source of Truth
 
+## Status
+Accepted
+
 ## Context
 
 In multi-agent systems, maintaining state continuity across session clears (`/clear`) and context wipes is challenging. Standard in-memory registries are volatile.

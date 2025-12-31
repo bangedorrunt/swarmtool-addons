@@ -1,5 +1,8 @@
 # ADR 002: Hook-Based Async Handoff with Settlement Delay
 
+## Status
+Accepted
+
 ## Context
 
 Calling `promptAsync` directly within a tool execution causes a deadlock in the OpenCode AI SDK because the SDK expects the current turn to finish before processing a new prompt.
