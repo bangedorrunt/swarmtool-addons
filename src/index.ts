@@ -123,7 +123,7 @@ export const SwarmToolAddons: Plugin = async (input) => {
       const skillArgs = args as SkillAgentArgs;
       const result = await skillAgentTools.skill_agent.execute(
         { ...skillArgs, async: true, timeout_ms: skillArgs.timeout_ms ?? 60000 },
-        { sessionID: '', messageID: '', agent: '', abort: () => { } } as any
+        { sessionID: '', messageID: '', agent: '', abort: () => {} } as any
       );
       return JSON.parse(result as string);
     },
@@ -142,8 +142,8 @@ export const SwarmToolAddons: Plugin = async (input) => {
 
     // Synchronous context injection
     'tool.execute.before': async (
-      hookInput: { tool: string; sessionID: string; callID: string },
-      hookOutput: { args: any }
+      _tool: { tool: string; sessionID: string; callID: string },
+      _output: { args: any }
     ) => {
       // Logic for context injection or logging before tool starts
     },

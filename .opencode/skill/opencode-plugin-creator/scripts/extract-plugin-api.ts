@@ -6,96 +6,96 @@
  * Usage: bun run extract-plugin-api.ts [--workspace /path/to/opencode]
  */
 
-import { existsSync } from "node:fs"
-import { join, dirname } from "node:path"
+import { existsSync } from 'node:fs';
+import { join, dirname } from 'node:path';
 
-const args = process.argv.slice(2)
-const workspaceIdx = args.indexOf("--workspace")
-const workspace = workspaceIdx !== -1 ? args[workspaceIdx + 1] : findWorkspace()
+const args = process.argv.slice(2);
+const workspaceIdx = args.indexOf('--workspace');
+const workspace = workspaceIdx !== -1 ? args[workspaceIdx + 1] : findWorkspace();
 
 function findWorkspace(): string {
-  let dir = process.cwd()
-  while (dir !== "/") {
-    if (existsSync(join(dir, "packages/plugin/src/index.ts"))) return dir
-    dir = dirname(dir)
+  let dir = process.cwd();
+  while (dir !== '/') {
+    if (existsSync(join(dir, 'packages/plugin/src/index.ts'))) return dir;
+    dir = dirname(dir);
   }
-  throw new Error("Could not find opencode workspace. Use --workspace flag.")
+  throw new Error('Could not find opencode workspace. Use --workspace flag.');
 }
 
-const PLUGIN_INDEX = join(workspace, "packages/plugin/src/index.ts")
-const PLUGIN_TOOL = join(workspace, "packages/plugin/src/tool.ts")
-const SDK_TYPES = join(workspace, "packages/sdk/js/src/v2/gen/types.gen.ts")
-const REFERENCES_DIR = join(dirname(import.meta.dir), "references")
+const PLUGIN_INDEX = join(workspace, 'packages/plugin/src/index.ts');
+const PLUGIN_TOOL = join(workspace, 'packages/plugin/src/tool.ts');
+const SDK_TYPES = join(workspace, 'packages/sdk/js/src/v2/gen/types.gen.ts');
+const REFERENCES_DIR = join(dirname(import.meta.dir), 'references');
 
 async function extractHooksInterface(): Promise<string> {
-  const content = await Bun.file(PLUGIN_INDEX).text()
-  const hooksMatch = content.match(/export interface Hooks \{[\s\S]*?\n\}/m)
-  if (!hooksMatch) throw new Error("Could not find Hooks interface")
-  return hooksMatch[0]
+  const content = await Bun.file(PLUGIN_INDEX).text();
+  const hooksMatch = content.match(/export interface Hooks \{[\s\S]*?\n\}/m);
+  if (!hooksMatch) throw new Error('Could not find Hooks interface');
+  return hooksMatch[0];
 }
 
 async function extractPluginInput(): Promise<string> {
-  const content = await Bun.file(PLUGIN_INDEX).text()
-  const match = content.match(/export type PluginInput = \{[\s\S]*?\n\}/m)
-  if (!match) throw new Error("Could not find PluginInput type")
-  return match[0]
+  const content = await Bun.file(PLUGIN_INDEX).text();
+  const match = content.match(/export type PluginInput = \{[\s\S]*?\n\}/m);
+  if (!match) throw new Error('Could not find PluginInput type');
+  return match[0];
 }
 
 async function extractToolDefinition(): Promise<string> {
-  const content = await Bun.file(PLUGIN_TOOL).text()
-  return content
+  const content = await Bun.file(PLUGIN_TOOL).text();
+  return content;
 }
 
-type EventInfo = { name: string; type: string; fullType: string }
+type EventInfo = { name: string; type: string; fullType: string };
 
 async function extractEvents(): Promise<EventInfo[]> {
-  const content = await Bun.file(SDK_TYPES).text()
-  const events: EventInfo[] = []
+  const content = await Bun.file(SDK_TYPES).text();
+  const events: EventInfo[] = [];
 
   // Find Event union to get all event type names
-  const unionMatch = content.match(/export type Event =\s*([\s\S]*?)(?=\n\nexport|\n\n\/\*\*)/m)
-  if (!unionMatch) return events
+  const unionMatch = content.match(/export type Event =\s*([\s\S]*?)(?=\n\nexport|\n\n\/\*\*)/m);
+  if (!unionMatch) return events;
 
-  const eventTypeNames = unionMatch[1].match(/Event\w+/g) || []
+  const eventTypeNames = unionMatch[1].match(/Event\w+/g) || [];
 
   // For each event type, extract its full definition
   for (const typeName of eventTypeNames) {
-    const typeRegex = new RegExp(`export type ${typeName} = \\{([\\s\\S]*?)\\n\\}`, "m")
-    const typeMatch = content.match(typeRegex)
+    const typeRegex = new RegExp(`export type ${typeName} = \\{([\\s\\S]*?)\\n\\}`, 'm');
+    const typeMatch = content.match(typeRegex);
 
     if (typeMatch) {
       // Extract the event type string from the type definition
-      const typeStringMatch = typeMatch[1].match(/type:\s*"([^"]+)"/)
+      const typeStringMatch = typeMatch[1].match(/type:\s*"([^"]+)"/);
       if (typeStringMatch) {
         events.push({
           name: typeName,
           type: typeStringMatch[1],
           fullType: `export type ${typeName} = {${typeMatch[1]}\n}`,
-        })
+        });
       }
     }
   }
 
-  return events
+  return events;
 }
 
 async function extractEventUnion(): Promise<string[]> {
-  const content = await Bun.file(SDK_TYPES).text()
-  const match = content.match(/export type Event =\s*([\s\S]*?)(?=\n\nexport|\n\n\/\*\*)/m)
-  if (!match) return []
-  const types = match[1].match(/Event\w+/g) || []
-  return types
+  const content = await Bun.file(SDK_TYPES).text();
+  const match = content.match(/export type Event =\s*([\s\S]*?)(?=\n\nexport|\n\n\/\*\*)/m);
+  if (!match) return [];
+  const types = match[1].match(/Event\w+/g) || [];
+  return types;
 }
 
 async function extractAuthHook(): Promise<string> {
-  const content = await Bun.file(PLUGIN_INDEX).text()
-  const authHookMatch = content.match(/export type AuthHook = \{[\s\S]*?\n\}\n/m)
-  const authResultMatch = content.match(/export type AuthOuathResult[\s\S]*?\n\)\n/m)
-  return [authHookMatch?.[0] || "", authResultMatch?.[0] || ""].join("\n")
+  const content = await Bun.file(PLUGIN_INDEX).text();
+  const authHookMatch = content.match(/export type AuthHook = \{[\s\S]*?\n\}\n/m);
+  const authResultMatch = content.match(/export type AuthOuathResult[\s\S]*?\n\)\n/m);
+  return [authHookMatch?.[0] || '', authResultMatch?.[0] || ''].join('\n');
 }
 
 function generateHooksReference(hooks: string, pluginInput: string, authHook: string): string {
-  const timestamp = new Date().toISOString()
+  const timestamp = new Date().toISOString();
   return `# Plugin Hooks Reference
 
 > Auto-generated on ${timestamp}
@@ -151,17 +151,17 @@ ${hooks}
 \`\`\`typescript
 ${authHook}
 \`\`\`
-`
+`;
 }
 
 function generateEventsReference(events: EventInfo[], eventTypes: string[]): string {
-  const timestamp = new Date().toISOString()
+  const timestamp = new Date().toISOString();
 
-  const byCategory = new Map<string, EventInfo[]>()
+  const byCategory = new Map<string, EventInfo[]>();
   for (const event of events) {
-    const category = event.type.split(".")[0]
-    if (!byCategory.has(category)) byCategory.set(category, [])
-    byCategory.get(category)!.push(event)
+    const category = event.type.split('.')[0];
+    if (!byCategory.has(category)) byCategory.set(category, []);
+    byCategory.get(category)!.push(event);
   }
 
   let content = `# Events Reference
@@ -173,35 +173,35 @@ function generateEventsReference(events: EventInfo[], eventTypes: string[]): str
 
 \`\`\`typescript
 export type Event =
-${eventTypes.map((t) => `  | ${t}`).join("\n")}
+${eventTypes.map((t) => `  | ${t}`).join('\n')}
 \`\`\`
 
 ## Quick Reference
 
 | Event Type | TypeScript Type |
 |------------|-----------------|
-${events.map((e) => `| \`${e.type}\` | \`${e.name}\` |`).join("\n")}
+${events.map((e) => `| \`${e.type}\` | \`${e.name}\` |`).join('\n')}
 
 ## Events by Category
 
-`
+`;
 
-  const sortedCategories = [...byCategory.keys()].sort()
+  const sortedCategories = [...byCategory.keys()].sort();
   for (const category of sortedCategories) {
-    const categoryEvents = byCategory.get(category)!
-    content += `### ${category}\n\n`
+    const categoryEvents = byCategory.get(category)!;
+    content += `### ${category}\n\n`;
 
     for (const event of categoryEvents) {
-      content += `#### \`${event.type}\`\n\n`
-      content += `\`\`\`typescript\n${event.fullType}\n\`\`\`\n\n`
+      content += `#### \`${event.type}\`\n\n`;
+      content += `\`\`\`typescript\n${event.fullType}\n\`\`\`\n\n`;
     }
   }
 
-  return content
+  return content;
 }
 
 function generateToolReference(toolDef: string): string {
-  const timestamp = new Date().toISOString()
+  const timestamp = new Date().toISOString();
   return `# Tool Helper Reference
 
 > Auto-generated on ${timestamp}
@@ -265,11 +265,11 @@ type ToolContext = {
   abort: AbortSignal
 }
 \`\`\`
-`
+`;
 }
 
 async function main() {
-  console.log("Extracting plugin API from:", workspace)
+  console.log('Extracting plugin API from:', workspace);
 
   const [hooks, pluginInput, authHook, events, eventTypes, toolDef] = await Promise.all([
     extractHooksInterface(),
@@ -278,28 +278,28 @@ async function main() {
     extractEvents(),
     extractEventUnion(),
     extractToolDefinition(),
-  ])
+  ]);
 
-  console.log(`Found ${events.length} events, ${eventTypes.length} in union`)
+  console.log(`Found ${events.length} events, ${eventTypes.length} in union`);
 
-  const hooksRef = generateHooksReference(hooks, pluginInput, authHook)
-  const eventsRef = generateEventsReference(events, eventTypes)
-  const toolRef = generateToolReference(toolDef)
+  const hooksRef = generateHooksReference(hooks, pluginInput, authHook);
+  const eventsRef = generateEventsReference(events, eventTypes);
+  const toolRef = generateToolReference(toolDef);
 
   await Promise.all([
-    Bun.write(join(REFERENCES_DIR, "hooks.md"), hooksRef),
-    Bun.write(join(REFERENCES_DIR, "events.md"), eventsRef),
-    Bun.write(join(REFERENCES_DIR, "tool-helper.md"), toolRef),
-  ])
+    Bun.write(join(REFERENCES_DIR, 'hooks.md'), hooksRef),
+    Bun.write(join(REFERENCES_DIR, 'events.md'), eventsRef),
+    Bun.write(join(REFERENCES_DIR, 'tool-helper.md'), toolRef),
+  ]);
 
-  console.log("Generated references:")
-  console.log("  - references/hooks.md")
-  console.log("  - references/events.md")
-  console.log("  - references/tool-helper.md")
-  console.log("\nDone!")
+  console.log('Generated references:');
+  console.log('  - references/hooks.md');
+  console.log('  - references/events.md');
+  console.log('  - references/tool-helper.md');
+  console.log('\nDone!');
 }
 
 main().catch((e) => {
-  console.error("Error:", e.message)
-  process.exit(1)
-})
+  console.error('Error:', e.message);
+  process.exit(1);
+});

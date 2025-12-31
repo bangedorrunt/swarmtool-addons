@@ -19,97 +19,97 @@ export { loadSkillAgents, loadLocalAgents } from '../opencode';
 
 // Export session learning hooks
 export {
-    createSessionLearningInjector,
-    createSessionLearningCapture,
-    trackAssumption,
-    getTrackedAssumptions,
-    clearTrackedAssumptions,
-    verifyAssumption,
-    type TrackedAssumption,
-    // OpenCode-integrated hooks
-    createOpenCodeSessionLearningHook,
-    queryLearnings,
-    storeLearning,
+  createSessionLearningInjector,
+  createSessionLearningCapture,
+  trackAssumption,
+  getTrackedAssumptions,
+  clearTrackedAssumptions,
+  verifyAssumption,
+  type TrackedAssumption,
+  // OpenCode-integrated hooks
+  createOpenCodeSessionLearningHook,
+  queryLearnings,
+  storeLearning,
 } from './hooks';
 
 // Export Actor Model components
 export {
-    // State
-    type ActorState,
-    type ActorPhase,
-    type TrackedAssumption as ActorTrackedAssumption,
-    type SubAgentState,
-    type ExplicitDirection,
-    loadActorState,
-    saveActorState,
-    clearActorState,
-    hasActorState,
-    createInitialState,
-    // Messages
-    type ActorMessage,
-    createMessage,
-    // Core
-    receive,
-    processMessage,
-    resumeFromOffset,
-    // Tools
-    createActorTools,
+  // State
+  type ActorState,
+  type ActorPhase,
+  type TrackedAssumption as ActorTrackedAssumption,
+  type SubAgentState,
+  type ExplicitDirection,
+  loadActorState,
+  saveActorState,
+  clearActorState,
+  hasActorState,
+  createInitialState,
+  // Messages
+  type ActorMessage,
+  createMessage,
+  // Core
+  receive,
+  processMessage,
+  resumeFromOffset,
+  // Tools
+  createActorTools,
 } from './actor';
 
 // Export session coordination utilities
 export {
-    spawnChildAgent,
-    getChildSessions,
-    gatherChildResults,
-    type SpawnResult,
-    type SpawnOptions,
+  spawnChildAgent,
+  getChildSessions,
+  gatherChildResults,
+  type SpawnResult,
+  type SpawnOptions,
 } from './session-coordination';
 
 // Export LEDGER.md utilities
 export {
-    // Types
-    type Ledger,
-    type Epic,
-    type Task,
-    type Learnings,
-    type Handoff,
-    type ArchiveEntry,
-    type LedgerMeta,
-    type LedgerPhase,
-    type TaskStatus,
-    type TaskOutcome,
-    type EpicStatus,
-    // Core functions
-    loadLedger,
-    saveLedger,
-    createEpic,
-    createTask,
-    updateTaskStatus,
-    addLearning,
-    addContext,
-    createHandoff,
-    archiveEpic,
-    getProgress,
-    getReadyTasks,
-    canStartTask,
-    surfaceLearnings,
-    // Constants
-    DEFAULT_LEDGER_PATH,
-    MAX_TASKS_PER_EPIC,
-    MAX_ARCHIVE_ENTRIES,
+  // Types
+  type Ledger,
+  type Epic,
+  type Task,
+  type Learnings,
+  type Handoff,
+  type ArchiveEntry,
+  type LedgerMeta,
+  type LedgerPhase,
+  type TaskStatus,
+  type TaskOutcome,
+  type EpicStatus,
+  // Core functions
+  loadLedger,
+  saveLedger,
+  createEpic,
+  createTask,
+  updateTaskStatus,
+  addLearning,
+  addContext,
+  createHandoff,
+  archiveEpic,
+  getProgress,
+  getReadyTasks,
+  canStartTask,
+  surfaceLearnings,
+  // Constants
+  DEFAULT_LEDGER_PATH,
+  MAX_TASKS_PER_EPIC,
+  MAX_ARCHIVE_ENTRIES,
 } from './ledger';
 
 // Export LEDGER session hooks
 export {
-    onSessionStart,
-    onTaskComplete,
-    onPreCompact,
-    onSessionEnd,
-    formatSessionContext,
-    type SessionContext,
-    type TaskResult,
-    type SessionStartResult,
-    type SessionEndResult,
+  onSessionStart,
+  onTaskComplete,
+  onPreCompact,
+  onSessionEnd,
+  formatSessionContext,
+  type SessionContext,
+  type TaskResult,
+  type SessionStartResult,
+  type SessionEndResult,
 } from './ledger-hooks';
 
 // Export LEDGER tools for agents
@@ -117,22 +117,22 @@ export { createLedgerTools, ledgerTools } from './ledger-tools';
 
 // Export Resilient Orchestration - Task Registry
 export {
-    TaskRegistry,
-    getTaskRegistry,
-    resetTaskRegistry,
-    type RegistryTask,
-    type RegistryTaskStatus,
-    type TaskRegistryOptions,
+  TaskRegistry,
+  getTaskRegistry,
+  resetTaskRegistry,
+  type RegistryTask,
+  type RegistryTaskStatus,
+  type TaskRegistryOptions,
 } from './task-registry';
 
 // Export Resilient Orchestration - Task Supervisor
 export {
-    TaskSupervisor,
-    getTaskSupervisor,
-    startTaskSupervision,
-    stopTaskSupervision,
-    type SupervisorConfig,
-    type SupervisorStats,
+  TaskSupervisor,
+  getTaskSupervisor,
+  startTaskSupervision,
+  stopTaskSupervision,
+  type SupervisorConfig,
+  type SupervisorStats,
 } from './supervisor';
 
 // Export Resilient Orchestration - Tools

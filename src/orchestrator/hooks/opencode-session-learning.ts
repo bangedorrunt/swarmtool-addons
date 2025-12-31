@@ -270,7 +270,6 @@ export function createOpenCodeSessionLearningHook(
     return memoryAdapter;
   }
 
-
   /**
    * Query Memory Lane for relevant learnings
    */
@@ -309,7 +308,7 @@ export function createOpenCodeSessionLearningHook(
         type,
         entities,
       })
-      .catch(() => { });
+      .catch(() => {});
   }
 
   /**
@@ -352,7 +351,7 @@ export function createOpenCodeSessionLearningHook(
           user_corrections: corrections,
           session_id: sessionID,
         },
-      }).catch(() => { });
+      }).catch(() => {});
     }
   }
 

@@ -210,7 +210,9 @@ export function getDefaultConfig(): SwarmToolAddonsConfig {
       // Strategy & Planning subagents
       'chief-of-staff/oracle': { model: DEFAULT_MODELS['chief-of-staff/oracle'] },
       'chief-of-staff/planner': { model: DEFAULT_MODELS['chief-of-staff/planner'] },
-      'chief-of-staff/workflow-architect': { model: DEFAULT_MODELS['chief-of-staff/workflow-architect'] },
+      'chief-of-staff/workflow-architect': {
+        model: DEFAULT_MODELS['chief-of-staff/workflow-architect'],
+      },
 
       // User interaction subagents
       'chief-of-staff/interviewer': { model: DEFAULT_MODELS['chief-of-staff/interviewer'] },
@@ -219,7 +221,9 @@ export function getDefaultConfig(): SwarmToolAddonsConfig {
       // Execution subagents
       'chief-of-staff/executor': { model: DEFAULT_MODELS['chief-of-staff/executor'] },
       'chief-of-staff/validator': { model: DEFAULT_MODELS['chief-of-staff/validator'] },
-      'chief-of-staff/frontend-ui-ux-engineer': { model: DEFAULT_MODELS['chief-of-staff/frontend-ui-ux-engineer'] },
+      'chief-of-staff/frontend-ui-ux-engineer': {
+        model: DEFAULT_MODELS['chief-of-staff/frontend-ui-ux-engineer'],
+      },
 
       // Research subagents
       'chief-of-staff/explore': { model: DEFAULT_MODELS['chief-of-staff/explore'] },
@@ -232,4 +236,3 @@ export function getDefaultConfig(): SwarmToolAddonsConfig {
     logLevel: 'info',
   };
 }
-

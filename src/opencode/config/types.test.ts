@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  SwarmToolAddonsConfig,
-  parseConfig,
-  validateConfig,
-} from './types';
+import { SwarmToolAddonsConfig, parseConfig, validateConfig } from './types';
 
 describe('SwarmToolAddonsConfig', () => {
   describe('type definitions', () => {
@@ -55,7 +51,7 @@ describe('SwarmToolAddonsConfig', () => {
     it('should parse valid JSON config string', () => {
       const jsonStr = JSON.stringify({
         models: {
-          'chief-of-staff/oracle': { model: 'opencode/oracle-model', temperature: 0.3, },
+          'chief-of-staff/oracle': { model: 'opencode/oracle-model', temperature: 0.3 },
         },
       });
 
@@ -300,6 +296,4 @@ describe('SwarmToolAddonsConfig', () => {
       expect(config.models['chief-of-staff/planner'].forcedSkills).toBeUndefined();
     });
   });
-
-
 });

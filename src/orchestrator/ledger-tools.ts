@@ -12,19 +12,19 @@
 
 import { tool } from '@opencode-ai/plugin';
 import {
-    loadLedger,
-    saveLedger,
-    createEpic,
-    createTask,
-    updateTaskStatus,
-    addLearning,
-    addContext,
-    createHandoff,
-    archiveEpic,
-    getProgress,
-    getReadyTasks,
-    surfaceLearnings,
-    DEFAULT_LEDGER_PATH,
+  loadLedger,
+  saveLedger,
+  createEpic,
+  createTask,
+  updateTaskStatus,
+  addLearning,
+  addContext,
+  createHandoff,
+  archiveEpic,
+  getProgress,
+  getReadyTasks,
+  surfaceLearnings,
+  DEFAULT_LEDGER_PATH,
 } from './ledger';
 
 // ============================================================================
@@ -32,324 +32,327 @@ import {
 // ============================================================================
 
 export function createLedgerTools() {
-    return {
-        /**
-         * Get current LEDGER status
-         */
-        ledger_status: tool({
-            description: 'Get current LEDGER.md status including active epic, progress, and recent learnings',
-            args: {},
-            async execute() {
-                const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
+  return {
+    /**
+     * Get current LEDGER status
+     */
+    ledger_status: tool({
+      description:
+        'Get current LEDGER.md status including active epic, progress, and recent learnings',
+      args: {},
+      async execute() {
+        const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
 
-                const progress = getProgress(ledger);
-                const readyTasks = getReadyTasks(ledger);
-                const recentLearnings = surfaceLearnings(ledger);
+        const progress = getProgress(ledger);
+        const readyTasks = getReadyTasks(ledger);
+        const recentLearnings = surfaceLearnings(ledger);
 
-                return JSON.stringify({
-                    meta: {
-                        sessionId: ledger.meta.sessionId,
-                        status: ledger.meta.status,
-                        phase: ledger.meta.phase,
-                        tasksCompleted: ledger.meta.tasksCompleted,
-                        currentTask: ledger.meta.currentTask,
-                    },
-                    epic: ledger.epic
-                        ? {
-                            id: ledger.epic.id,
-                            title: ledger.epic.title,
-                            status: ledger.epic.status,
-                            tasks: ledger.epic.tasks.map((t) => ({
-                                id: t.id,
-                                title: t.title,
-                                status: t.status,
-                                outcome: t.outcome,
-                            })),
-                        }
-                        : null,
-                    progress: {
-                        total: progress.total,
-                        completed: progress.completed,
-                        failed: progress.failed,
-                        running: progress.running,
-                        percentComplete: progress.percentComplete,
-                    },
-                    readyTasks: readyTasks.map((t) => t.id),
-                    hasHandoff: !!ledger.handoff,
-                    learningsCount: {
-                        patterns: recentLearnings.patterns.length,
-                        antiPatterns: recentLearnings.antiPatterns.length,
-                        decisions: recentLearnings.decisions.length,
-                    },
-                    archiveCount: ledger.archive.length,
-                }, null, 2);
+        return JSON.stringify(
+          {
+            meta: {
+              sessionId: ledger.meta.sessionId,
+              status: ledger.meta.status,
+              phase: ledger.meta.phase,
+              tasksCompleted: ledger.meta.tasksCompleted,
+              currentTask: ledger.meta.currentTask,
             },
-        }),
-
-        /**
-         * Create a new epic
-         */
-        ledger_create_epic: tool({
-            description: 'Create a new epic in LEDGER.md. Only ONE epic can be active at a time.',
-            args: {
-                title: tool.schema.string().describe('Epic title'),
-                request: tool.schema.string().describe('Original user request'),
-            },
-            async execute(args) {
-                const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
-
-                try {
-                    const epicId = createEpic(ledger, args.title, args.request);
-                    await saveLedger(ledger, DEFAULT_LEDGER_PATH);
-
-                    return JSON.stringify({
-                        success: true,
-                        epicId,
-                        message: `Created epic: ${epicId} - ${args.title}`,
-                    });
-                } catch (error: any) {
-                    return JSON.stringify({
-                        success: false,
-                        error: error.message,
-                    });
+            epic: ledger.epic
+              ? {
+                  id: ledger.epic.id,
+                  title: ledger.epic.title,
+                  status: ledger.epic.status,
+                  tasks: ledger.epic.tasks.map((t) => ({
+                    id: t.id,
+                    title: t.title,
+                    status: t.status,
+                    outcome: t.outcome,
+                  })),
                 }
+              : null,
+            progress: {
+              total: progress.total,
+              completed: progress.completed,
+              failed: progress.failed,
+              running: progress.running,
+              percentComplete: progress.percentComplete,
             },
-        }),
-
-        /**
-         * Create a task within the current epic
-         */
-        ledger_create_task: tool({
-            description: 'Create a task within the current epic. Max 3 tasks per epic.',
-            args: {
-                title: tool.schema.string().describe('Task title'),
-                agent: tool.schema.string().describe('Agent to execute this task (e.g., executor, validator)'),
-                dependencies: tool.schema
-                    .array(tool.schema.string())
-                    .optional()
-                    .describe('Task IDs that must complete first'),
+            readyTasks: readyTasks.map((t) => t.id),
+            hasHandoff: !!ledger.handoff,
+            learningsCount: {
+              patterns: recentLearnings.patterns.length,
+              antiPatterns: recentLearnings.antiPatterns.length,
+              decisions: recentLearnings.decisions.length,
             },
-            async execute(args) {
-                const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
+            archiveCount: ledger.archive.length,
+          },
+          null,
+          2
+        );
+      },
+    }),
 
-                try {
-                    const taskId = createTask(ledger, args.title, args.agent, {
-                        dependencies: args.dependencies,
-                    });
-                    await saveLedger(ledger, DEFAULT_LEDGER_PATH);
+    /**
+     * Create a new epic
+     */
+    ledger_create_epic: tool({
+      description: 'Create a new epic in LEDGER.md. Only ONE epic can be active at a time.',
+      args: {
+        title: tool.schema.string().describe('Epic title'),
+        request: tool.schema.string().describe('Original user request'),
+      },
+      async execute(args) {
+        const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
 
-                    return JSON.stringify({
-                        success: true,
-                        taskId,
-                        message: `Created task: ${taskId} - ${args.title}`,
-                        tasksCount: ledger.epic?.tasks.length || 0,
-                    });
-                } catch (error: any) {
-                    return JSON.stringify({
-                        success: false,
-                        error: error.message,
-                    });
-                }
-            },
-        }),
+        try {
+          const epicId = createEpic(ledger, args.title, args.request);
+          await saveLedger(ledger, DEFAULT_LEDGER_PATH);
 
-        /**
-         * Update task status
-         */
-        ledger_update_task: tool({
-            description: 'Update the status of a task in the current epic',
-            args: {
-                task_id: tool.schema.string().describe('Task ID (e.g., abc123.1)'),
-                status: tool.schema
-                    .enum(['pending', 'running', 'completed', 'failed', 'timeout'])
-                    .describe('New task status'),
-                result: tool.schema.string().optional().describe('Task result (for completed tasks)'),
-                error: tool.schema.string().optional().describe('Error message (for failed tasks)'),
-            },
-            async execute(args) {
-                const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
+          return JSON.stringify({
+            success: true,
+            epicId,
+            message: `Created epic: ${epicId} - ${args.title}`,
+          });
+        } catch (error: any) {
+          return JSON.stringify({
+            success: false,
+            error: error.message,
+          });
+        }
+      },
+    }),
 
-                try {
-                    updateTaskStatus(
-                        ledger,
-                        args.task_id,
-                        args.status as any,
-                        args.result,
-                        args.error
-                    );
-                    await saveLedger(ledger, DEFAULT_LEDGER_PATH);
+    /**
+     * Create a task within the current epic
+     */
+    ledger_create_task: tool({
+      description: 'Create a task within the current epic. Max 3 tasks per epic.',
+      args: {
+        title: tool.schema.string().describe('Task title'),
+        agent: tool.schema
+          .string()
+          .describe('Agent to execute this task (e.g., executor, validator)'),
+        dependencies: tool.schema
+          .array(tool.schema.string())
+          .optional()
+          .describe('Task IDs that must complete first'),
+      },
+      async execute(args) {
+        const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
 
-                    const progress = getProgress(ledger);
+        try {
+          const taskId = createTask(ledger, args.title, args.agent, {
+            dependencies: args.dependencies,
+          });
+          await saveLedger(ledger, DEFAULT_LEDGER_PATH);
 
-                    return JSON.stringify({
-                        success: true,
-                        taskId: args.task_id,
-                        status: args.status,
-                        progress: `${progress.completed}/${progress.total}`,
-                        epicStatus: ledger.epic?.status,
-                    });
-                } catch (error: any) {
-                    return JSON.stringify({
-                        success: false,
-                        error: error.message,
-                    });
-                }
-            },
-        }),
+          return JSON.stringify({
+            success: true,
+            taskId,
+            message: `Created task: ${taskId} - ${args.title}`,
+            tasksCount: ledger.epic?.tasks.length || 0,
+          });
+        } catch (error: any) {
+          return JSON.stringify({
+            success: false,
+            error: error.message,
+          });
+        }
+      },
+    }),
 
-        /**
-         * Add a learning entry
-         */
-        ledger_add_learning: tool({
-            description: 'Add a learning entry to LEDGER.md',
-            args: {
-                type: tool.schema
-                    .enum(['pattern', 'antiPattern', 'decision', 'preference'])
-                    .describe('Type of learning'),
-                content: tool.schema.string().describe('Learning content'),
-            },
-            async execute(args) {
-                const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
+    /**
+     * Update task status
+     */
+    ledger_update_task: tool({
+      description: 'Update the status of a task in the current epic',
+      args: {
+        task_id: tool.schema.string().describe('Task ID (e.g., abc123.1)'),
+        status: tool.schema
+          .enum(['pending', 'running', 'completed', 'failed', 'timeout'])
+          .describe('New task status'),
+        result: tool.schema.string().optional().describe('Task result (for completed tasks)'),
+        error: tool.schema.string().optional().describe('Error message (for failed tasks)'),
+      },
+      async execute(args) {
+        const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
 
-                addLearning(ledger, args.type as any, args.content);
-                await saveLedger(ledger, DEFAULT_LEDGER_PATH);
+        try {
+          updateTaskStatus(ledger, args.task_id, args.status as any, args.result, args.error);
+          await saveLedger(ledger, DEFAULT_LEDGER_PATH);
 
-                return JSON.stringify({
-                    success: true,
-                    type: args.type,
-                    message: `Added ${args.type}: ${args.content}`,
-                });
-            },
-        }),
+          const progress = getProgress(ledger);
 
-        /**
-         * Get recent learnings
-         */
-        ledger_get_learnings: tool({
-            description: 'Get recent learnings from LEDGER.md',
-            args: {
-                max_age_hours: tool.schema
-                    .number()
-                    .optional()
-                    .default(48)
-                    .describe('Maximum age of learnings in hours'),
-            },
-            async execute(args) {
-                const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
+          return JSON.stringify({
+            success: true,
+            taskId: args.task_id,
+            status: args.status,
+            progress: `${progress.completed}/${progress.total}`,
+            epicStatus: ledger.epic?.status,
+          });
+        } catch (error: any) {
+          return JSON.stringify({
+            success: false,
+            error: error.message,
+          });
+        }
+      },
+    }),
 
-                const maxAgeMs = (args.max_age_hours || 48) * 60 * 60 * 1000;
-                const learnings = surfaceLearnings(ledger, maxAgeMs);
+    /**
+     * Add a learning entry
+     */
+    ledger_add_learning: tool({
+      description: 'Add a learning entry to LEDGER.md',
+      args: {
+        type: tool.schema
+          .enum(['pattern', 'antiPattern', 'decision', 'preference'])
+          .describe('Type of learning'),
+        content: tool.schema.string().describe('Learning content'),
+      },
+      async execute(args) {
+        const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
 
-                return JSON.stringify({
-                    patterns: learnings.patterns,
-                    antiPatterns: learnings.antiPatterns,
-                    decisions: learnings.decisions,
-                    total:
-                        learnings.patterns.length +
-                        learnings.antiPatterns.length +
-                        learnings.decisions.length,
-                }, null, 2);
-            },
-        }),
+        addLearning(ledger, args.type as any, args.content);
+        await saveLedger(ledger, DEFAULT_LEDGER_PATH);
 
-        /**
-         * Add context to current epic
-         */
-        ledger_add_context: tool({
-            description: 'Add context (key decision or information) to the current epic',
-            args: {
-                context: tool.schema.string().describe('Context to add'),
-            },
-            async execute(args) {
-                const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
+        return JSON.stringify({
+          success: true,
+          type: args.type,
+          message: `Added ${args.type}: ${args.content}`,
+        });
+      },
+    }),
 
-                try {
-                    addContext(ledger, args.context);
-                    await saveLedger(ledger, DEFAULT_LEDGER_PATH);
+    /**
+     * Get recent learnings
+     */
+    ledger_get_learnings: tool({
+      description: 'Get recent learnings from LEDGER.md',
+      args: {
+        max_age_hours: tool.schema
+          .number()
+          .optional()
+          .default(48)
+          .describe('Maximum age of learnings in hours'),
+      },
+      async execute(args) {
+        const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
 
-                    return JSON.stringify({
-                        success: true,
-                        message: `Added context: ${args.context}`,
-                    });
-                } catch (error: any) {
-                    return JSON.stringify({
-                        success: false,
-                        error: error.message,
-                    });
-                }
-            },
-        }),
+        const maxAgeMs = (args.max_age_hours || 48) * 60 * 60 * 1000;
+        const learnings = surfaceLearnings(ledger, maxAgeMs);
 
-        /**
-         * Create handoff for session break
-         */
-        ledger_create_handoff: tool({
-            description: 'Create a handoff section in LEDGER.md for session break',
-            args: {
-                reason: tool.schema
-                    .enum(['context_limit', 'user_exit', 'session_break'])
-                    .describe('Reason for handoff'),
-                resume_command: tool.schema
-                    .string()
-                    .describe('Command to resume work'),
-                files_modified: tool.schema
-                    .array(tool.schema.string())
-                    .optional()
-                    .describe('Files modified in this session'),
-            },
-            async execute(args) {
-                const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
+        return JSON.stringify(
+          {
+            patterns: learnings.patterns,
+            antiPatterns: learnings.antiPatterns,
+            decisions: learnings.decisions,
+            total:
+              learnings.patterns.length +
+              learnings.antiPatterns.length +
+              learnings.decisions.length,
+          },
+          null,
+          2
+        );
+      },
+    }),
 
-                createHandoff(ledger, args.reason as any, args.resume_command, {
-                    filesModified: args.files_modified,
-                });
-                await saveLedger(ledger, DEFAULT_LEDGER_PATH);
+    /**
+     * Add context to current epic
+     */
+    ledger_add_context: tool({
+      description: 'Add context (key decision or information) to the current epic',
+      args: {
+        context: tool.schema.string().describe('Context to add'),
+      },
+      async execute(args) {
+        const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
 
-                return JSON.stringify({
-                    success: true,
-                    message: `Handoff created. Safe to /clear.`,
-                    resumeCommand: args.resume_command,
-                });
-            },
-        }),
+        try {
+          addContext(ledger, args.context);
+          await saveLedger(ledger, DEFAULT_LEDGER_PATH);
 
-        /**
-         * Archive current epic
-         */
-        ledger_archive_epic: tool({
-            description: 'Archive the current epic with an outcome',
-            args: {
-                outcome: tool.schema
-                    .enum(['SUCCEEDED', 'PARTIAL', 'FAILED'])
-                    .optional()
-                    .describe('Epic outcome (auto-detected if not provided)'),
-            },
-            async execute(args) {
-                const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
+          return JSON.stringify({
+            success: true,
+            message: `Added context: ${args.context}`,
+          });
+        } catch (error: any) {
+          return JSON.stringify({
+            success: false,
+            error: error.message,
+          });
+        }
+      },
+    }),
 
-                if (!ledger.epic) {
-                    return JSON.stringify({
-                        success: false,
-                        error: 'No active epic to archive',
-                    });
-                }
+    /**
+     * Create handoff for session break
+     */
+    ledger_create_handoff: tool({
+      description: 'Create a handoff section in LEDGER.md for session break',
+      args: {
+        reason: tool.schema
+          .enum(['context_limit', 'user_exit', 'session_break'])
+          .describe('Reason for handoff'),
+        resume_command: tool.schema.string().describe('Command to resume work'),
+        files_modified: tool.schema
+          .array(tool.schema.string())
+          .optional()
+          .describe('Files modified in this session'),
+      },
+      async execute(args) {
+        const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
 
-                const epicId = ledger.epic.id;
-                const epicTitle = ledger.epic.title;
+        createHandoff(ledger, args.reason as any, args.resume_command, {
+          filesModified: args.files_modified,
+        });
+        await saveLedger(ledger, DEFAULT_LEDGER_PATH);
 
-                archiveEpic(ledger, args.outcome as any);
-                await saveLedger(ledger, DEFAULT_LEDGER_PATH);
+        return JSON.stringify({
+          success: true,
+          message: `Handoff created. Safe to /clear.`,
+          resumeCommand: args.resume_command,
+        });
+      },
+    }),
 
-                return JSON.stringify({
-                    success: true,
-                    epicId,
-                    epicTitle,
-                    outcome: args.outcome || 'auto-detected',
-                    archiveCount: ledger.archive.length,
-                });
-            },
-        }),
-    };
+    /**
+     * Archive current epic
+     */
+    ledger_archive_epic: tool({
+      description: 'Archive the current epic with an outcome',
+      args: {
+        outcome: tool.schema
+          .enum(['SUCCEEDED', 'PARTIAL', 'FAILED'])
+          .optional()
+          .describe('Epic outcome (auto-detected if not provided)'),
+      },
+      async execute(args) {
+        const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
+
+        if (!ledger.epic) {
+          return JSON.stringify({
+            success: false,
+            error: 'No active epic to archive',
+          });
+        }
+
+        const epicId = ledger.epic.id;
+        const epicTitle = ledger.epic.title;
+
+        archiveEpic(ledger, args.outcome as any);
+        await saveLedger(ledger, DEFAULT_LEDGER_PATH);
+
+        return JSON.stringify({
+          success: true,
+          epicId,
+          epicTitle,
+          outcome: args.outcome || 'auto-detected',
+          archiveCount: ledger.archive.length,
+        });
+      },
+    }),
+  };
 }
 
 // ============================================================================

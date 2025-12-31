@@ -93,8 +93,7 @@ export const memory_lane_store = tool({
  * Record feedback on a memory for adaptive learning
  */
 export const memory_lane_feedback = tool({
-  description:
-    'Record feedback (helpful or harmful) on a memory to adjust future search rankings.',
+  description: 'Record feedback (helpful or harmful) on a memory to adjust future search rankings.',
   args: {
     id: tool.schema.string().describe('Memory ID to provide feedback on'),
     signal: tool.schema

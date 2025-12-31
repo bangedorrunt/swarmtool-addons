@@ -57,4 +57,3 @@ export function getDatabasePath(): string {
 export function getDatabaseSource(): DatabasePathResult['source'] {
   return resolveDatabasePath().source;
 }
-

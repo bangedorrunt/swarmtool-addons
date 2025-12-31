@@ -14,7 +14,7 @@ import {
 const testDir = join(process.cwd(), 'test');
 
 beforeEach(() => {
-  vi.spyOn(console, 'error').mockImplementation(() => { });
+  vi.spyOn(console, 'error').mockImplementation(() => {});
   // Ensure test directory exists
   if (!existsSync(testDir)) {
     mkdirSync(testDir, { recursive: true });

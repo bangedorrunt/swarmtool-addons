@@ -9,16 +9,16 @@
  */
 
 import {
-    loadLedger,
-    saveLedger,
-    updateTaskStatus,
-    addLearning,
-    createHandoff,
-    archiveEpic,
-    getProgress,
-    surfaceLearnings,
-    Ledger,
-    Task,
+  loadLedger,
+  saveLedger,
+  updateTaskStatus,
+  addLearning,
+  createHandoff,
+  archiveEpic,
+  getProgress,
+  surfaceLearnings,
+  Ledger,
+  Task,
 } from './ledger';
 
 // ============================================================================
@@ -26,37 +26,37 @@ import {
 // ============================================================================
 
 export interface SessionContext {
-    sessionId: string;
-    modifiedFiles: string[];
-    contextUsage?: number;
+  sessionId: string;
+  modifiedFiles: string[];
+  contextUsage?: number;
 }
 
 export interface TaskResult {
-    taskId: string;
-    success: boolean;
-    result?: string;
-    error?: string;
-    filesModified?: string[];
-    toolsUsed?: string[];
+  taskId: string;
+  success: boolean;
+  result?: string;
+  error?: string;
+  filesModified?: string[];
+  toolsUsed?: string[];
 }
 
 export interface SessionStartResult {
-    hasActiveEpic: boolean;
-    epicTitle?: string;
-    epicProgress?: string;
-    hasHandoff: boolean;
-    resumeCommand?: string;
-    recentLearnings: {
-        patterns: string[];
-        antiPatterns: string[];
-        decisions: string[];
-    };
+  hasActiveEpic: boolean;
+  epicTitle?: string;
+  epicProgress?: string;
+  hasHandoff: boolean;
+  resumeCommand?: string;
+  recentLearnings: {
+    patterns: string[];
+    antiPatterns: string[];
+    decisions: string[];
+  };
 }
 
 export interface SessionEndResult {
-    epicArchived: boolean;
-    outcome?: string;
-    learningsExtracted: number;
+  epicArchived: boolean;
+  outcome?: string;
+  learningsExtracted: number;
 }
 
 // ============================================================================
@@ -72,59 +72,57 @@ export interface SessionEndResult {
  * 3. Surface recent Learnings
  * 4. Check for Handoff (continue from break)
  */
-export async function onSessionStart(
-    ledgerPath?: string
-): Promise<SessionStartResult> {
-    console.log('[SessionHook] Starting session...');
+export async function onSessionStart(ledgerPath?: string): Promise<SessionStartResult> {
+  console.log('[SessionHook] Starting session...');
 
-    const ledger = await loadLedger(ledgerPath);
+  const ledger = await loadLedger(ledgerPath);
 
-    // Surface recent learnings
-    const recentLearnings = surfaceLearnings(ledger);
+  // Surface recent learnings
+  const recentLearnings = surfaceLearnings(ledger);
 
-    // Check for active epic
-    const hasActiveEpic = !!ledger.epic;
-    let epicTitle: string | undefined;
-    let epicProgress: string | undefined;
+  // Check for active epic
+  const hasActiveEpic = !!ledger.epic;
+  let epicTitle: string | undefined;
+  let epicProgress: string | undefined;
 
-    if (hasActiveEpic && ledger.epic) {
-        epicTitle = ledger.epic.title;
-        const progress = getProgress(ledger);
-        epicProgress = `${progress.completed}/${progress.total} tasks (${progress.percentComplete}%)`;
-        console.log(`[SessionHook] Resuming epic: ${epicTitle} - ${epicProgress}`);
-    }
+  if (hasActiveEpic && ledger.epic) {
+    epicTitle = ledger.epic.title;
+    const progress = getProgress(ledger);
+    epicProgress = `${progress.completed}/${progress.total} tasks (${progress.percentComplete}%)`;
+    console.log(`[SessionHook] Resuming epic: ${epicTitle} - ${epicProgress}`);
+  }
 
-    // Check for handoff
-    const hasHandoff = !!ledger.handoff;
-    let resumeCommand: string | undefined;
+  // Check for handoff
+  const hasHandoff = !!ledger.handoff;
+  let resumeCommand: string | undefined;
 
-    if (hasHandoff && ledger.handoff) {
-        resumeCommand = ledger.handoff.resumeCommand;
-        console.log(`[SessionHook] Handoff found: "${resumeCommand}"`);
-    }
+  if (hasHandoff && ledger.handoff) {
+    resumeCommand = ledger.handoff.resumeCommand;
+    console.log(`[SessionHook] Handoff found: "${resumeCommand}"`);
+  }
 
-    // Log learnings summary
-    const totalLearnings =
-        recentLearnings.patterns.length +
-        recentLearnings.antiPatterns.length +
-        recentLearnings.decisions.length;
+  // Log learnings summary
+  const totalLearnings =
+    recentLearnings.patterns.length +
+    recentLearnings.antiPatterns.length +
+    recentLearnings.decisions.length;
 
-    if (totalLearnings > 0) {
-        console.log(`[SessionHook] Surfacing ${totalLearnings} recent learnings`);
-    }
+  if (totalLearnings > 0) {
+    console.log(`[SessionHook] Surfacing ${totalLearnings} recent learnings`);
+  }
 
-    // Update session status
-    ledger.meta.status = 'active';
-    await saveLedger(ledger, ledgerPath);
+  // Update session status
+  ledger.meta.status = 'active';
+  await saveLedger(ledger, ledgerPath);
 
-    return {
-        hasActiveEpic,
-        epicTitle,
-        epicProgress,
-        hasHandoff,
-        resumeCommand,
-        recentLearnings,
-    };
+  return {
+    hasActiveEpic,
+    epicTitle,
+    epicProgress,
+    hasHandoff,
+    resumeCommand,
+    recentLearnings,
+  };
 }
 
 /**
@@ -136,41 +134,38 @@ export async function onSessionStart(
  * 3. Log progress
  * 4. Save LEDGER
  */
-export async function onTaskComplete(
-    taskResult: TaskResult,
-    ledgerPath?: string
-): Promise<void> {
-    console.log(`[SessionHook] Task completed: ${taskResult.taskId}`);
+export async function onTaskComplete(taskResult: TaskResult, ledgerPath?: string): Promise<void> {
+  console.log(`[SessionHook] Task completed: ${taskResult.taskId}`);
 
-    const ledger = await loadLedger(ledgerPath);
+  const ledger = await loadLedger(ledgerPath);
 
-    // Update task status
-    updateTaskStatus(
-        ledger,
-        taskResult.taskId,
-        taskResult.success ? 'completed' : 'failed',
-        taskResult.result,
-        taskResult.error
-    );
+  // Update task status
+  updateTaskStatus(
+    ledger,
+    taskResult.taskId,
+    taskResult.success ? 'completed' : 'failed',
+    taskResult.result,
+    taskResult.error
+  );
 
-    // Extract learnings
-    if (taskResult.result) {
-        const learnings = extractLearningsFromResult(taskResult);
-        for (const learning of learnings) {
-            addLearning(ledger, learning.type, learning.content);
-        }
+  // Extract learnings
+  if (taskResult.result) {
+    const learnings = extractLearningsFromResult(taskResult);
+    for (const learning of learnings) {
+      addLearning(ledger, learning.type, learning.content);
     }
+  }
 
-    // Add files modified to context
-    if (taskResult.filesModified && taskResult.filesModified.length > 0) {
-        for (const file of taskResult.filesModified) {
-            if (ledger.epic && !ledger.epic.context.includes(`Modified: ${file}`)) {
-                ledger.epic.context.push(`Modified: ${file}`);
-            }
-        }
+  // Add files modified to context
+  if (taskResult.filesModified && taskResult.filesModified.length > 0) {
+    for (const file of taskResult.filesModified) {
+      if (ledger.epic && !ledger.epic.context.includes(`Modified: ${file}`)) {
+        ledger.epic.context.push(`Modified: ${file}`);
+      }
     }
+  }
 
-    await saveLedger(ledger, ledgerPath);
+  await saveLedger(ledger, ledgerPath);
 }
 
 /**
@@ -181,28 +176,25 @@ export async function onTaskComplete(
  * 2. Include: what's done, what's next, key context
  * 3. Signal safe to /clear
  */
-export async function onPreCompact(
-    context: SessionContext,
-    ledgerPath?: string
-): Promise<string> {
-    console.log('[SessionHook] Context limit approaching, creating handoff...');
+export async function onPreCompact(context: SessionContext, ledgerPath?: string): Promise<string> {
+  console.log('[SessionHook] Context limit approaching, creating handoff...');
 
-    const ledger = await loadLedger(ledgerPath);
+  const ledger = await loadLedger(ledgerPath);
 
-    // Create handoff
-    createHandoff(ledger, 'context_limit', 'Continue the current task', {
-        keyContext: ledger.epic?.context,
-        filesModified: context.modifiedFiles,
-    });
+  // Create handoff
+  createHandoff(ledger, 'context_limit', 'Continue the current task', {
+    keyContext: ledger.epic?.context,
+    filesModified: context.modifiedFiles,
+  });
 
-    await saveLedger(ledger, ledgerPath);
+  await saveLedger(ledger, ledgerPath);
 
-    const message = ledger.epic
-        ? `Handoff created for epic "${ledger.epic.title}". Safe to /clear.`
-        : 'Handoff created. Safe to /clear.';
+  const message = ledger.epic
+    ? `Handoff created for epic "${ledger.epic.title}". Safe to /clear.`
+    : 'Handoff created. Safe to /clear.';
 
-    console.log(`[SessionHook] ${message}`);
-    return message;
+  console.log(`[SessionHook] ${message}`);
+  return message;
 }
 
 /**
@@ -214,39 +206,39 @@ export async function onPreCompact(
  * 3. Clean up Handoff if resolved
  */
 export async function onSessionEnd(
-    outcome?: 'SUCCEEDED' | 'PARTIAL' | 'FAILED',
-    ledgerPath?: string
+  outcome?: 'SUCCEEDED' | 'PARTIAL' | 'FAILED',
+  ledgerPath?: string
 ): Promise<SessionEndResult> {
-    console.log('[SessionHook] Ending session...');
+  console.log('[SessionHook] Ending session...');
 
-    const ledger = await loadLedger(ledgerPath);
+  const ledger = await loadLedger(ledgerPath);
 
-    let epicArchived = false;
-    let finalOutcome: string | undefined;
-    let learningsExtracted = 0;
+  let epicArchived = false;
+  let finalOutcome: string | undefined;
+  let learningsExtracted = 0;
 
-    // Archive completed epic
-    if (ledger.epic && (ledger.epic.status === 'completed' || outcome)) {
-        finalOutcome = outcome || 'PARTIAL';
-        archiveEpic(ledger, outcome);
-        epicArchived = true;
-        console.log(`[SessionHook] Epic archived: ${finalOutcome}`);
-    }
+  // Archive completed epic
+  if (ledger.epic && (ledger.epic.status === 'completed' || outcome)) {
+    finalOutcome = outcome || 'PARTIAL';
+    archiveEpic(ledger, outcome);
+    epicArchived = true;
+    console.log(`[SessionHook] Epic archived: ${finalOutcome}`);
+  }
 
-    // Count learnings
-    learningsExtracted =
-        ledger.learnings.patterns.length +
-        ledger.learnings.antiPatterns.length +
-        ledger.learnings.decisions.length +
-        ledger.learnings.preferences.length;
+  // Count learnings
+  learningsExtracted =
+    ledger.learnings.patterns.length +
+    ledger.learnings.antiPatterns.length +
+    ledger.learnings.decisions.length +
+    ledger.learnings.preferences.length;
 
-    await saveLedger(ledger, ledgerPath);
+  await saveLedger(ledger, ledgerPath);
 
-    return {
-        epicArchived,
-        outcome: finalOutcome,
-        learningsExtracted,
-    };
+  return {
+    epicArchived,
+    outcome: finalOutcome,
+    learningsExtracted,
+  };
 }
 
 // ============================================================================
@@ -254,8 +246,8 @@ export async function onSessionEnd(
 // ============================================================================
 
 interface ExtractedLearning {
-    type: 'pattern' | 'antiPattern' | 'decision' | 'preference';
-    content: string;
+  type: 'pattern' | 'antiPattern' | 'decision' | 'preference';
+  content: string;
 }
 
 /**
@@ -267,121 +259,110 @@ interface ExtractedLearning {
  * - Decisions: "Chose X over Y", "Decided to X"
  */
 function extractLearningsFromResult(taskResult: TaskResult): ExtractedLearning[] {
-    const learnings: ExtractedLearning[] = [];
+  const learnings: ExtractedLearning[] = [];
 
-    if (!taskResult.result) return learnings;
+  if (!taskResult.result) return learnings;
 
-    const result = taskResult.result.toLowerCase();
+  const result = taskResult.result.toLowerCase();
 
-    // Pattern indicators
-    const patternIndicators = [
-        'use ',
-        'works well',
-        'recommend',
-        'best practice',
-        'effective',
-        'successfully',
-    ];
+  // Pattern indicators
+  const patternIndicators = [
+    'use ',
+    'works well',
+    'recommend',
+    'best practice',
+    'effective',
+    'successfully',
+  ];
 
-    // Anti-pattern indicators
-    const antiPatternIndicators = [
-        "don't use",
-        'avoid',
-        'causes issues',
-        'failed because',
-        'problem with',
-        'deprecated',
-    ];
+  // Anti-pattern indicators
+  const antiPatternIndicators = [
+    "don't use",
+    'avoid',
+    'causes issues',
+    'failed because',
+    'problem with',
+    'deprecated',
+  ];
 
-    // Decision indicators
-    const decisionIndicators = [
-        'chose',
-        'decided',
-        'selected',
-        'opted for',
-        'using',
-        'went with',
-    ];
+  // Decision indicators
+  const decisionIndicators = ['chose', 'decided', 'selected', 'opted for', 'using', 'went with'];
 
-    // Check for patterns
-    for (const indicator of patternIndicators) {
-        if (result.includes(indicator)) {
-            // Extract a relevant snippet
-            const snippet = extractSnippetAround(taskResult.result, indicator, 100);
-            if (snippet) {
-                learnings.push({
-                    type: 'pattern',
-                    content: `[${taskResult.taskId}] ${snippet}`,
-                });
-                break; // Only one pattern per result
-            }
-        }
-    }
-
-    // Check for anti-patterns
-    for (const indicator of antiPatternIndicators) {
-        if (result.includes(indicator)) {
-            const snippet = extractSnippetAround(taskResult.result, indicator, 100);
-            if (snippet) {
-                learnings.push({
-                    type: 'antiPattern',
-                    content: `[${taskResult.taskId}] ${snippet}`,
-                });
-                break;
-            }
-        }
-    }
-
-    // Check for decisions
-    for (const indicator of decisionIndicators) {
-        if (result.includes(indicator)) {
-            const snippet = extractSnippetAround(taskResult.result, indicator, 100);
-            if (snippet) {
-                learnings.push({
-                    type: 'decision',
-                    content: `[${taskResult.taskId}] ${snippet}`,
-                });
-                break;
-            }
-        }
-    }
-
-    // If task failed, add as anti-pattern
-    if (!taskResult.success && taskResult.error) {
+  // Check for patterns
+  for (const indicator of patternIndicators) {
+    if (result.includes(indicator)) {
+      // Extract a relevant snippet
+      const snippet = extractSnippetAround(taskResult.result, indicator, 100);
+      if (snippet) {
         learnings.push({
-            type: 'antiPattern',
-            content: `[${taskResult.taskId}] ${taskResult.error}`,
+          type: 'pattern',
+          content: `[${taskResult.taskId}] ${snippet}`,
         });
+        break; // Only one pattern per result
+      }
     }
+  }
 
-    return learnings;
+  // Check for anti-patterns
+  for (const indicator of antiPatternIndicators) {
+    if (result.includes(indicator)) {
+      const snippet = extractSnippetAround(taskResult.result, indicator, 100);
+      if (snippet) {
+        learnings.push({
+          type: 'antiPattern',
+          content: `[${taskResult.taskId}] ${snippet}`,
+        });
+        break;
+      }
+    }
+  }
+
+  // Check for decisions
+  for (const indicator of decisionIndicators) {
+    if (result.includes(indicator)) {
+      const snippet = extractSnippetAround(taskResult.result, indicator, 100);
+      if (snippet) {
+        learnings.push({
+          type: 'decision',
+          content: `[${taskResult.taskId}] ${snippet}`,
+        });
+        break;
+      }
+    }
+  }
+
+  // If task failed, add as anti-pattern
+  if (!taskResult.success && taskResult.error) {
+    learnings.push({
+      type: 'antiPattern',
+      content: `[${taskResult.taskId}] ${taskResult.error}`,
+    });
+  }
+
+  return learnings;
 }
 
 /**
  * Extract a snippet of text around a keyword
  */
-function extractSnippetAround(
-    text: string,
-    keyword: string,
-    maxLength: number
-): string | null {
-    const lowerText = text.toLowerCase();
-    const index = lowerText.indexOf(keyword.toLowerCase());
+function extractSnippetAround(text: string, keyword: string, maxLength: number): string | null {
+  const lowerText = text.toLowerCase();
+  const index = lowerText.indexOf(keyword.toLowerCase());
 
-    if (index === -1) return null;
+  if (index === -1) return null;
 
-    // Find sentence boundaries
-    const start = Math.max(0, text.lastIndexOf('.', index) + 1);
-    const end = Math.min(text.length, text.indexOf('.', index + keyword.length) + 1);
+  // Find sentence boundaries
+  const start = Math.max(0, text.lastIndexOf('.', index) + 1);
+  const end = Math.min(text.length, text.indexOf('.', index + keyword.length) + 1);
 
-    let snippet = text.slice(start, end || text.length).trim();
+  let snippet = text.slice(start, end || text.length).trim();
 
-    // Truncate if too long
-    if (snippet.length > maxLength) {
-        snippet = snippet.slice(0, maxLength) + '...';
-    }
+  // Truncate if too long
+  if (snippet.length > maxLength) {
+    snippet = snippet.slice(0, maxLength) + '...';
+  }
 
-    return snippet;
+  return snippet;
 }
 
 // ============================================================================
@@ -392,59 +373,56 @@ function extractSnippetAround(
  * Format session start result as context for agents
  */
 export function formatSessionContext(result: SessionStartResult): string {
-    const lines: string[] = [];
+  const lines: string[] = [];
 
-    if (result.hasActiveEpic) {
-        lines.push(`## Active Epic`);
-        lines.push(`**Title**: ${result.epicTitle}`);
-        lines.push(`**Progress**: ${result.epicProgress}`);
-        lines.push('');
+  if (result.hasActiveEpic) {
+    lines.push(`## Active Epic`);
+    lines.push(`**Title**: ${result.epicTitle}`);
+    lines.push(`**Progress**: ${result.epicProgress}`);
+    lines.push('');
+  }
+
+  if (result.hasHandoff) {
+    lines.push(`## Handoff`);
+    lines.push(`**Resume Command**: "${result.resumeCommand}"`);
+    lines.push('');
+  }
+
+  const totalLearnings =
+    result.recentLearnings.patterns.length +
+    result.recentLearnings.antiPatterns.length +
+    result.recentLearnings.decisions.length;
+
+  if (totalLearnings > 0) {
+    lines.push(`## Recent Learnings`);
+
+    if (result.recentLearnings.patterns.length > 0) {
+      lines.push('### Patterns');
+      for (const p of result.recentLearnings.patterns.slice(0, 5)) {
+        lines.push(`- ${p}`);
+      }
     }
 
-    if (result.hasHandoff) {
-        lines.push(`## Handoff`);
-        lines.push(`**Resume Command**: "${result.resumeCommand}"`);
-        lines.push('');
+    if (result.recentLearnings.antiPatterns.length > 0) {
+      lines.push('### Anti-Patterns');
+      for (const ap of result.recentLearnings.antiPatterns.slice(0, 5)) {
+        lines.push(`- ${ap}`);
+      }
     }
 
-    const totalLearnings =
-        result.recentLearnings.patterns.length +
-        result.recentLearnings.antiPatterns.length +
-        result.recentLearnings.decisions.length;
-
-    if (totalLearnings > 0) {
-        lines.push(`## Recent Learnings`);
-
-        if (result.recentLearnings.patterns.length > 0) {
-            lines.push('### Patterns');
-            for (const p of result.recentLearnings.patterns.slice(0, 5)) {
-                lines.push(`- ${p}`);
-            }
-        }
-
-        if (result.recentLearnings.antiPatterns.length > 0) {
-            lines.push('### Anti-Patterns');
-            for (const ap of result.recentLearnings.antiPatterns.slice(0, 5)) {
-                lines.push(`- ${ap}`);
-            }
-        }
-
-        if (result.recentLearnings.decisions.length > 0) {
-            lines.push('### Decisions');
-            for (const d of result.recentLearnings.decisions.slice(0, 5)) {
-                lines.push(`- ${d}`);
-            }
-        }
+    if (result.recentLearnings.decisions.length > 0) {
+      lines.push('### Decisions');
+      for (const d of result.recentLearnings.decisions.slice(0, 5)) {
+        lines.push(`- ${d}`);
+      }
     }
+  }
 
-    return lines.join('\n');
+  return lines.join('\n');
 }
 
 // ============================================================================
 // Exports
 // ============================================================================
 
-export {
-    extractLearningsFromResult,
-    extractSnippetAround,
-};
+export { extractLearningsFromResult, extractSnippetAround };

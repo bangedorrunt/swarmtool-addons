@@ -22,6 +22,13 @@ export default tseslint.config(
         console: 'readonly',
         process: 'readonly',
         Buffer: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+        fetch: 'readonly',
+        AbortSignal: 'readonly',
+        global: 'readonly',
         // Bun globals
         Bun: 'readonly',
       },

@@ -135,7 +135,7 @@ export function createSkillAgentTools(client: {
           'frontend-ui-ux-engineer',
         ];
 
-        const callingAgent = ((execContext as unknown) as ToolContext)?.agent || '';
+        const callingAgent = (execContext as unknown as ToolContext)?.agent || '';
         const isProtected = PROTECTED_AGENTS.some(
           (pa) => agent_name === pa || targetAgentName.endsWith(`/${pa}`)
         );
@@ -149,7 +149,8 @@ export function createSkillAgentTools(client: {
             success: false,
             error: 'ACCESS_DENIED',
             message: `The ${agent_name} agent only responds to chief-of-staff.`,
-            suggestion: 'Use skill_agent to call chief-of-staff, who will coordinate sub-agents internally.',
+            suggestion:
+              'Use skill_agent to call chief-of-staff, who will coordinate sub-agents internally.',
             caller: callingAgent,
           });
         }

@@ -21,80 +21,85 @@ import crypto from 'crypto';
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'timeout';
 export type TaskOutcome = 'SUCCEEDED' | 'PARTIAL' | 'FAILED' | '-';
 export type EpicStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
-export type LedgerPhase = 'CLARIFICATION' | 'DECOMPOSITION' | 'PLANNING' | 'EXECUTION' | 'COMPLETION';
+export type LedgerPhase =
+  | 'CLARIFICATION'
+  | 'DECOMPOSITION'
+  | 'PLANNING'
+  | 'EXECUTION'
+  | 'COMPLETION';
 
 export interface Task {
-    id: string; // Format: abc123.1
-    title: string;
-    agent: string;
-    status: TaskStatus;
-    outcome: TaskOutcome;
-    dependencies: string[];
-    result?: string;
-    error?: string;
-    startedAt?: number;
-    completedAt?: number;
+  id: string; // Format: abc123.1
+  title: string;
+  agent: string;
+  status: TaskStatus;
+  outcome: TaskOutcome;
+  dependencies: string[];
+  result?: string;
+  error?: string;
+  startedAt?: number;
+  completedAt?: number;
 }
 
 export interface Epic {
-    id: string; // Format: abc123
-    title: string;
-    request: string;
-    status: EpicStatus;
-    createdAt: number;
-    completedAt?: number;
-    tasks: Task[];
-    context: string[];
-    progressLog: string[];
+  id: string; // Format: abc123
+  title: string;
+  request: string;
+  status: EpicStatus;
+  createdAt: number;
+  completedAt?: number;
+  tasks: Task[];
+  context: string[];
+  progressLog: string[];
 }
 
 export interface LearningEntry {
-    content: string;
-    createdAt?: number;
+  content: string;
+  createdAt?: number;
 }
 
 export interface Learnings {
-    patterns: LearningEntry[];
-    antiPatterns: LearningEntry[];
-    decisions: LearningEntry[];
-    preferences: LearningEntry[];
+  patterns: LearningEntry[];
+  antiPatterns: LearningEntry[];
+  decisions: LearningEntry[];
+  preferences: LearningEntry[];
 }
 
 export interface Handoff {
-    created: string;
-    reason: 'context_limit' | 'user_exit' | 'session_break';
-    resumeCommand: string;
-    whatsDone: string[];
-    whatsNext: string[];
-    keyContext: string[];
-    filesModified: string[];
-    learningsThisSession: string[];
+  created: string;
+  reason: 'context_limit' | 'user_exit' | 'session_break';
+  resumeCommand: string;
+  whatsDone: string[];
+  whatsNext: string[];
+  keyContext: string[];
+  filesModified: string[];
+  learningsThisSession: string[];
 }
 
 export interface ArchiveEntry {
-    epicId: string;
-    title: string;
-    outcome: TaskOutcome;
-    duration: string;
-    date: string;
+  epicId: string;
+  title: string;
+  outcome: TaskOutcome;
+  duration: string;
+  date: string;
 }
 
 export interface LedgerMeta {
-    sessionId: string;
-    status: 'active' | 'paused' | 'handoff';
-    phase: LedgerPhase;
-    lastUpdated: string;
-    contextUsage?: string;
-    tasksCompleted: string; // e.g., "2/3"
-    currentTask?: string;
+  sessionId: string;
+  status: 'active' | 'paused' | 'handoff';
+  phase: LedgerPhase;
+  lastUpdated: string;
+  contextUsage?: string;
+  tasksCompleted: string; // e.g., "2/3"
+  currentTask?: string;
 }
 
 export interface Ledger {
-    meta: LedgerMeta;
-    epic: Epic | null;
-    learnings: Learnings;
-    handoff: Handoff | null;
-    archive: ArchiveEntry[];
+  meta: LedgerMeta;
+  epic: Epic | null;
+  learnings: Learnings;
+  handoff: Handoff | null;
+  archive: ArchiveEntry[];
 }
 
 // ============================================================================
@@ -110,25 +115,25 @@ const MAX_ARCHIVE_ENTRIES = 5;
 // ============================================================================
 
 function generateHash(): string {
-    return crypto.randomBytes(3).toString('hex'); // 6 chars: abc123
+  return crypto.randomBytes(3).toString('hex'); // 6 chars: abc123
 }
 
 function generateSessionId(): string {
-    return `sess_${generateHash()}`;
+  return `sess_${generateHash()}`;
 }
 
 function formatTimestamp(date: Date = new Date()): string {
-    return date.toISOString();
+  return date.toISOString();
 }
 
 function formatDuration(startMs: number, endMs: number): string {
-    const seconds = Math.floor((endMs - startMs) / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
+  const seconds = Math.floor((endMs - startMs) / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
 
-    if (hours > 0) return `${hours}h ${minutes % 60}m`;
-    if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
-    return `${seconds}s`;
+  if (hours > 0) return `${hours}h ${minutes % 60}m`;
+  if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+  return `${seconds}s`;
 }
 
 // ============================================================================
@@ -136,24 +141,24 @@ function formatDuration(startMs: number, endMs: number): string {
 // ============================================================================
 
 function createDefaultLedger(): Ledger {
-    return {
-        meta: {
-            sessionId: generateSessionId(),
-            status: 'active',
-            phase: 'CLARIFICATION',
-            lastUpdated: formatTimestamp(),
-            tasksCompleted: '0/0',
-        },
-        epic: null,
-        learnings: {
-            patterns: [],
-            antiPatterns: [],
-            decisions: [],
-            preferences: [],
-        },
-        handoff: null,
-        archive: [],
-    };
+  return {
+    meta: {
+      sessionId: generateSessionId(),
+      status: 'active',
+      phase: 'CLARIFICATION',
+      lastUpdated: formatTimestamp(),
+      tasksCompleted: '0/0',
+    },
+    epic: null,
+    learnings: {
+      patterns: [],
+      antiPatterns: [],
+      decisions: [],
+      preferences: [],
+    },
+    handoff: null,
+    archive: [],
+  };
 }
 
 // ============================================================================
@@ -161,149 +166,169 @@ function createDefaultLedger(): Ledger {
 // ============================================================================
 
 function parseLedgerMarkdown(content: string): Ledger {
-    const ledger = createDefaultLedger();
-    const lines = content.split('\n');
+  const ledger = createDefaultLedger();
+  const lines = content.split('\n');
 
-    let currentSection = '';
-    let currentSubSection = '';
+  let currentSection = '';
+  let currentSubSection = '';
 
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
 
-        // Section headers
-        if (line.startsWith('## Meta')) {
-            currentSection = 'meta';
-            continue;
-        } else if (line.startsWith('## Epic:')) {
-            currentSection = 'epic';
-            const epicId = line.replace('## Epic:', '').trim();
-            ledger.epic = {
-                id: epicId,
-                title: '',
-                request: '',
-                status: 'pending',
-                createdAt: Date.now(),
-                tasks: [],
-                context: [],
-                progressLog: [],
-            };
-            continue;
-        } else if (line.startsWith('## Learnings')) {
-            currentSection = 'learnings';
-            continue;
-        } else if (line.startsWith('## Handoff')) {
-            currentSection = 'handoff';
-            continue;
-        } else if (line.startsWith('## Archive')) {
-            currentSection = 'archive';
-            continue;
-        }
-
-        // Parse Meta section
-        if (currentSection === 'meta') {
-            if (line.startsWith('session_id:')) {
-                ledger.meta.sessionId = line.replace('session_id:', '').trim();
-            } else if (line.startsWith('status:')) {
-                ledger.meta.status = line.replace('status:', '').trim() as LedgerMeta['status'];
-            } else if (line.startsWith('phase:')) {
-                ledger.meta.phase = line.replace('phase:', '').trim() as LedgerPhase;
-            } else if (line.startsWith('last_updated:')) {
-                ledger.meta.lastUpdated = line.replace('last_updated:', '').trim();
-            } else if (line.startsWith('tasks_completed:')) {
-                ledger.meta.tasksCompleted = line.replace('tasks_completed:', '').trim();
-            } else if (line.startsWith('current_task:')) {
-                ledger.meta.currentTask = line.replace('current_task:', '').trim();
-            }
-        }
-
-        // Parse Epic section
-        if (currentSection === 'epic' && ledger.epic) {
-            if (line.startsWith('**Title**:')) {
-                ledger.epic.title = line.replace('**Title**:', '').trim();
-            } else if (line.startsWith('**Request**:')) {
-                ledger.epic.request = line.replace('**Request**:', '').trim();
-            } else if (line.startsWith('**Status**:')) {
-                ledger.epic.status = line.replace('**Status**:', '').trim() as EpicStatus;
-            } else if (line.startsWith('### Tasks')) {
-                currentSubSection = 'tasks';
-            } else if (line.startsWith('### Context')) {
-                currentSubSection = 'context';
-            } else if (line.startsWith('### Progress Log')) {
-                currentSubSection = 'progressLog';
-            } else if (line.startsWith('### Dependencies')) {
-                currentSubSection = 'dependencies';
-            }
-
-            // Parse task table rows
-            if (currentSubSection === 'tasks' && line.startsWith('|') && !line.includes('ID') && !line.includes('---')) {
-                const cols = line.split('|').map((c) => c.trim()).filter(Boolean);
-                if (cols.length >= 4) {
-                    const outcomeStr = cols[4] || '-';
-                    const outcome: TaskOutcome = ['SUCCEEDED', 'PARTIAL', 'FAILED', '-'].includes(outcomeStr)
-                        ? (outcomeStr as TaskOutcome)
-                        : '-';
-                    ledger.epic.tasks.push({
-                        id: cols[0],
-                        title: cols[1],
-                        agent: cols[2],
-                        status: cols[3].includes('✅') ? 'completed' : cols[3].includes('❌') ? 'failed' : 'pending',
-                        outcome,
-                        dependencies: [],
-                    });
-                }
-            }
-
-            // Parse context items
-            if (currentSubSection === 'context' && line.startsWith('- ')) {
-                ledger.epic.context.push(line.replace('- ', ''));
-            }
-
-            // Parse progress log
-            if (currentSubSection === 'progressLog' && line.startsWith('- ')) {
-                ledger.epic.progressLog.push(line.replace('- ', ''));
-            }
-        }
-
-        // Parse Learnings section
-        if (currentSection === 'learnings') {
-            if (line.startsWith('### Patterns')) {
-                currentSubSection = 'patterns';
-            } else if (line.startsWith('### Anti-Patterns')) {
-                currentSubSection = 'antiPatterns';
-            } else if (line.startsWith('### Decisions')) {
-                currentSubSection = 'decisions';
-            } else if (line.startsWith('### Preferences')) {
-                currentSubSection = 'preferences';
-            } else if (line.startsWith('- ')) {
-                const content = line.replace('- ', '').replace(/^\*\*[^*]+\*\*:\s*/, '');
-                if (currentSubSection === 'patterns') {
-                    ledger.learnings.patterns.push({ content });
-                } else if (currentSubSection === 'antiPatterns') {
-                    ledger.learnings.antiPatterns.push({ content });
-                } else if (currentSubSection === 'decisions') {
-                    ledger.learnings.decisions.push({ content });
-                } else if (currentSubSection === 'preferences') {
-                    ledger.learnings.preferences.push({ content });
-                }
-            }
-        }
-
-        // Parse Archive section
-        if (currentSection === 'archive' && line.startsWith('|') && !line.includes('Epic') && !line.includes('---')) {
-            const cols = line.split('|').map((c) => c.trim()).filter(Boolean);
-            if (cols.length >= 4) {
-                ledger.archive.push({
-                    epicId: cols[0],
-                    title: cols[1],
-                    outcome: cols[2] as TaskOutcome,
-                    duration: '',
-                    date: cols[3],
-                });
-            }
-        }
+    // Section headers
+    if (line.startsWith('## Meta')) {
+      currentSection = 'meta';
+      continue;
+    } else if (line.startsWith('## Epic:')) {
+      currentSection = 'epic';
+      const epicId = line.replace('## Epic:', '').trim();
+      ledger.epic = {
+        id: epicId,
+        title: '',
+        request: '',
+        status: 'pending',
+        createdAt: Date.now(),
+        tasks: [],
+        context: [],
+        progressLog: [],
+      };
+      continue;
+    } else if (line.startsWith('## Learnings')) {
+      currentSection = 'learnings';
+      continue;
+    } else if (line.startsWith('## Handoff')) {
+      currentSection = 'handoff';
+      continue;
+    } else if (line.startsWith('## Archive')) {
+      currentSection = 'archive';
+      continue;
     }
 
-    return ledger;
+    // Parse Meta section
+    if (currentSection === 'meta') {
+      if (line.startsWith('session_id:')) {
+        ledger.meta.sessionId = line.replace('session_id:', '').trim();
+      } else if (line.startsWith('status:')) {
+        ledger.meta.status = line.replace('status:', '').trim() as LedgerMeta['status'];
+      } else if (line.startsWith('phase:')) {
+        ledger.meta.phase = line.replace('phase:', '').trim() as LedgerPhase;
+      } else if (line.startsWith('last_updated:')) {
+        ledger.meta.lastUpdated = line.replace('last_updated:', '').trim();
+      } else if (line.startsWith('tasks_completed:')) {
+        ledger.meta.tasksCompleted = line.replace('tasks_completed:', '').trim();
+      } else if (line.startsWith('current_task:')) {
+        ledger.meta.currentTask = line.replace('current_task:', '').trim();
+      }
+    }
+
+    // Parse Epic section
+    if (currentSection === 'epic' && ledger.epic) {
+      if (line.startsWith('**Title**:')) {
+        ledger.epic.title = line.replace('**Title**:', '').trim();
+      } else if (line.startsWith('**Request**:')) {
+        ledger.epic.request = line.replace('**Request**:', '').trim();
+      } else if (line.startsWith('**Status**:')) {
+        ledger.epic.status = line.replace('**Status**:', '').trim() as EpicStatus;
+      } else if (line.startsWith('### Tasks')) {
+        currentSubSection = 'tasks';
+      } else if (line.startsWith('### Context')) {
+        currentSubSection = 'context';
+      } else if (line.startsWith('### Progress Log')) {
+        currentSubSection = 'progressLog';
+      } else if (line.startsWith('### Dependencies')) {
+        currentSubSection = 'dependencies';
+      }
+
+      // Parse task table rows
+      if (
+        currentSubSection === 'tasks' &&
+        line.startsWith('|') &&
+        !line.includes('ID') &&
+        !line.includes('---')
+      ) {
+        const cols = line
+          .split('|')
+          .map((c) => c.trim())
+          .filter(Boolean);
+        if (cols.length >= 4) {
+          const outcomeStr = cols[4] || '-';
+          const outcome: TaskOutcome = ['SUCCEEDED', 'PARTIAL', 'FAILED', '-'].includes(outcomeStr)
+            ? (outcomeStr as TaskOutcome)
+            : '-';
+          ledger.epic.tasks.push({
+            id: cols[0],
+            title: cols[1],
+            agent: cols[2],
+            status: cols[3].includes('✅')
+              ? 'completed'
+              : cols[3].includes('❌')
+                ? 'failed'
+                : 'pending',
+            outcome,
+            dependencies: [],
+          });
+        }
+      }
+
+      // Parse context items
+      if (currentSubSection === 'context' && line.startsWith('- ')) {
+        ledger.epic.context.push(line.replace('- ', ''));
+      }
+
+      // Parse progress log
+      if (currentSubSection === 'progressLog' && line.startsWith('- ')) {
+        ledger.epic.progressLog.push(line.replace('- ', ''));
+      }
+    }
+
+    // Parse Learnings section
+    if (currentSection === 'learnings') {
+      if (line.startsWith('### Patterns')) {
+        currentSubSection = 'patterns';
+      } else if (line.startsWith('### Anti-Patterns')) {
+        currentSubSection = 'antiPatterns';
+      } else if (line.startsWith('### Decisions')) {
+        currentSubSection = 'decisions';
+      } else if (line.startsWith('### Preferences')) {
+        currentSubSection = 'preferences';
+      } else if (line.startsWith('- ')) {
+        const content = line.replace('- ', '').replace(/^\*\*[^*]+\*\*:\s*/, '');
+        if (currentSubSection === 'patterns') {
+          ledger.learnings.patterns.push({ content });
+        } else if (currentSubSection === 'antiPatterns') {
+          ledger.learnings.antiPatterns.push({ content });
+        } else if (currentSubSection === 'decisions') {
+          ledger.learnings.decisions.push({ content });
+        } else if (currentSubSection === 'preferences') {
+          ledger.learnings.preferences.push({ content });
+        }
+      }
+    }
+
+    // Parse Archive section
+    if (
+      currentSection === 'archive' &&
+      line.startsWith('|') &&
+      !line.includes('Epic') &&
+      !line.includes('---')
+    ) {
+      const cols = line
+        .split('|')
+        .map((c) => c.trim())
+        .filter(Boolean);
+      if (cols.length >= 4) {
+        ledger.archive.push({
+          epicId: cols[0],
+          title: cols[1],
+          outcome: cols[2] as TaskOutcome,
+          duration: '',
+          date: cols[3],
+        });
+      }
+    }
+  }
+
+  return ledger;
 }
 
 // ============================================================================
@@ -311,186 +336,189 @@ function parseLedgerMarkdown(content: string): Ledger {
 // ============================================================================
 
 function renderLedgerMarkdown(ledger: Ledger): string {
-    const lines: string[] = [];
+  const lines: string[] = [];
 
-    // Header
-    lines.push('# LEDGER');
+  // Header
+  lines.push('# LEDGER');
+  lines.push('');
+
+  // Meta section
+  lines.push('## Meta');
+  lines.push(`session_id: ${ledger.meta.sessionId}`);
+  lines.push(`status: ${ledger.meta.status}`);
+  lines.push(`phase: ${ledger.meta.phase}`);
+  lines.push(`last_updated: ${ledger.meta.lastUpdated}`);
+  lines.push(`tasks_completed: ${ledger.meta.tasksCompleted}`);
+  if (ledger.meta.currentTask) {
+    lines.push(`current_task: ${ledger.meta.currentTask}`);
+  }
+  lines.push('');
+  lines.push('---');
+  lines.push('');
+
+  // Epic section
+  if (ledger.epic) {
+    lines.push(`## Epic: ${ledger.epic.id}`);
+    lines.push('');
+    lines.push(`**Title**: ${ledger.epic.title}`);
+    lines.push(`**Request**: "${ledger.epic.request}"`);
+    lines.push(`**Status**: ${ledger.epic.status}`);
+    lines.push(`**Created**: ${new Date(ledger.epic.createdAt).toISOString()}`);
     lines.push('');
 
-    // Meta section
-    lines.push('## Meta');
-    lines.push(`session_id: ${ledger.meta.sessionId}`);
-    lines.push(`status: ${ledger.meta.status}`);
-    lines.push(`phase: ${ledger.meta.phase}`);
-    lines.push(`last_updated: ${ledger.meta.lastUpdated}`);
-    lines.push(`tasks_completed: ${ledger.meta.tasksCompleted}`);
-    if (ledger.meta.currentTask) {
-        lines.push(`current_task: ${ledger.meta.currentTask}`);
-    }
+    // Tasks table
+    lines.push('### Tasks');
     lines.push('');
-    lines.push('---');
-    lines.push('');
-
-    // Epic section
-    if (ledger.epic) {
-        lines.push(`## Epic: ${ledger.epic.id}`);
-        lines.push('');
-        lines.push(`**Title**: ${ledger.epic.title}`);
-        lines.push(`**Request**: "${ledger.epic.request}"`);
-        lines.push(`**Status**: ${ledger.epic.status}`);
-        lines.push(`**Created**: ${new Date(ledger.epic.createdAt).toISOString()}`);
-        lines.push('');
-
-        // Tasks table
-        lines.push('### Tasks');
-        lines.push('');
-        lines.push('| ID | Title | Agent | Status | Outcome |');
-        lines.push('|----|-------|-------|--------|---------|');
-        for (const task of ledger.epic.tasks) {
-            const statusIcon = task.status === 'completed' ? '✅' : task.status === 'failed' ? '❌' : '⏳';
-            lines.push(`| ${task.id} | ${task.title} | ${task.agent} | ${statusIcon} ${task.status} | ${task.outcome} |`);
-        }
-        lines.push('');
-
-        // Dependencies
-        const deps = ledger.epic.tasks.filter((t) => t.dependencies.length > 0);
-        if (deps.length > 0) {
-            lines.push('### Dependencies');
-            for (const task of deps) {
-                for (const dep of task.dependencies) {
-                    lines.push(`- ${task.id} → depends on → ${dep}`);
-                }
-            }
-            lines.push('');
-        }
-
-        // Context
-        if (ledger.epic.context.length > 0) {
-            lines.push('### Context');
-            for (const ctx of ledger.epic.context) {
-                lines.push(`- ${ctx}`);
-            }
-            lines.push('');
-        }
-
-        // Progress Log
-        if (ledger.epic.progressLog.length > 0) {
-            lines.push('### Progress Log');
-            for (const log of ledger.epic.progressLog) {
-                lines.push(`- ${log}`);
-            }
-            lines.push('');
-        }
-    } else {
-        lines.push('## Epic');
-        lines.push('');
-        lines.push('*No active epic*');
-        lines.push('');
-    }
-
-    lines.push('---');
-    lines.push('');
-
-    // Learnings section
-    lines.push('## Learnings');
-    lines.push('');
-
-    lines.push('### Patterns ✅');
-    if (ledger.learnings.patterns.length > 0) {
-        for (const p of ledger.learnings.patterns) {
-            lines.push(`- ${p.content}`);
-        }
-    } else {
-        lines.push('*No patterns yet*');
+    lines.push('| ID | Title | Agent | Status | Outcome |');
+    lines.push('|----|-------|-------|--------|---------|');
+    for (const task of ledger.epic.tasks) {
+      const statusIcon =
+        task.status === 'completed' ? '✅' : task.status === 'failed' ? '❌' : '⏳';
+      lines.push(
+        `| ${task.id} | ${task.title} | ${task.agent} | ${statusIcon} ${task.status} | ${task.outcome} |`
+      );
     }
     lines.push('');
 
-    lines.push('### Anti-Patterns ❌');
-    if (ledger.learnings.antiPatterns.length > 0) {
-        for (const ap of ledger.learnings.antiPatterns) {
-            lines.push(`- ${ap.content}`);
+    // Dependencies
+    const deps = ledger.epic.tasks.filter((t) => t.dependencies.length > 0);
+    if (deps.length > 0) {
+      lines.push('### Dependencies');
+      for (const task of deps) {
+        for (const dep of task.dependencies) {
+          lines.push(`- ${task.id} → depends on → ${dep}`);
         }
-    } else {
-        lines.push('*No anti-patterns yet*');
+      }
+      lines.push('');
+    }
+
+    // Context
+    if (ledger.epic.context.length > 0) {
+      lines.push('### Context');
+      for (const ctx of ledger.epic.context) {
+        lines.push(`- ${ctx}`);
+      }
+      lines.push('');
+    }
+
+    // Progress Log
+    if (ledger.epic.progressLog.length > 0) {
+      lines.push('### Progress Log');
+      for (const log of ledger.epic.progressLog) {
+        lines.push(`- ${log}`);
+      }
+      lines.push('');
+    }
+  } else {
+    lines.push('## Epic');
+    lines.push('');
+    lines.push('*No active epic*');
+    lines.push('');
+  }
+
+  lines.push('---');
+  lines.push('');
+
+  // Learnings section
+  lines.push('## Learnings');
+  lines.push('');
+
+  lines.push('### Patterns ✅');
+  if (ledger.learnings.patterns.length > 0) {
+    for (const p of ledger.learnings.patterns) {
+      lines.push(`- ${p.content}`);
+    }
+  } else {
+    lines.push('*No patterns yet*');
+  }
+  lines.push('');
+
+  lines.push('### Anti-Patterns ❌');
+  if (ledger.learnings.antiPatterns.length > 0) {
+    for (const ap of ledger.learnings.antiPatterns) {
+      lines.push(`- ${ap.content}`);
+    }
+  } else {
+    lines.push('*No anti-patterns yet*');
+  }
+  lines.push('');
+
+  lines.push('### Decisions');
+  if (ledger.learnings.decisions.length > 0) {
+    for (const d of ledger.learnings.decisions) {
+      lines.push(`- ${d.content}`);
+    }
+  } else {
+    lines.push('*No decisions yet*');
+  }
+  lines.push('');
+
+  lines.push('### Preferences');
+  if (ledger.learnings.preferences.length > 0) {
+    for (const pref of ledger.learnings.preferences) {
+      lines.push(`- ${pref.content}`);
+    }
+  } else {
+    lines.push('*No preferences yet*');
+  }
+  lines.push('');
+  lines.push('---');
+  lines.push('');
+
+  // Handoff section
+  lines.push('## Handoff');
+  lines.push('');
+  if (ledger.handoff) {
+    lines.push(`**Created**: ${ledger.handoff.created}`);
+    lines.push(`**Reason**: ${ledger.handoff.reason}`);
+    lines.push(`**Resume Command**: "${ledger.handoff.resumeCommand}"`);
+    lines.push('');
+    lines.push("### What's Done");
+    for (const done of ledger.handoff.whatsDone) {
+      lines.push(`- [x] ${done}`);
     }
     lines.push('');
-
-    lines.push('### Decisions');
-    if (ledger.learnings.decisions.length > 0) {
-        for (const d of ledger.learnings.decisions) {
-            lines.push(`- ${d.content}`);
-        }
-    } else {
-        lines.push('*No decisions yet*');
+    lines.push("### What's Next");
+    for (const next of ledger.handoff.whatsNext) {
+      lines.push(`- [ ] ${next}`);
     }
     lines.push('');
-
-    lines.push('### Preferences');
-    if (ledger.learnings.preferences.length > 0) {
-        for (const pref of ledger.learnings.preferences) {
-            lines.push(`- ${pref.content}`);
-        }
-    } else {
-        lines.push('*No preferences yet*');
+    if (ledger.handoff.keyContext.length > 0) {
+      lines.push('### Key Context');
+      for (const ctx of ledger.handoff.keyContext) {
+        lines.push(`- ${ctx}`);
+      }
+      lines.push('');
     }
-    lines.push('');
-    lines.push('---');
-    lines.push('');
-
-    // Handoff section
-    lines.push('## Handoff');
-    lines.push('');
-    if (ledger.handoff) {
-        lines.push(`**Created**: ${ledger.handoff.created}`);
-        lines.push(`**Reason**: ${ledger.handoff.reason}`);
-        lines.push(`**Resume Command**: "${ledger.handoff.resumeCommand}"`);
-        lines.push('');
-        lines.push('### What\'s Done');
-        for (const done of ledger.handoff.whatsDone) {
-            lines.push(`- [x] ${done}`);
-        }
-        lines.push('');
-        lines.push('### What\'s Next');
-        for (const next of ledger.handoff.whatsNext) {
-            lines.push(`- [ ] ${next}`);
-        }
-        lines.push('');
-        if (ledger.handoff.keyContext.length > 0) {
-            lines.push('### Key Context');
-            for (const ctx of ledger.handoff.keyContext) {
-                lines.push(`- ${ctx}`);
-            }
-            lines.push('');
-        }
-        if (ledger.handoff.filesModified.length > 0) {
-            lines.push('### Files Modified');
-            for (const file of ledger.handoff.filesModified) {
-                lines.push(`- \`${file}\``);
-            }
-            lines.push('');
-        }
-    } else {
-        lines.push('*No pending handoff*');
-        lines.push('');
+    if (ledger.handoff.filesModified.length > 0) {
+      lines.push('### Files Modified');
+      for (const file of ledger.handoff.filesModified) {
+        lines.push(`- \`${file}\``);
+      }
+      lines.push('');
     }
-    lines.push('---');
+  } else {
+    lines.push('*No pending handoff*');
     lines.push('');
+  }
+  lines.push('---');
+  lines.push('');
 
-    // Archive section
-    lines.push('## Archive');
-    lines.push('');
-    if (ledger.archive.length > 0) {
-        lines.push('| Epic | Title | Outcome | Date |');
-        lines.push('|------|-------|---------|------|');
-        for (const entry of ledger.archive) {
-            lines.push(`| ${entry.epicId} | ${entry.title} | ${entry.outcome} | ${entry.date} |`);
-        }
-    } else {
-        lines.push('*No archived epics*');
+  // Archive section
+  lines.push('## Archive');
+  lines.push('');
+  if (ledger.archive.length > 0) {
+    lines.push('| Epic | Title | Outcome | Date |');
+    lines.push('|------|-------|---------|------|');
+    for (const entry of ledger.archive) {
+      lines.push(`| ${entry.epicId} | ${entry.title} | ${entry.outcome} | ${entry.date} |`);
     }
-    lines.push('');
+  } else {
+    lines.push('*No archived epics*');
+  }
+  lines.push('');
 
-    return lines.join('\n');
+  return lines.join('\n');
 }
 
 // ============================================================================
@@ -501,375 +529,377 @@ function renderLedgerMarkdown(ledger: Ledger): string {
  * Load LEDGER from file system
  */
 export async function loadLedger(path: string = DEFAULT_LEDGER_PATH): Promise<Ledger> {
-    try {
-        if (!existsSync(path)) {
-            console.log(`[Ledger] No LEDGER found at ${path}, creating default`);
-            return createDefaultLedger();
-        }
-
-        const content = await readFile(path, 'utf-8');
-        const ledger = parseLedgerMarkdown(content);
-        console.log(`[Ledger] Loaded from ${path}`);
-        return ledger;
-    } catch (error) {
-        console.error(`[Ledger] Failed to load: ${error}`);
-        return createDefaultLedger();
+  try {
+    if (!existsSync(path)) {
+      console.log(`[Ledger] No LEDGER found at ${path}, creating default`);
+      return createDefaultLedger();
     }
+
+    const content = await readFile(path, 'utf-8');
+    const ledger = parseLedgerMarkdown(content);
+    console.log(`[Ledger] Loaded from ${path}`);
+    return ledger;
+  } catch (error) {
+    console.error(`[Ledger] Failed to load: ${error}`);
+    return createDefaultLedger();
+  }
 }
 
 /**
  * Save LEDGER to file system
  */
-export async function saveLedger(ledger: Ledger, path: string = DEFAULT_LEDGER_PATH): Promise<void> {
-    try {
-        // Ensure directory exists
-        const dir = dirname(path);
-        if (!existsSync(dir)) {
-            await mkdir(dir, { recursive: true });
-        }
-
-        // Update timestamp
-        ledger.meta.lastUpdated = formatTimestamp();
-
-        // Render and save
-        const content = renderLedgerMarkdown(ledger);
-        await writeFile(path, content, 'utf-8');
-        console.log(`[Ledger] Saved to ${path}`);
-    } catch (error) {
-        console.error(`[Ledger] Failed to save: ${error}`);
-        throw error;
+export async function saveLedger(
+  ledger: Ledger,
+  path: string = DEFAULT_LEDGER_PATH
+): Promise<void> {
+  try {
+    // Ensure directory exists
+    const dir = dirname(path);
+    if (!existsSync(dir)) {
+      await mkdir(dir, { recursive: true });
     }
+
+    // Update timestamp
+    ledger.meta.lastUpdated = formatTimestamp();
+
+    // Render and save
+    const content = renderLedgerMarkdown(ledger);
+    await writeFile(path, content, 'utf-8');
+    console.log(`[Ledger] Saved to ${path}`);
+  } catch (error) {
+    console.error(`[Ledger] Failed to save: ${error}`);
+    throw error;
+  }
 }
 
 /**
  * Create a new Epic
  */
 export function createEpic(ledger: Ledger, title: string, request: string): string {
-    if (ledger.epic) {
-        throw new Error('Cannot create epic: An active epic already exists. Archive it first.');
-    }
+  if (ledger.epic) {
+    throw new Error('Cannot create epic: An active epic already exists. Archive it first.');
+  }
 
-    const epicId = generateHash();
-    ledger.epic = {
-        id: epicId,
-        title,
-        request,
-        status: 'pending',
-        createdAt: Date.now(),
-        tasks: [],
-        context: [],
-        progressLog: [`[${formatTimestamp()}] Epic created: ${title}`],
-    };
+  const epicId = generateHash();
+  ledger.epic = {
+    id: epicId,
+    title,
+    request,
+    status: 'pending',
+    createdAt: Date.now(),
+    tasks: [],
+    context: [],
+    progressLog: [`[${formatTimestamp()}] Epic created: ${title}`],
+  };
 
-    ledger.meta.phase = 'DECOMPOSITION';
-    ledger.meta.tasksCompleted = '0/0';
+  ledger.meta.phase = 'DECOMPOSITION';
+  ledger.meta.tasksCompleted = '0/0';
 
-    console.log(`[Ledger] Created epic: ${epicId} - ${title}`);
-    return epicId;
+  console.log(`[Ledger] Created epic: ${epicId} - ${title}`);
+  return epicId;
 }
 
 /**
  * Create a task within the current Epic
  */
 export function createTask(
-    ledger: Ledger,
-    title: string,
-    agent: string,
-    options?: { dependencies?: string[] }
+  ledger: Ledger,
+  title: string,
+  agent: string,
+  options?: { dependencies?: string[] }
 ): string {
-    if (!ledger.epic) {
-        throw new Error('Cannot create task: No active epic');
-    }
+  if (!ledger.epic) {
+    throw new Error('Cannot create task: No active epic');
+  }
 
-    if (ledger.epic.tasks.length >= MAX_TASKS_PER_EPIC) {
-        throw new Error(`Cannot create task: Epic already has ${MAX_TASKS_PER_EPIC} tasks (maximum)`);
-    }
+  if (ledger.epic.tasks.length >= MAX_TASKS_PER_EPIC) {
+    throw new Error(`Cannot create task: Epic already has ${MAX_TASKS_PER_EPIC} tasks (maximum)`);
+  }
 
-    const taskNumber = ledger.epic.tasks.length + 1;
-    const taskId = `${ledger.epic.id}.${taskNumber}`;
+  const taskNumber = ledger.epic.tasks.length + 1;
+  const taskId = `${ledger.epic.id}.${taskNumber}`;
 
-    const task: Task = {
-        id: taskId,
-        title,
-        agent,
-        status: 'pending',
-        outcome: '-',
-        dependencies: options?.dependencies || [],
-    };
+  const task: Task = {
+    id: taskId,
+    title,
+    agent,
+    status: 'pending',
+    outcome: '-',
+    dependencies: options?.dependencies || [],
+  };
 
-    ledger.epic.tasks.push(task);
-    ledger.meta.tasksCompleted = `0/${ledger.epic.tasks.length}`;
-    ledger.epic.progressLog.push(`[${formatTimestamp()}] Task created: ${taskId} - ${title}`);
+  ledger.epic.tasks.push(task);
+  ledger.meta.tasksCompleted = `0/${ledger.epic.tasks.length}`;
+  ledger.epic.progressLog.push(`[${formatTimestamp()}] Task created: ${taskId} - ${title}`);
 
-    console.log(`[Ledger] Created task: ${taskId} - ${title}`);
-    return taskId;
+  console.log(`[Ledger] Created task: ${taskId} - ${title}`);
+  return taskId;
 }
 
 /**
  * Update task status
  */
 export function updateTaskStatus(
-    ledger: Ledger,
-    taskId: string,
-    status: TaskStatus,
-    result?: string,
-    error?: string
+  ledger: Ledger,
+  taskId: string,
+  status: TaskStatus,
+  result?: string,
+  error?: string
 ): void {
-    if (!ledger.epic) {
-        throw new Error('Cannot update task: No active epic');
-    }
+  if (!ledger.epic) {
+    throw new Error('Cannot update task: No active epic');
+  }
 
-    const task = ledger.epic.tasks.find((t) => t.id === taskId);
-    if (!task) {
-        throw new Error(`Task not found: ${taskId}`);
-    }
+  const task = ledger.epic.tasks.find((t) => t.id === taskId);
+  if (!task) {
+    throw new Error(`Task not found: ${taskId}`);
+  }
 
-    task.status = status;
+  task.status = status;
 
-    if (status === 'running' && !task.startedAt) {
-        task.startedAt = Date.now();
-        ledger.meta.currentTask = taskId;
-        ledger.meta.phase = 'EXECUTION';
-        ledger.epic.status = 'in_progress';
-    }
+  if (status === 'running' && !task.startedAt) {
+    task.startedAt = Date.now();
+    ledger.meta.currentTask = taskId;
+    ledger.meta.phase = 'EXECUTION';
+    ledger.epic.status = 'in_progress';
+  }
 
-    if (status === 'completed') {
-        task.completedAt = Date.now();
-        task.outcome = 'SUCCEEDED';
-        if (result) task.result = result;
-        ledger.epic.progressLog.push(`[${formatTimestamp()}] ${taskId} completed`);
-    }
+  if (status === 'completed') {
+    task.completedAt = Date.now();
+    task.outcome = 'SUCCEEDED';
+    if (result) task.result = result;
+    ledger.epic.progressLog.push(`[${formatTimestamp()}] ${taskId} completed`);
+  }
 
-    if (status === 'failed') {
-        task.completedAt = Date.now();
-        task.outcome = 'FAILED';
-        if (error) task.error = error;
-        ledger.epic.progressLog.push(`[${formatTimestamp()}] ${taskId} failed: ${error || 'unknown'}`);
-    }
+  if (status === 'failed') {
+    task.completedAt = Date.now();
+    task.outcome = 'FAILED';
+    if (error) task.error = error;
+    ledger.epic.progressLog.push(`[${formatTimestamp()}] ${taskId} failed: ${error || 'unknown'}`);
+  }
 
-    // Update progress
-    const completed = ledger.epic.tasks.filter((t) => t.status === 'completed').length;
-    ledger.meta.tasksCompleted = `${completed}/${ledger.epic.tasks.length}`;
+  // Update progress
+  const completed = ledger.epic.tasks.filter((t) => t.status === 'completed').length;
+  ledger.meta.tasksCompleted = `${completed}/${ledger.epic.tasks.length}`;
 
-    // Check if epic is complete
-    const allDone = ledger.epic.tasks.every((t) => t.status === 'completed' || t.status === 'failed');
-    if (allDone) {
-        const allSucceeded = ledger.epic.tasks.every((t) => t.status === 'completed');
-        ledger.epic.status = allSucceeded ? 'completed' : 'failed';
-        ledger.meta.phase = 'COMPLETION';
-        ledger.meta.currentTask = undefined;
-    }
+  // Check if epic is complete
+  const allDone = ledger.epic.tasks.every((t) => t.status === 'completed' || t.status === 'failed');
+  if (allDone) {
+    const allSucceeded = ledger.epic.tasks.every((t) => t.status === 'completed');
+    ledger.epic.status = allSucceeded ? 'completed' : 'failed';
+    ledger.meta.phase = 'COMPLETION';
+    ledger.meta.currentTask = undefined;
+  }
 
-    console.log(`[Ledger] Task ${taskId} status: ${status}`);
+  console.log(`[Ledger] Task ${taskId} status: ${status}`);
 }
 
 /**
  * Add a learning entry
  */
 export function addLearning(
-    ledger: Ledger,
-    type: 'pattern' | 'antiPattern' | 'decision' | 'preference',
-    content: string
+  ledger: Ledger,
+  type: 'pattern' | 'antiPattern' | 'decision' | 'preference',
+  content: string
 ): void {
-    const entry: LearningEntry = { content, createdAt: Date.now() };
+  const entry: LearningEntry = { content, createdAt: Date.now() };
 
-    switch (type) {
-        case 'pattern':
-            ledger.learnings.patterns.push(entry);
-            break;
-        case 'antiPattern':
-            ledger.learnings.antiPatterns.push(entry);
-            break;
-        case 'decision':
-            ledger.learnings.decisions.push(entry);
-            break;
-        case 'preference':
-            ledger.learnings.preferences.push(entry);
-            break;
-    }
+  switch (type) {
+    case 'pattern':
+      ledger.learnings.patterns.push(entry);
+      break;
+    case 'antiPattern':
+      ledger.learnings.antiPatterns.push(entry);
+      break;
+    case 'decision':
+      ledger.learnings.decisions.push(entry);
+      break;
+    case 'preference':
+      ledger.learnings.preferences.push(entry);
+      break;
+  }
 
-    console.log(`[Ledger] Added ${type}: ${content}`);
+  console.log(`[Ledger] Added ${type}: ${content}`);
 }
 
 /**
  * Add context to current epic
  */
 export function addContext(ledger: Ledger, context: string): void {
-    if (!ledger.epic) {
-        throw new Error('Cannot add context: No active epic');
-    }
+  if (!ledger.epic) {
+    throw new Error('Cannot add context: No active epic');
+  }
 
-    ledger.epic.context.push(context);
-    console.log(`[Ledger] Added context: ${context}`);
+  ledger.epic.context.push(context);
+  console.log(`[Ledger] Added context: ${context}`);
 }
 
 /**
  * Create handoff for session break
  */
 export function createHandoff(
-    ledger: Ledger,
-    reason: Handoff['reason'],
-    resumeCommand: string,
-    options?: {
-        keyContext?: string[];
-        filesModified?: string[];
-    }
+  ledger: Ledger,
+  reason: Handoff['reason'],
+  resumeCommand: string,
+  options?: {
+    keyContext?: string[];
+    filesModified?: string[];
+  }
 ): void {
-    if (!ledger.epic) {
-        console.log('[Ledger] No active epic, skipping handoff');
-        return;
-    }
+  if (!ledger.epic) {
+    console.log('[Ledger] No active epic, skipping handoff');
+    return;
+  }
 
-    const completedTasks = ledger.epic.tasks.filter((t) => t.status === 'completed');
-    const pendingTasks = ledger.epic.tasks.filter((t) => t.status !== 'completed');
+  const completedTasks = ledger.epic.tasks.filter((t) => t.status === 'completed');
+  const pendingTasks = ledger.epic.tasks.filter((t) => t.status !== 'completed');
 
-    ledger.handoff = {
-        created: formatTimestamp(),
-        reason,
-        resumeCommand,
-        whatsDone: completedTasks.map((t) => `${t.id}: ${t.title}`),
-        whatsNext: pendingTasks.map((t) => `${t.id}: ${t.title}`),
-        keyContext: options?.keyContext || [],
-        filesModified: options?.filesModified || [],
-        learningsThisSession: [
-            ...ledger.learnings.patterns.slice(-3).map((l) => `Pattern: ${l.content}`),
-            ...ledger.learnings.decisions.slice(-3).map((l) => `Decision: ${l.content}`),
-        ],
-    };
+  ledger.handoff = {
+    created: formatTimestamp(),
+    reason,
+    resumeCommand,
+    whatsDone: completedTasks.map((t) => `${t.id}: ${t.title}`),
+    whatsNext: pendingTasks.map((t) => `${t.id}: ${t.title}`),
+    keyContext: options?.keyContext || [],
+    filesModified: options?.filesModified || [],
+    learningsThisSession: [
+      ...ledger.learnings.patterns.slice(-3).map((l) => `Pattern: ${l.content}`),
+      ...ledger.learnings.decisions.slice(-3).map((l) => `Decision: ${l.content}`),
+    ],
+  };
 
-    ledger.meta.status = 'handoff';
-    console.log(`[Ledger] Created handoff: ${reason}`);
+  ledger.meta.status = 'handoff';
+  console.log(`[Ledger] Created handoff: ${reason}`);
 }
 
 /**
  * Archive the current epic
  */
 export function archiveEpic(ledger: Ledger, outcome?: TaskOutcome): void {
-    if (!ledger.epic) {
-        console.log('[Ledger] No active epic to archive');
-        return;
+  if (!ledger.epic) {
+    console.log('[Ledger] No active epic to archive');
+    return;
+  }
+
+  const epic = ledger.epic;
+  const now = Date.now();
+
+  // Determine outcome
+  let finalOutcome = outcome;
+  if (!finalOutcome) {
+    const completed = epic.tasks.filter((t) => t.status === 'completed').length;
+    const total = epic.tasks.length;
+    if (completed === total) {
+      finalOutcome = 'SUCCEEDED';
+    } else if (completed > 0) {
+      finalOutcome = 'PARTIAL';
+    } else {
+      finalOutcome = 'FAILED';
     }
+  }
 
-    const epic = ledger.epic;
-    const now = Date.now();
+  // Create archive entry
+  const entry: ArchiveEntry = {
+    epicId: epic.id,
+    title: epic.title,
+    outcome: finalOutcome,
+    duration: formatDuration(epic.createdAt, epic.completedAt || now),
+    date: new Date(now).toISOString().split('T')[0],
+  };
 
-    // Determine outcome
-    let finalOutcome = outcome;
-    if (!finalOutcome) {
-        const completed = epic.tasks.filter((t) => t.status === 'completed').length;
-        const total = epic.tasks.length;
-        if (completed === total) {
-            finalOutcome = 'SUCCEEDED';
-        } else if (completed > 0) {
-            finalOutcome = 'PARTIAL';
-        } else {
-            finalOutcome = 'FAILED';
-        }
-    }
+  // Add to archive (keep last 5)
+  ledger.archive.unshift(entry);
+  if (ledger.archive.length > MAX_ARCHIVE_ENTRIES) {
+    ledger.archive = ledger.archive.slice(0, MAX_ARCHIVE_ENTRIES);
+  }
 
-    // Create archive entry
-    const entry: ArchiveEntry = {
-        epicId: epic.id,
-        title: epic.title,
-        outcome: finalOutcome,
-        duration: formatDuration(epic.createdAt, epic.completedAt || now),
-        date: new Date(now).toISOString().split('T')[0],
-    };
+  // Clear epic
+  ledger.epic = null;
+  ledger.meta.phase = 'CLARIFICATION';
+  ledger.meta.tasksCompleted = '0/0';
+  ledger.meta.currentTask = undefined;
+  ledger.meta.status = 'active';
 
-    // Add to archive (keep last 5)
-    ledger.archive.unshift(entry);
-    if (ledger.archive.length > MAX_ARCHIVE_ENTRIES) {
-        ledger.archive = ledger.archive.slice(0, MAX_ARCHIVE_ENTRIES);
-    }
+  // Clear handoff if resolved
+  if (finalOutcome === 'SUCCEEDED') {
+    ledger.handoff = null;
+  }
 
-    // Clear epic
-    ledger.epic = null;
-    ledger.meta.phase = 'CLARIFICATION';
-    ledger.meta.tasksCompleted = '0/0';
-    ledger.meta.currentTask = undefined;
-    ledger.meta.status = 'active';
-
-    // Clear handoff if resolved
-    if (finalOutcome === 'SUCCEEDED') {
-        ledger.handoff = null;
-    }
-
-    console.log(`[Ledger] Archived epic: ${entry.epicId} - ${finalOutcome}`);
+  console.log(`[Ledger] Archived epic: ${entry.epicId} - ${finalOutcome}`);
 }
 
 /**
  * Get progress summary
  */
 export function getProgress(ledger: Ledger): {
-    total: number;
-    completed: number;
-    failed: number;
-    running: number;
-    percentComplete: number;
+  total: number;
+  completed: number;
+  failed: number;
+  running: number;
+  percentComplete: number;
 } {
-    if (!ledger.epic) {
-        return { total: 0, completed: 0, failed: 0, running: 0, percentComplete: 0 };
-    }
+  if (!ledger.epic) {
+    return { total: 0, completed: 0, failed: 0, running: 0, percentComplete: 0 };
+  }
 
-    const tasks = ledger.epic.tasks;
-    const completed = tasks.filter((t) => t.status === 'completed').length;
-    const failed = tasks.filter((t) => t.status === 'failed').length;
-    const running = tasks.filter((t) => t.status === 'running').length;
-    const percentComplete = tasks.length > 0 ? Math.round((completed / tasks.length) * 100) : 0;
+  const tasks = ledger.epic.tasks;
+  const completed = tasks.filter((t) => t.status === 'completed').length;
+  const failed = tasks.filter((t) => t.status === 'failed').length;
+  const running = tasks.filter((t) => t.status === 'running').length;
+  const percentComplete = tasks.length > 0 ? Math.round((completed / tasks.length) * 100) : 0;
 
-    return { total: tasks.length, completed, failed, running, percentComplete };
+  return { total: tasks.length, completed, failed, running, percentComplete };
 }
 
 /**
  * Check if a task can start (dependencies satisfied)
  */
 export function canStartTask(ledger: Ledger, taskId: string): boolean {
-    if (!ledger.epic) return false;
+  if (!ledger.epic) return false;
 
-    const task = ledger.epic.tasks.find((t) => t.id === taskId);
-    if (!task) return false;
+  const task = ledger.epic.tasks.find((t) => t.id === taskId);
+  if (!task) return false;
 
-    for (const depId of task.dependencies) {
-        const dep = ledger.epic.tasks.find((t) => t.id === depId);
-        if (!dep || dep.status !== 'completed') {
-            return false;
-        }
+  for (const depId of task.dependencies) {
+    const dep = ledger.epic.tasks.find((t) => t.id === depId);
+    if (!dep || dep.status !== 'completed') {
+      return false;
     }
+  }
 
-    return true;
+  return true;
 }
 
 /**
  * Get tasks that are ready to start
  */
 export function getReadyTasks(ledger: Ledger): Task[] {
-    if (!ledger.epic) return [];
+  if (!ledger.epic) return [];
 
-    return ledger.epic.tasks.filter(
-        (t) => t.status === 'pending' && canStartTask(ledger, t.id)
-    );
+  return ledger.epic.tasks.filter((t) => t.status === 'pending' && canStartTask(ledger, t.id));
 }
 
 /**
  * Surface recent learnings (for session start)
  */
-export function surfaceLearnings(ledger: Ledger, maxAge: number = 48 * 60 * 60 * 1000): {
-    patterns: string[];
-    antiPatterns: string[];
-    decisions: string[];
+export function surfaceLearnings(
+  ledger: Ledger,
+  maxAge: number = 48 * 60 * 60 * 1000
+): {
+  patterns: string[];
+  antiPatterns: string[];
+  decisions: string[];
 } {
-    const now = Date.now();
+  const now = Date.now();
 
-    const filterRecent = (entries: LearningEntry[]): string[] =>
-        entries
-            .filter((e) => !e.createdAt || now - e.createdAt < maxAge)
-            .map((e) => e.content);
+  const filterRecent = (entries: LearningEntry[]): string[] =>
+    entries.filter((e) => !e.createdAt || now - e.createdAt < maxAge).map((e) => e.content);
 
-    return {
-        patterns: filterRecent(ledger.learnings.patterns),
-        antiPatterns: filterRecent(ledger.learnings.antiPatterns),
-        decisions: filterRecent(ledger.learnings.decisions),
-    };
+  return {
+    patterns: filterRecent(ledger.learnings.patterns),
+    antiPatterns: filterRecent(ledger.learnings.antiPatterns),
+    decisions: filterRecent(ledger.learnings.decisions),
+  };
 }
 
 // ============================================================================
@@ -877,14 +907,14 @@ export function surfaceLearnings(ledger: Ledger, maxAge: number = 48 * 60 * 60 *
 // ============================================================================
 
 export {
-    DEFAULT_LEDGER_PATH,
-    MAX_TASKS_PER_EPIC,
-    MAX_ARCHIVE_ENTRIES,
-    generateHash,
-    generateSessionId,
-    formatTimestamp,
-    formatDuration,
-    createDefaultLedger,
-    parseLedgerMarkdown,
-    renderLedgerMarkdown,
+  DEFAULT_LEDGER_PATH,
+  MAX_TASKS_PER_EPIC,
+  MAX_ARCHIVE_ENTRIES,
+  generateHash,
+  generateSessionId,
+  formatTimestamp,
+  formatDuration,
+  createDefaultLedger,
+  parseLedgerMarkdown,
+  renderLedgerMarkdown,
 };

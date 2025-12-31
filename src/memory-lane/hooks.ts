@@ -75,14 +75,14 @@ export async function triggerMemoryExtraction(
   outcomeData: SwarmCompletionData,
   shellHelper:
     | ((
-      cmd: TemplateStringsArray,
-      ...args: string[]
-    ) => {
-      quiet(): unknown;
-      nothrow(): unknown;
-      signal(signal: AbortSignal): unknown;
-      then(onfulfilled?: (value: unknown) => unknown): unknown;
-    })
+        cmd: TemplateStringsArray,
+        ...args: string[]
+      ) => {
+        quiet(): unknown;
+        nothrow(): unknown;
+        signal(signal: AbortSignal): unknown;
+        then(onfulfilled?: (value: unknown) => unknown): unknown;
+      })
     | null
 ): Promise<void> {
   logToFile(projectPath, `Triggering extraction for task ${outcomeData.bead_id || 'unknown'}`);
