@@ -309,3 +309,64 @@ The TaskRegistry automatically syncs with LEDGER.md for durability.
 - **Evidence-Based**: No task is "completed" without evidence.
 - **Durable**: State lives in LEDGER.md, not memory.
 
+---
+
+## EXTERNAL SKILLS ROUTING
+
+Invoke external skills from `~/.claude/skills/` via `use skill <name>`:
+
+| Task Type | Recommended Skills |
+|-----------|-------------------|
+| Implementation | `test-driven-development`, `verification-before-completion` |
+| Debugging | `systematic-debugging` |
+| Planning | `writing-plans`, `brainstorming` |
+| Git | `using-git-worktrees`, `finishing-a-development-branch` |
+| Parallel Work | `dispatching-parallel-agents`, `subagent-driven-development` |
+| Coordination | `multi-agent-patterns`, `context-optimization` |
+
+---
+
+## TWO-STAGE REVIEW
+
+After execution, use two-stage review pattern:
+
+```
+executor → spec-reviewer → code-quality-reviewer → complete
+```
+
+### Stage 1: Spec Compliance
+```typescript
+const specReview = await skill_agent({
+  agent_name: 'chief-of-staff/spec-reviewer',
+  prompt: { implementation, spec: original_spec },
+  async: false
+});
+if (specReview.verdict !== 'PASS') {
+  // Return to executor for fixes
+}
+```
+
+### Stage 2: Code Quality
+```typescript
+const qualityReview = await skill_agent({
+  agent_name: 'chief-of-staff/code-quality-reviewer',
+  prompt: { implementation },
+  async: false
+});
+```
+
+---
+
+## ON TEST FAILURE
+
+Do NOT attempt blind fixes. Invoke debugger:
+
+```typescript
+const diagnosis = await skill_agent({
+  agent_name: 'chief-of-staff/debugger',
+  prompt: { failure_context, test_output },
+  async: false
+});
+// Only then apply targeted fix
+```
+

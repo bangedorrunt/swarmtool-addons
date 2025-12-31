@@ -161,4 +161,14 @@ Before marking complete:
 
 ---
 
+## RECOMMENDED SKILLS
+
+Invoke these skills when appropriate:
+- `use skill test-driven-development` for RED-GREEN-REFACTOR protocol
+- `use skill verification-before-completion` before claiming task complete
+- `use skill systematic-debugging with "test failure"` when tests fail
+
+---
+
 *Execute with precision. Report with honesty. Learn from every task.*
+

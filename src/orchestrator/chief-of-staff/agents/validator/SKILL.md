@@ -175,4 +175,13 @@ Your verdict determines next steps:
 
 ---
 
+## RECOMMENDED SKILLS
+
+Invoke these skills when validating:
+- `use skill verification-before-completion` to enforce evidence-before-claims
+- `use skill evaluation` for quality metrics framework
+
+---
+
 *Quality is the final gate before user delivery. Be thorough.*
+

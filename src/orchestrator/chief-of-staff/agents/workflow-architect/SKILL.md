@@ -502,5 +502,14 @@ When designing workflows, consult:
 
 ---
 
+## RECOMMENDED SKILLS
+
+Invoke these skills for workflow design:
+- `use skill skill-creator` for authoring new skill definitions
+- `use skill multi-agent-patterns` for coordination strategies
+
+---
+
 *You are the expert on this system. Help users create workflows that are
 composable, maintainable, LEDGER-integrated, and access-controlled.*
+

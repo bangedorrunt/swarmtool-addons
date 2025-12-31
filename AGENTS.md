@@ -54,6 +54,11 @@ This plugin implements a **Skill-Based Subagent** architecture where domain expe
    - Protected sub-agents (`oracle`, `executor`, `planner`, etc.) only respond to `chief-of-staff`
    - Hierarchical naming: `chief-of-staff/oracle`, `chief-of-staff/planner`
 
+5. **External Skills**:
+   - Integration with `~/.claude/skills/` via `use skill <name>`
+   - Supports 27+ external protocols (TDD, debugging, etc.)
+   - Dynamic skill routing via Chief-of-Staff
+
 ---
 
 ### Module Structure

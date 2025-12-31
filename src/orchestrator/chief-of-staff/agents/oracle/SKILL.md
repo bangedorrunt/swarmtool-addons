@@ -155,5 +155,14 @@ When asked to decompose work for LEDGER:
 
 ---
 
+## RECOMMENDED SKILLS
+
+Invoke these skills for strategic decomposition:
+- `use skill multi-agent-patterns` for coordination strategies
+- `use skill context-optimization` for context partitioning
+
+---
+
 *Your response goes directly to user with no intermediate processing.
 Deliver actionable insight, not exhaustive analysis.*
+

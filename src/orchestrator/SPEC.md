@@ -240,7 +240,7 @@ async function orchestrateWithSupervision(plan: OracleStrategy) {
 
 To ensure coordination integrity, sub-agents are protected:
 
-- **Protected List**: `executor`, `planner`, `validator`, `oracle`, `librarian`, `interviewer`.
+- **Protected List**: `executor`, `planner`, `validator`, `oracle`, `librarian`, `interviewer`, `spec-reviewer`, `code-quality-reviewer`, `debugger`.
 - **Rule**: They only respond to `chief-of-staff` or the user.
 - **Error**: `ACCESS_DENIED` with a suggestion to use the coordinator.
 

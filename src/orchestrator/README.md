@@ -43,6 +43,12 @@ The Orchestrator module provides skill-based agents that can be composed into po
 | **🧠 Memory-Catcher**     | Learning extractor          | Automatically captures what you prefer        |
 | **👔 Chief-of-Staff**     | Team coordinator            | Complex multi-step projects                   |
 | **🏗️ Workflow-Architect** | Pattern designer            | Creating new workflow patterns                |
+| **📝 Spec-Reviewer** ⭐    | Spec compliance checker     | First stage of two-stage review               |
+| **🎯 Code-Quality-Reviewer** ⭐ | Code quality checker  | Second stage of two-stage review              |
+| **🐛 Debugger** ⭐         | Root cause analyst          | Systematic debugging (4-phase protocol)       |
+
+> ⭐ **New agents** for two-stage review and systematic debugging.
+
 
 ---
 

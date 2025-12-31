@@ -138,4 +138,13 @@ For each LEDGER task, provide:
 
 ---
 
+## RECOMMENDED SKILLS
+
+Invoke these skills for planning:
+- `use skill writing-plans` for detailed implementation blueprints
+- `use skill brainstorming` for Socratic design refinement
+
+---
+
 *A clear plan aligned with LEDGER is the foundation of correct implementation.*
+

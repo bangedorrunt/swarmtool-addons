@@ -4,7 +4,7 @@ description: >-
   Implementation agent focused on high-integrity TDD-driven code generation.
   Executes LEDGER tasks with heartbeat reporting and learning extraction.
   v3.0: Integrated with LEDGER.md and TaskRegistry.
-model: google/gemini-3-pro
+model: google/gemini-3-pro-low
 metadata:
   type: executor
   visibility: internal
