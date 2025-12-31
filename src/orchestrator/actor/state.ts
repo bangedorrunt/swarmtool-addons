@@ -27,7 +27,7 @@ export interface TrackedAssumption {
  */
 export interface SubAgentState {
   sessionId: string;
-  status: 'spawned' | 'running' | 'completed' | 'failed';
+  status: 'spawned' | 'running' | 'completed' | 'failed' | 'suspended';
   agent: string;
   spawnedAt: string;
   completedAt?: string;

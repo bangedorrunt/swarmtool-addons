@@ -12,6 +12,7 @@ import { readFile, writeFile, mkdir, readdir, unlink } from 'fs/promises';
 import { existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { randomBytes } from 'crypto';
+import { lock } from 'proper-lockfile';
 
 export interface StreamEvent {
   id: string;
@@ -85,6 +86,7 @@ export interface CheckpointOption {
 export interface StreamConfig {
   streamPath: string;
   checkpointPath: string;
+  snapshotPath: string;
   maxStreamSizeMb: number;
   maxCheckpoints: number;
   checkpointTimeoutMs: number;
@@ -119,6 +121,7 @@ export interface ContextLedgerState {
 const DEFAULT_CONFIG: StreamConfig = {
   streamPath: '.opencode/orchestration_stream.jsonl',
   checkpointPath: '.opencode/checkpoints',
+  snapshotPath: '.opencode/snapshots',
   maxStreamSizeMb: 10,
   maxCheckpoints: 20,
   checkpointTimeoutMs: 300000,
@@ -174,12 +177,16 @@ export class DurableStreamOrchestrator {
   async initialize(): Promise<void> {
     const streamDir = dirname(this.config.streamPath);
     const checkpointDir = this.config.checkpointPath;
+    const snapshotDir = this.config.snapshotPath;
 
     if (!existsSync(streamDir)) {
       await mkdir(streamDir, { recursive: true });
     }
     if (!existsSync(checkpointDir)) {
       await mkdir(checkpointDir, { recursive: true });
+    }
+    if (!existsSync(snapshotDir)) {
+      await mkdir(snapshotDir, { recursive: true });
     }
 
     await this.resumeFromLastOffset();
@@ -207,8 +214,21 @@ export class DurableStreamOrchestrator {
           }
 
           if (event.type === 'context.snapshot') {
-            const context = event.payload.context as AgentContext;
-            this.contextSnapshots.set(context.sessionId, context);
+            if (event.payload.context) {
+              const context = event.payload.context as AgentContext;
+              this.contextSnapshots.set(context.sessionId, context);
+            } else if (event.payload.snapshotPath) {
+              try {
+                const path = event.payload.snapshotPath as string;
+                if (existsSync(path)) {
+                  const content = await readFile(path, 'utf-8');
+                  const context = JSON.parse(content) as AgentContext;
+                  this.contextSnapshots.set(context.sessionId, context);
+                }
+              } catch (err) {
+                console.warn(`[DurableStream] Failed to load snapshot: ${err}`);
+              }
+            }
           }
         } catch {
           console.warn(`[DurableStream] Failed to parse event: ${line.slice(0, 100)}`);
@@ -256,11 +276,22 @@ export class DurableStreamOrchestrator {
 
   private async persistEvent(event: StreamEvent): Promise<void> {
     try {
-      const line = JSON.stringify(event) + '\n';
-      await writeFile(this.config.streamPath, line, { flag: 'a' });
+      // Ensure file exists for locking
+      if (!existsSync(this.config.streamPath)) {
+        await writeFile(this.config.streamPath, '', 'utf-8');
+      }
 
-      if (await this.shouldRotateStream()) {
-        await this.rotateStream();
+      const release = await lock(this.config.streamPath, { retries: 5 });
+
+      try {
+        const line = JSON.stringify(event) + '\n';
+        await writeFile(this.config.streamPath, line, { flag: 'a' });
+
+        if (await this.shouldRotateStream()) {
+          await this.rotateStream();
+        }
+      } finally {
+        await release();
       }
     } catch (error) {
       console.error(`[DurableStream] Failed to persist event: ${error}`);
@@ -340,13 +371,25 @@ export class DurableStreamOrchestrator {
       recentEvents: this.eventHistory.slice(-50).map((e) => e.type),
     };
 
+    const snapshotId = `${sessionId}_${Date.now()}`;
+    const snapshotPath = join(this.config.snapshotPath, `${snapshotId}.json`);
+
+    // Persist large context to external file
+    try {
+      await writeFile(snapshotPath, JSON.stringify(context, null, 2), 'utf-8');
+    } catch (error) {
+      console.error(`[DurableStream] Failed to write snapshot file: ${error}`);
+      // Fallback: don't fail, just continue (maybe inline if critical?)
+      // For now, we assume write works or we have bigger problems.
+    }
+
     this.contextSnapshots.set(sessionId, context);
 
     return this.append({
       type: 'context.snapshot',
       sessionId,
       agent: agentName,
-      payload: { context, snapshotId: `${sessionId}_${Date.now()}` },
+      payload: { snapshotId, snapshotPath },
       metadata: { sourceAgent: agentName },
     });
   }

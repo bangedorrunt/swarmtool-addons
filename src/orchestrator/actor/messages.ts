@@ -123,6 +123,25 @@ export interface TaskUpdateMessage {
   };
 }
 
+export interface AgentYieldMessage {
+  type: 'agent.yield';
+  payload: {
+    agent: string;
+    sessionId: string;
+    reason: string;
+    snapshot?: any;
+  };
+}
+
+export interface AgentResumeMessage {
+  type: 'agent.resume';
+  payload: {
+    agent: string;
+    sessionId: string;
+    signalData?: any;
+  };
+}
+
 /**
  * Union of all actor message types
  */
@@ -136,7 +155,9 @@ export type ActorMessage =
   | AssumptionVerifyMessage
   | UserApprovalMessage
   | DirectionUpdateMessage
-  | TaskUpdateMessage;
+  | TaskUpdateMessage
+  | AgentYieldMessage
+  | AgentResumeMessage;
 
 /**
  * Extract message type literal

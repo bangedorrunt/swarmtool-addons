@@ -75,6 +75,7 @@ export interface Handoff {
   keyContext: string[];
   filesModified: string[];
   learningsThisSession: string[];
+  snapshotPath?: string;
 }
 
 export interface ArchiveEntry {
@@ -199,6 +200,16 @@ function parseLedgerMarkdown(content: string): Ledger {
       continue;
     } else if (line.startsWith('## Handoff')) {
       currentSection = 'handoff';
+      ledger.handoff = {
+        created: '',
+        reason: 'session_break',
+        resumeCommand: '',
+        whatsDone: [],
+        whatsNext: [],
+        keyContext: [],
+        filesModified: [],
+        learningsThisSession: [],
+      };
       continue;
     } else if (line.startsWith('## Archive')) {
       currentSection = 'archive';
@@ -302,6 +313,44 @@ function parseLedgerMarkdown(content: string): Ledger {
           ledger.learnings.decisions.push({ content });
         } else if (currentSubSection === 'preferences') {
           ledger.learnings.preferences.push({ content });
+        }
+      }
+    }
+
+    // Parse Handoff section
+    if (currentSection === 'handoff' && ledger.handoff) {
+      if (line.startsWith('**Created**:')) {
+        ledger.handoff.created = line.replace('**Created**:', '').trim();
+      } else if (line.startsWith('**Reason**:')) {
+        ledger.handoff.reason = line.replace('**Reason**:', '').trim() as Handoff['reason'];
+      } else if (line.startsWith('**Resume Command**:')) {
+        ledger.handoff.resumeCommand = line
+          .replace('**Resume Command**:', '')
+          .replace(/^"|"$/g, '')
+          .trim();
+      } else if (line.startsWith('**Snapshot Path**:')) {
+        ledger.handoff.snapshotPath = line
+          .replace('**Snapshot Path**:', '')
+          .replace(/`/g, '')
+          .trim();
+      } else if (line.startsWith("### What's Done")) {
+        currentSubSection = 'whatsDone';
+      } else if (line.startsWith("### What's Next")) {
+        currentSubSection = 'whatsNext';
+      } else if (line.startsWith('### Key Context')) {
+        currentSubSection = 'keyContext';
+      } else if (line.startsWith('### Files Modified')) {
+        currentSubSection = 'filesModified';
+      } else if (line.startsWith('- ')) {
+        const content = line.replace('- ', '').replace('[x] ', '').replace('[ ] ', '');
+        if (currentSubSection === 'whatsDone') {
+          ledger.handoff.whatsDone.push(content);
+        } else if (currentSubSection === 'whatsNext') {
+          ledger.handoff.whatsNext.push(content);
+        } else if (currentSubSection === 'keyContext') {
+          ledger.handoff.keyContext.push(content);
+        } else if (currentSubSection === 'filesModified') {
+          ledger.handoff.filesModified.push(content.replace(/`/g, ''));
         }
       }
     }
@@ -498,6 +547,10 @@ function renderLedgerMarkdown(ledger: Ledger): string {
       }
       lines.push('');
     }
+    if (ledger.handoff.snapshotPath) {
+      lines.push(`**Snapshot Path**: \`${ledger.handoff.snapshotPath}\``);
+      lines.push('');
+    }
   } else {
     lines.push('*No pending handoff*');
     lines.push('');
@@ -579,7 +632,6 @@ export async function saveLedger(
     } finally {
       await release();
     }
-
   } catch (error) {
     console.error(`[Ledger] Failed to save: ${error}`);
     throw error;

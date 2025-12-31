@@ -16,14 +16,7 @@ import { getTaskSupervisor, startTaskSupervision, stopTaskSupervision } from './
 // Tool Definitions
 // ============================================================================
 
-export function createResilienceTools(client: {
-  session: {
-    create: (opts: any) => Promise<any>;
-    prompt: (opts: any) => Promise<void>;
-    status: () => Promise<any>;
-    messages: (opts: any) => Promise<any>;
-  };
-}) {
+export function createResilienceTools(client: any) {
   const registry = getTaskRegistry();
 
   return {
@@ -173,7 +166,15 @@ export function createResilienceTools(client: {
 
         try {
           const supervisor = getTaskSupervisor(client);
-          await supervisor.checkNow(); // This will pick up the task for retry
+
+          // Use forceRetry instead of checkNow for explicit retries
+          const success = await supervisor.forceRetry(args.task_id);
+
+          if (!success) {
+            return JSON.stringify({
+              error: 'Failed to force retry. Task might not be in failed state or not found.',
+            });
+          }
 
           return JSON.stringify({
             success: true,
@@ -187,6 +188,91 @@ export function createResilienceTools(client: {
             error: err.message,
           });
         }
+      },
+    }),
+
+    /**
+     * Kill/Cancel a running task
+     */
+    task_kill: tool({
+      description: 'Forcefully cancel a running task',
+      args: {
+        task_id: tool.schema.string().describe('Task ID'),
+        reason: tool.schema.string().optional().describe('Reason for cancellation'),
+      },
+      async execute(args) {
+        const task = registry.getTask(args.task_id);
+
+        if (!task) {
+          return JSON.stringify({ error: 'Task not found' });
+        }
+
+        if (task.status !== 'running' && task.status !== 'pending') {
+          return JSON.stringify({
+            error: `Cannot kill task in status: ${task.status}`,
+            hint: 'Only running or pending tasks can be killed',
+          });
+        }
+
+        await registry.updateStatus(
+          args.task_id,
+          'failed',
+          undefined,
+          `Killed by user/agent: ${args.reason || 'No reason provided'}`
+        );
+
+        return JSON.stringify({
+          success: true,
+          task_id: args.task_id,
+          status: 'failed',
+          message: 'Task killed successfully',
+        });
+      },
+    }),
+
+    /**
+     * Fetch context snapshot for a task (to delegate to new agent)
+     */
+    task_fetch_context: tool({
+      description: 'Get the context snapshot for a task to enable delegation/recovery',
+      args: {
+        task_id: tool.schema.string().describe('Task ID'),
+      },
+      async execute(args) {
+        const task = registry.getTask(args.task_id);
+        if (!task) {
+          return JSON.stringify({ error: 'Task not found' });
+        }
+
+        const { getDurableStreamOrchestrator } = await import('./durable-stream');
+        const durableStream = getDurableStreamOrchestrator();
+        const snapshot = durableStream.getContextSnapshot(task.sessionId);
+
+        if (!snapshot) {
+          return JSON.stringify({
+            success: false,
+            message: 'No snapshot found for this task session',
+          });
+        }
+
+        // Return a summarized context to avoid blowing up token limits
+        // The caller can pass this object to skill_agent's `context` param
+        return JSON.stringify(
+          {
+            success: true,
+            task_id: args.task_id,
+            context: {
+              agentName: snapshot.agentName,
+              ledgerPhase: snapshot.ledgerState.phase,
+              completedTasks: snapshot.ledgerState.completedTasks,
+              memories: snapshot.memories,
+              // We don't return the full prompt history here to save tokens
+              // The new agent will start fresh but with this context
+            },
+          },
+          null,
+          2
+        );
       },
     }),
 

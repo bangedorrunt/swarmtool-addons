@@ -134,6 +134,40 @@ export function receive(state: ActorState, message: ActorMessage): ActorState {
       };
     }
 
+    case 'agent.yield': {
+      const agent = state.subAgents[message.payload.sessionId];
+      if (!agent) return state;
+
+      return {
+        ...state,
+        subAgents: {
+          ...state.subAgents,
+          [message.payload.sessionId]: {
+            ...agent,
+            status: 'suspended',
+          },
+        },
+        lastUpdated: now,
+      };
+    }
+
+    case 'agent.resume': {
+      const agent = state.subAgents[message.payload.sessionId];
+      if (!agent) return state;
+
+      return {
+        ...state,
+        subAgents: {
+          ...state.subAgents,
+          [message.payload.sessionId]: {
+            ...agent,
+            status: 'running',
+          },
+        },
+        lastUpdated: now,
+      };
+    }
+
     case 'user.request':
     case 'user.approval':
       // These messages don't change state directly, but are logged for audit
@@ -343,6 +377,21 @@ function eventToMessage(event: any): ActorMessage | null {
       return {
         type,
         payload: { sessionId: event.session_id, agent: event.agent, error: event.error },
+      };
+    case 'agent.yield':
+      return {
+        type,
+        payload: {
+          agent: event.agent,
+          sessionId: event.session_id,
+          reason: event.reason,
+          snapshot: event.snapshot,
+        },
+      };
+    case 'agent.resume':
+      return {
+        type,
+        payload: { agent: event.agent, sessionId: event.session_id, signalData: event.signal_data },
       };
     default:
       return null;

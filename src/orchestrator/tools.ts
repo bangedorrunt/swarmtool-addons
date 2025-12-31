@@ -26,17 +26,77 @@ interface ToolContext {
 }
 
 // Import dialogue utilities from standalone module (enables testing without @opencode-ai/plugin)
-import {
-  extractDialogueState,
-  BLOCKING_STATUSES,
-  type DialogueState,
-} from './dialogue-utils';
+import { extractDialogueState, BLOCKING_STATUSES, type DialogueState } from './dialogue-utils';
 
 // Re-export for backwards compatibility
 export { extractDialogueState, BLOCKING_STATUSES, type DialogueState } from './dialogue-utils';
 
 export function createSkillAgentTools(client: PluginInput['client']) {
   return {
+    agent_yield: tool({
+      description:
+        'Suspend execution and save state. Use when waiting for long-running external events.',
+      args: {
+        reason: tool.schema.string().describe('Reason for yielding'),
+      },
+      async execute(args, execContext) {
+        const { reason } = args;
+        const sessionId = execContext?.sessionID;
+        const agent = (execContext as unknown as ToolContext)?.agent;
+
+        if (!sessionId || !agent) {
+          return JSON.stringify({
+            success: false,
+            error: 'NO_CONTEXT',
+            message: 'Cannot yield without session ID and agent context',
+          });
+        }
+
+        // Notify orchestrator via ActorState
+        const actorState = await loadActorState();
+        if (actorState) {
+          await processMessage(actorState, {
+            type: 'agent.yield',
+            payload: { agent, sessionId, reason },
+          });
+        }
+
+        return JSON.stringify({
+          success: true,
+          status: 'SUSPENDED',
+          message: `Agent ${agent} yielded: ${reason}`,
+        });
+      },
+    }),
+
+    agent_resume: tool({
+      description: 'Resume execution of a suspended agent',
+      args: {
+        session_id: tool.schema.string().describe('Session ID to resume'),
+        signal_data: tool.schema.any().optional().describe('Data to inject into resumption'),
+      },
+      async execute(args, execContext) {
+        const { session_id, signal_data } = args;
+        const callingAgent = (execContext as unknown as ToolContext)?.agent || 'unknown';
+
+        const actorState = await loadActorState();
+        if (actorState) {
+          await processMessage(actorState, {
+            type: 'agent.resume',
+            payload: { agent: callingAgent, sessionId: session_id, signalData: signal_data },
+          });
+
+          // Trigger resumption in the session if needed (e.g. send a prompt)
+          // For now, we just update state. The Orchestrator loop would handle the actual wake up.
+        }
+
+        return JSON.stringify({
+          success: true,
+          message: `Resumed session ${session_id}`,
+        });
+      },
+    }),
+
     skill_agent: tool({
       description:
         'Spawn a specialized subagent. Use async:false for sequential orchestration (waits for result).',
@@ -45,10 +105,7 @@ export function createSkillAgentTools(client: PluginInput['client']) {
           .string()
           .optional()
           .describe('Name of the skill (e.g., "chief-of-staff")'),
-        agent_name: tool.schema
-          .string()
-          .optional()
-          .describe('Name of the agent (e.g., "oracle")'),
+        agent_name: tool.schema.string().optional().describe('Name of the agent (e.g., "oracle")'),
         agent: tool.schema.string().optional().describe('Alias for agent_name'),
         prompt: tool.schema.string().describe('Task or message for the agent'),
         session_id: tool.schema.string().optional().describe('Existing sub-session ID to continue'),

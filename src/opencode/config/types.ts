@@ -95,7 +95,7 @@ export const DEFAULT_MODELS = {
   'chief-of-staff/spec-writer': 'google/gemini-3-flash',
 
   // Execution subagents
-  'chief-of-staff/executor': 'google/gemini-3-pro',
+  'chief-of-staff/executor': 'google/gemini-3-pro-low',
   'chief-of-staff/validator': 'google/gemini-3-flash',
   'chief-of-staff/frontend-ui-ux-engineer': 'google/gemini-3-pro-high',
 
