@@ -12,18 +12,24 @@ Improvements based on `obra/superpowers` and advanced agentic patterns are neede
 
 We implement several structural improvements to the orchestration process:
 
-STRATEGIC DECOMPOSITION WORKFLOW
+STRATEGIC DECOMPOSITION WORKFLOW V3.0
 
-+-------------+ +-------------+ +-------------+
-| SPEC | ---> | ORACLE | ---> | EPIC |
-| (Spec-Writer)| | (Decompose) | | (Registry) |
-+-------------+ +-------------+ +-------------+
-|
-v
-+-------------+ +-------------+
-| TASK | <--- | PLANNER |
-| (Atomic) | | (Blueprint) |
-+-------------+ +-------------+
++-------------+     +-------------+     +-------------+
+| CONTEXT     | --> | INTERVIEW   | --> | ORACLE      |
+| (Hydration) |     | (Discovery) |     | (Decompose) |
++-------------+     +-------------+     +-------------+
+                                              |
+                                              v
++-------------+     +-------------+     +-------------+
+| PLANNER     | <-- | SPEC        | <-- | EPIC        |
+| (Blueprint) |     | (Writer)    |     | (Registry)  |
++-------------+     +-------------+     +-------------+
+      |
+      v
++-------------+
+| TASK        |
+| (Atomic)    |
++-------------+
 
 ### 1. Strategic Decomposition (Oracle-First)
 
@@ -50,6 +56,11 @@ v
 ### 5. 'War Room' Model
 
 • The LEDGER acts as an immutable state database (event store) for the "War Room," where all coordination events, decisions, and outcomes are recorded durably.
+
+### 6. LEDGER-First Persistence
+
+• **Single Source of Truth**: The `.opencode/LEDGER.md` file must be updated after every task or critical decision. It serves as the durable memory for the "War Room," ensuring that state is preserved across sessions and crashes.
+• **Status Updates**: Explicitly record task transitions (Pending -> Running -> Completed/Failed) in the ledger.
 
 WATCH OUT FOR
 
