@@ -13,7 +13,7 @@ Use the skill_agent tool to invoke chief-of-staff/oracle **synchronously** to ge
 
 ```
 skill_agent({
-  agent_name: "oracle",
+  agent_name: "chief-of-staff/oracle",
   prompt: "$ARGUMENTS",
   async: false
 })

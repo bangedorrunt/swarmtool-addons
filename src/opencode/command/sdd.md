@@ -17,8 +17,7 @@ Orchestrate the Spec-Driven Development pipeline for: **$ARGUMENTS**
 **Start the interview:**
 ```
 skill_agent({
-  skill_name: "chief-of-staff",
-  agent_name: "interviewer",
+  agent_name: "chief-of-staff/interviewer",
   prompt: "Interview the user to clarify requirements for: $ARGUMENTS",
   async: false
 })
@@ -36,8 +35,7 @@ skill_agent({
 
 ```
 skill_agent({
-  skill_name: "chief-of-staff",
-  agent_name: "interviewer", 
+  agent_name: "chief-of-staff/interviewer", 
   prompt: "<user's answer>",
   session_id: "<session_id from previous response>",
   async: false
@@ -52,8 +50,7 @@ Repeat until `dialogue_state.status === "approved"`.
 
 ```
 skill_agent({
-  skill_name: "chief-of-staff",
-  agent_name: "spec-writer",
+  agent_name: "chief-of-staff/spec-writer",
   prompt: "Create detailed specification based on interview results.",
   async: false
 })
@@ -65,8 +62,7 @@ skill_agent({
 
 ```
 skill_agent({
-  skill_name: "chief-of-staff",
-  agent_name: "planner",
+  agent_name: "chief-of-staff/planner",
   prompt: "Create implementation plan based on the specification.",
   async: false
 })
@@ -78,8 +74,7 @@ skill_agent({
 
 ```
 skill_agent({
-  skill_name: "chief-of-staff",
-  agent_name: "validator",
+  agent_name: "chief-of-staff/validator",
   prompt: "Validate the implementation plan against best practices.",
   async: false
 })
@@ -112,7 +107,6 @@ Proceed with implementation?
 
 ```
 skill_agent({
-  skill_name: "chief-of-staff",
   agent_name: "chief-of-staff",
   prompt: "Coordinate phased execution with checkpoints.",
   async: false
