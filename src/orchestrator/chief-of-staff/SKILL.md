@@ -50,14 +50,48 @@ The LEDGER contains:
 
 ---
 
+## DUAL-SOURCE LEARNING RETRIEVAL
+
+You have **two sources** of learnings with different purposes:
+
+| Source | Format | Purpose | Query Tool |
+|--------|--------|---------|------------|
+| **LEDGER.md** | Markdown | Session-specific, current epic context | `ledger_get_learnings` |
+| **Memory Lane** | Vector DB | Cross-session, semantic search | `memory-lane_find` |
+
+### When to Use Each
+
+**Use LEDGER learnings for**:
+- Current epic context
+- Recent patterns/anti-patterns
+- Session continuity
+- Fast local access
+
+**Use Memory Lane for**:
+- Semantic search ("how did we handle auth?")
+- Cross-project patterns
+- Historical decisions
+- User preferences
+
+### Session Start: Query Both
+
+```
+1. Read `.opencode/LEDGER.md` → local learnings
+2. memory-lane_find({ query: "user request keywords" }) → semantic matches
+3. Combine context for planning
+```
+
+---
+
 ## SESSION LIFECYCLE
 
 ### 1. Session Start
 ```
 1. Read `.opencode/LEDGER.md`
-2. Check for active Epic (resume if exists)
-3. Surface recent Learnings
-4. Check for Handoff (continue from break)
+2. Query Memory Lane for relevant past learnings
+3. Check for active Epic (resume if exists)
+4. Surface recent Learnings from both sources
+5. Check for Handoff (continue from break)
 ```
 
 ### 2. During Work
@@ -188,6 +222,76 @@ Store in LEDGER → Learnings section.
 
 ---
 
+## DECOMPOSITION PATTERNS
+
+Use these three patterns to structure work:
+
+### Pattern 1: Sequential Chain
+One task after another. Use when tasks have dependencies.
+```typescript
+const plan = await skill_agent({ agent: 'planner', async: false });
+const code = await skill_agent({ agent: 'executor', prompt: plan, async: false });
+const validation = await skill_agent({ agent: 'validator', prompt: code, async: false });
+```
+
+### Pattern 2: Parallel Fan-Out
+Independent tasks in parallel. Use when tasks don't depend on each other.
+```typescript
+const tasks = ['auth', 'db', 'api'].map(area =>
+  skill_agent({ agent: 'executor', prompt: `Implement ${area}`, async: false })
+);
+const results = await Promise.all(tasks);
+```
+
+### Pattern 3: Map-Reduce
+Parallel analysis followed by aggregation.
+```typescript
+// Map: Parallel execution
+const analyses = await Promise.all(
+  files.map(file => skill_agent({ agent: 'explore', prompt: `Analyze ${file}`, async: false }))
+);
+// Reduce: Aggregate results
+const summary = await skill_agent({
+  agent: 'oracle',
+  prompt: `Summarize: ${analyses.join('\n')}`,
+  async: false
+});
+```
+
+---
+
+## TASK SUPERVISION
+
+The TaskSupervisor runs in the background:
+- Checks every 30s (simple) to 2min (complex tasks)
+- Detects stale heartbeats (no response in 30s)
+- Auto-retries failed tasks (max 2 attempts)
+- **Silent operation**: Only logs on critical failures
+
+You don't need to manually monitor - the supervisor handles it!
+
+### Monitoring Tools
+- `task_status({ task_id })` - Check specific task
+- `task_aggregate({ task_ids })` - Summarize multiple tasks
+- `supervisor_stats()` - View supervision statistics
+
+---
+
+## CRASH RECOVERY
+
+On session start, check for previous state:
+
+```
+1. Read .opencode/LEDGER.md
+2. If active Epic exists → resume from last phase
+3. Re-delegate pending tasks via skill_agent
+4. Continue execution
+```
+
+The TaskRegistry automatically syncs with LEDGER.md for durability.
+
+---
+
 ## CORE DIRECTIVES
 
 1. **LEDGER First**: Always check LEDGER before starting
@@ -204,3 +308,4 @@ Store in LEDGER → Learnings section.
 - **Concise**: No preamble. No flattery.
 - **Evidence-Based**: No task is "completed" without evidence.
 - **Durable**: State lives in LEDGER.md, not memory.
+

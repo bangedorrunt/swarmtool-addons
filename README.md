@@ -1,100 +1,31 @@
 # swarm-tool-addons
 
-This is an addon to leverage amazing swarm-tools features
+This is an addon to leverage amazing swarm-tools features. It implements a robust, skill-based multi-agent orchestration system on top of OpenCode AI SDK.
 
 > An OpenCode plugin created from the [opencode-plugin-template](https://github.com/zenobi-us/opencode-plugin-template)
 
-## Features
+## 🌟 Key Features
 
-- 🏗️ TypeScript-based plugin architecture
-- 🔧 Mise task runner integration
-- 📦 Bun/npm build tooling
-- ✨ ESLint + Prettier formatting
-- 🧪 Vitest testing setup
-- 🚀 GitHub Actions CI/CD
-- 📝 Release automation with release-please
-- 🔄 **Dual-mode orchestration (Sync/Async)** for robust agent coordination
-- 🧠 **Self-learning memory system** with cross-session continuity
-- 🎯 **Skill-based agent architecture** with hierarchical discovery
+• 🏗️ **Skill-Based Subagent Architecture**: Package domain expertise into specialized, on-demand workers.
+• 🔄 **Dual-Mode Orchestration**: Support for both Parallel (Async) interactive handoffs and Sequential (Sync) background delegation.
+• 🧠 **Self-Learning Memory System**: Automatic cross-session wisdom accumulation via Memory Lane (Vector DB) + LEDGER.md.
+• 📝 **Durable State Continuity**: `LEDGER.md` persists work across sessions with crash recovery built-in.
+• 🛡️ **Autonomous Supervision**: Background watchdog (TaskSupervisor) for task health monitoring and auto-retries.
+• 🔐 **Access Control**: Protected sub-agents only respond to chief-of-staff coordinator.
+• 🚀 **High Context Efficiency**: Partitioned contexts reduce token noise by up to 16x per task.
 
-## Orchestration Patterns
+## 🗺️ Documentation Map
 
-This plugin implements two distinct orchestration modes for agent coordination:
+• **[ARCHITECTURE.md](ARCHITECTURE.md)**: Core design philosophies (Actor Model, Durable Stream, Hybrid Delegator).
+• **[ROADMAP.md](ROADMAP.md)**: Project vision and planned enhancements.
+• **Module Specifications**:
+  • [Orchestrator Spec](src/orchestrator/SPEC.md): Technical details of coordination and supervision.
+  • [Memory Lane Spec](src/memory-lane/SPEC.md): Semantic storage and learning extraction details.
+  • [OpenCode Integration](src/opencode/SPEC.md): Loader mechanism and runtime hooks.
 
-### 🔀 Async (Parallel) - Interactive Handoffs
-**Use Case**: User-facing interactions where the sub-agent's work should be visible in the UI.
+## 🚀 Quick Start
 
-- Coordinator hands off the turn to a specialist
-- User sees the specialist's reasoning and can interact
-- Ideal for clarification dialogues, interviews, and interactive planning
-
-### 🔗 Sync (Sequential) - Durable Streams
-**Use Case**: Background coordination where the coordinator needs the specialist's result to continue.
-
-- Coordinator blocks and waits for the specialist to finish
-- Specialist works in an isolated session (invisible to user)
-- Coordinator receives the result as text and continues its logic
-- Ideal for Chief-of-Staff workflows, multi-step planning, and result-dependent execution
-
-**Example**:
-```typescript
-// Async: User sees the interviewer's questions
-await skill_agent({ agent: 'interviewer', prompt: 'Clarify requirements', async: true });
-
-// Sync: Coordinator gets the plan text to use in next step
-const plan = await skill_agent({ agent: 'planner', prompt: 'Create plan', async: false });
-```
-
-See [docs/REFLECTION.md](docs/REFLECTION.md) for architectural deep-dive and [src/orchestrator/PLAN.md](src/orchestrator/PLAN.md) for implementation details.
-
-## Getting Started
-
-1. **Clone this template:**
-
-   ```bash
-   cp -r opencode-plugin-template your-plugin-name
-   cd your-plugin-name
-   ```
-
-2. **Update package.json:**
-   - Change `name` to your plugin name
-   - Update `description`
-   - Update `repository.url`
-
-3. **Install dependencies:**
-
-   ```bash
-   bun install
-   ```
-
-4. **Implement your plugin in `src/index.ts`:**
-
-   ```typescript
-   import type { Plugin } from '@opencode-ai/plugin';
-
-   export const YourPlugin: Plugin = async (ctx) => {
-     return {
-       tool: {
-         // Your plugin tools here
-       },
-     };
-   };
-   ```
-
-5. **Test your plugin:**
-   ```bash
-   mise run test
-   ```
-
-## Development
-
-- `mise run build` - Build the plugin
-- `mise run test` - Run tests
-- `mise run lint` - Lint code
-- `mise run lint:fix` - Fix linting issues
-- `mise run format` - Format code with Prettier
-
-## Installation in OpenCode
+### 1. Installation in OpenCode
 
 Create or edit `~/.config/opencode/config.json`:
 
@@ -104,18 +35,28 @@ Create or edit `~/.config/opencode/config.json`:
 }
 ```
 
-## Author
+### 2. Basic Usage
 
-bangedorrunt <bangedorrunt@proton.me>
+Call specialized agents directly from your chat:
 
-## Repository
+```typescript
+// Async: User sees the interviewer's questions (DIALOGUE mode)
+await skill_agent({ agent_name: 'interviewer', prompt: 'Clarify requirements', async: true });
 
-https://github.com/bangedorrunt/swarm-tool-addons
+// Sync: Coordinator gets the result text to use in next step
+const plan = await skill_agent({ agent_name: 'planner', prompt: 'Create plan', async: false });
 
-## Contributing
+// Orchestrate complex tasks with chief-of-staff
+await skill_agent({ agent_name: 'chief-of-staff', prompt: 'Build auth system with OAuth' });
+```
 
-Contributions are welcome! Please file issues or submit pull requests on the GitHub repository.
+## 🛠️ Development
 
-## License
+- `mise run build` - Build the plugin
+- `mise run test` - Run tests
+- `mise run lint` - Lint code
+- `mise run format` - Format code
+
+## 📄 License
 
 MIT License. See the [LICENSE](LICENSE) file for details.

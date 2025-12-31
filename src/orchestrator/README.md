@@ -9,16 +9,19 @@ The Orchestrator module provides skill-based agents that can be composed into po
 ## 🚀 Quick Start
 
 ### Get Expert Advice
+
 ```
 "Ask the oracle: Should I use PostgreSQL or MongoDB for a real-time analytics app?"
 ```
 
 ### Research a Library
+
 ```
 "Ask the librarian about Drizzle ORM migration patterns"
 ```
 
 ### Plan a Feature
+
 ```
 "Create a plan for implementing user authentication with OAuth"
 ```
@@ -27,19 +30,19 @@ The Orchestrator module provides skill-based agents that can be composed into po
 
 ## 📦 Available Agents
 
-| Agent | What It Does | When to Use |
-|-------|-------------|-------------|
-| **🔮 Oracle** | Expert technical advisor | Architecture questions, technology choices |
-| **📚 Librarian** | Library research specialist | Learning new libraries, finding examples |
-| **🔍 Explore** | Codebase search expert | Finding code, understanding project structure |
-| **🎤 Interviewer** | Requirement clarifier | When your request is unclear |
-| **📋 Spec-Writer** | Requirements documenter | Before starting new features |
-| **📐 Planner** | Implementation strategist | Creating step-by-step plans |
-| **✅ Validator** | Quality gate checker | Reviewing plans against best practices |
-| **🔨 Executor** | TDD implementer | Actual code implementation |
-| **🧠 Memory-Catcher** | Learning extractor | Automatically captures what you prefer |
-| **👔 Chief-of-Staff** | Team coordinator | Complex multi-step projects |
-| **🏗️ Workflow-Architect** | Pattern designer | Creating new workflow patterns |
+| Agent                     | What It Does                | When to Use                                   |
+| ------------------------- | --------------------------- | --------------------------------------------- |
+| **🔮 Oracle**             | Expert technical advisor    | Architecture questions, technology choices    |
+| **📚 Librarian**          | Library research specialist | Learning new libraries, finding examples      |
+| **🔍 Explore**            | Codebase search expert      | Finding code, understanding project structure |
+| **🎤 Interviewer**        | Requirement clarifier       | When your request is unclear                  |
+| **📋 Spec-Writer**        | Requirements documenter     | Before starting new features                  |
+| **📐 Planner**            | Implementation strategist   | Creating step-by-step plans                   |
+| **✅ Validator**          | Quality gate checker        | Reviewing plans against best practices        |
+| **🔨 Executor**           | TDD implementer             | Actual code implementation                    |
+| **🧠 Memory-Catcher**     | Learning extractor          | Automatically captures what you prefer        |
+| **👔 Chief-of-Staff**     | Team coordinator            | Complex multi-step projects                   |
+| **🏗️ Workflow-Architect** | Pattern designer            | Creating new workflow patterns                |
 
 ---
 
@@ -50,6 +53,7 @@ The Orchestrator module provides skill-based agents that can be composed into po
 **When to use:** You need a quick answer to a technical question.
 
 **Example prompts:**
+
 ```
 "Oracle, what's the best way to handle file uploads in Next.js?"
 
@@ -59,6 +63,7 @@ The Orchestrator module provides skill-based agents that can be composed into po
 ```
 
 **What happens:**
+
 1. Oracle analyzes your question
 2. Provides structured recommendation with trade-offs
 3. Includes effort estimate
@@ -70,6 +75,7 @@ The Orchestrator module provides skill-based agents that can be composed into po
 **When to use:** You need to learn about an unfamiliar library.
 
 **Example prompts:**
+
 ```
 "Librarian, research Zod for schema validation - show me common patterns"
 
@@ -79,6 +85,7 @@ The Orchestrator module provides skill-based agents that can be composed into po
 ```
 
 **What happens:**
+
 1. Librarian searches documentation and GitHub
 2. Finds relevant examples
 3. Returns with code snippets and permalinks
@@ -90,6 +97,7 @@ The Orchestrator module provides skill-based agents that can be composed into po
 **When to use:** You need to find something in a codebase you don't know well.
 
 **Example prompts:**
+
 ```
 "Explore: where is authentication handled in this project?"
 
@@ -99,6 +107,7 @@ The Orchestrator module provides skill-based agents that can be composed into po
 ```
 
 **What happens:**
+
 1. Explore searches with grep, LSP, and git
 2. Maps relevant files and patterns
 3. Returns with explanations and file paths
@@ -110,6 +119,7 @@ The Orchestrator module provides skill-based agents that can be composed into po
 **When to use:** You want a plan before implementing a feature.
 
 **Example prompts:**
+
 ```
 "Plan: add dark mode toggle to the settings page"
 
@@ -119,6 +129,7 @@ The Orchestrator module provides skill-based agents that can be composed into po
 ```
 
 **What happens:**
+
 1. Planner researches your codebase
 2. Creates implementation blueprint
 3. Lists affected files and phases
@@ -130,6 +141,7 @@ The Orchestrator module provides skill-based agents that can be composed into po
 **When to use:** You want a thorough, validated approach for important features.
 
 **Example prompts:**
+
 ```
 "Build user authentication with email/password and OAuth"
 
@@ -139,6 +151,7 @@ The Orchestrator module provides skill-based agents that can be composed into po
 ```
 
 **What happens:**
+
 1. **Interviewer** clarifies requirements if needed
 2. **Spec-Writer** creates detailed specification
 3. **Planner** creates implementation plan
@@ -152,6 +165,7 @@ The Orchestrator module provides skill-based agents that can be composed into po
 **When to use:** You have multiple independent tasks that can run simultaneously.
 
 **Example prompts:**
+
 ```
 "Refactor these 5 utility files to TypeScript:
 - utils/date.js
@@ -162,6 +176,7 @@ The Orchestrator module provides skill-based agents that can be composed into po
 ```
 
 **What happens:**
+
 1. Each file is assigned to a separate executor
 2. All run in parallel
 3. Results are gathered and reported
@@ -173,6 +188,7 @@ The Orchestrator module provides skill-based agents that can be composed into po
 **When to use:** You have a vague idea but need help defining it.
 
 **Example prompts:**
+
 ```
 "I want to improve the user experience of our checkout flow"
 
@@ -182,6 +198,7 @@ The Orchestrator module provides skill-based agents that can be composed into po
 ```
 
 **What happens (DIALOGUE loop):**
+
 1. **Interviewer** asks targeted questions → Returns `needs_input`
 2. You answer → Agent processes
 3. More questions if needed → Returns `needs_input` again
@@ -198,6 +215,7 @@ The Orchestrator module provides skill-based agents that can be composed into po
 **When to use:** Complex projects spanning multiple areas that need oversight.
 
 **Example prompts:**
+
 ```
 "Manage the implementation of our new e-commerce checkout:
 - Need payment processing
@@ -207,6 +225,7 @@ The Orchestrator module provides skill-based agents that can be composed into po
 ```
 
 **What happens (DIALOGUE checkpoints):**
+
 1. **Chief-of-Staff** captures your goals and constraints
 2. Spawns workers for each area
 3. **CHECKPOINT**: After planning → Returns `needs_approval`
@@ -223,6 +242,7 @@ The Orchestrator module provides skill-based agents that can be composed into po
 **When to use:** You need a sub-agent's output to decide what to do next.
 
 **Example prompts:**
+
 ```
 "Plan the auth system, then use that plan to generate the code"
 
@@ -232,6 +252,7 @@ The Orchestrator module provides skill-based agents that can be composed into po
 ```
 
 **What happens:**
+
 1. Parent agent calls sub-agent with `async: false`
 2. System creates isolated session for sub-agent
 3. Parent **blocks** and polls for completion
@@ -239,12 +260,13 @@ The Orchestrator module provides skill-based agents that can be composed into po
 5. Parent continues with the result
 
 **Example code:**
+
 ```typescript
 // Parent agent (e.g., Chief-of-Staff)
 const plan = await skill_agent({
   agent_name: 'planner',
   prompt: 'Create implementation plan',
-  async: false  // ⭐ SYNC MODE
+  async: false, // ⭐ SYNC MODE
 });
 
 // `plan` is now the text output
@@ -254,14 +276,14 @@ console.log('Got plan:', plan);
 const result = await skill_agent({
   agent_name: 'executor',
   prompt: `Implement: ${plan}`,
-  async: false
+  async: false,
 });
 ```
 
 **Key difference from Async:**
+
 - **Async**: Sub-agent takes over the UI, parent finishes
 - **Sync**: Sub-agent works in background, parent waits for result
-
 
 ---
 
@@ -317,12 +339,13 @@ USER: "Build dashboard"
 
 ### Communication Modes
 
-| Mode | When to Use | Visibility | Result |
-|------|-------------|------------|--------|
-| **async: true** | User needs to see/approve | User sees agent | No result returned |
-| **async: false** | Parent needs result | Hidden from user | Text result returned |
+| Mode             | When to Use               | Visibility       | Result               |
+| ---------------- | ------------------------- | ---------------- | -------------------- |
+| **async: true**  | User needs to see/approve | User sees agent  | No result returned   |
+| **async: false** | Parent needs result       | Hidden from user | Text result returned |
 
 **Human Checkpoints** ⭐:
+
 - **Interviewer**: User answers questions + approves requirements
 - **Spec-Writer**: User approves formal specification
 - **Planner**: User approves implementation plan
@@ -332,17 +355,103 @@ See [docs/WORKFLOW_PATTERNS_GUIDE.md](../docs/WORKFLOW_PATTERNS_GUIDE.md) for de
 
 ---
 
+## 📋 State Persistence (LEDGER.md)
+
+All workflow state is persisted to `.opencode/LEDGER.md`:
+
+```
+┌─────────────────────────────────────────┐
+│        .opencode/LEDGER.md              │
+├─────────────────────────────────────────┤
+│ ## Meta                                 │
+│   session_id, status, phase, progress   │
+│                                         │
+│ ## Epic: Build Auth System              │
+│   - abc123.1: executor → completed ✓    │
+│   - abc123.2: executor → running...     │
+│                                         │
+│ ## Learnings                            │
+│   - Pattern: Use Stripe SDK for...      │
+│                                         │
+│ ## Handoff (if context limit reached)   │
+│   - What's done, What's next            │
+└─────────────────────────────────────────┘
+```
+
+**Why it matters:**
+- Resume work after session ends or context clears
+- Track task progress across multiple sessions
+- Accumulate learnings for future sessions
+
+---
+
+## 🔄 Crash Recovery
+
+If your session crashes or you run `/clear`:
+
+```
+Session Start
+     │
+     ▼
+Load .opencode/LEDGER.md
+     │
+     ├─── Active Epic? ───YES──→ "Resuming: Build Auth System (2/3 tasks done)"
+     │                          ├─ pending → re-queue
+     │                          └─ running → retry
+     │
+     └─── Handoff? ───YES──→ "Resuming from: Add OAuth providers"
+```
+
+**Example resume:**
+```
+You: [Start new session]
+
+Agent: "I found your previous work in LEDGER.md:
+- Epic: Build Auth System
+- Progress: 2/3 tasks completed
+- Last task was interrupted: 'Add OAuth providers'
+
+Would you like me to continue from where we left off?"
+```
+
+---
+
+## 🔐 Access Control
+
+Sub-agents are protected by access control:
+
+| Agent | Can Call Directly? | Must Use |
+|-------|-------------------|----------|
+| **chief-of-staff** | ✅ Yes | - |
+| executor | ❌ No | chief-of-staff |
+| planner | ❌ No | chief-of-staff |
+| oracle | ❌ No | chief-of-staff |
+| validator | ❌ No | chief-of-staff |
+| interviewer | ❌ No | chief-of-staff |
+
+**Why?** Ensures coordinated execution and proper state management.
+
+If you try to call a protected agent directly, you'll get:
+```
+ACCESS_DENIED: executor only responds to chief-of-staff.
+Suggestion: Use chief-of-staff to coordinate your request.
+```
+
+---
+
 ## 🧠 Self-Learning
 
 The system learns from your interactions automatically:
 
 ### What It Remembers
+
 - ✅ Your corrections ("No, use Zod instead of io-ts")
 - ✅ Your preferences ("I prefer functional components")
 - ✅ Architectural decisions ("We chose PostgreSQL for vector support")
 - ✅ Anti-patterns that failed ("Don't use bcrypt.hashSync in async")
 
 ### How It Works
+
 ```
 Session 1: You say "No, use Zod not io-ts"
     ↓
@@ -411,7 +520,7 @@ Agent (Oracle): "Based on the analysis:
    - Effort: 10 minutes
 
 2. **Medium Effort**: Move heavy computation to API route
-   - Impact: High  
+   - Impact: High
    - Effort: 1 hour
 
 3. **Consider**: Implement Redis caching for database queries
@@ -427,7 +536,7 @@ Which would you like to tackle first?"
 
 **Scenario:** You need to use Drizzle ORM but haven't used it before.
 
-```
+````
 You: "I need to set up Drizzle ORM with PostgreSQL. I've never used it."
 
 Agent (Librarian): "Here's what you need to know about Drizzle:
@@ -448,20 +557,23 @@ export const users = pgTable('users', {
 
 // usage
 const allUsers = await db.select().from(users);
-```
+````
 
 ## Migrations
+
 ```bash
 npx drizzle-kit generate
 npx drizzle-kit push
 ```
 
 ## Resources
+
 - [Quick Start](https://orm.drizzle.team/docs/quick-start)
 - [Insert Examples](https://github.com/drizzle-team/drizzle-orm/.../insert.ts)
 - [Query Patterns](https://orm.drizzle.team/docs/select)
 
 Would you like me to create a plan for integrating this into your project?"
+
 ```
 
 ---
@@ -471,25 +583,30 @@ Would you like me to create a plan for integrating this into your project?"
 **Scenario:** You want feedback on your implementation.
 
 ```
+
 You: "Review my implementation of the user service in src/services/user.ts"
 
 Agent (Oracle): "Reviewing src/services/user.ts...
 
 ## Good ✅
+
 - Clean separation of concerns
 - Proper error handling
 - TypeScript types are accurate
 
 ## Suggestions 💡
+
 1. **Line 45**: Consider using transaction for user creation + profile
 2. **Line 78**: Password comparison should use constant-time comparison
 3. **Line 92**: Add rate limiting to prevent brute force
 
 ## Security ⚠️
+
 - Line 23: Logging full user object - may expose sensitive data
 - Line 56: Consider adding input validation with Zod
 
 Would you like me to implement any of these suggestions?"
+
 ```
 
 ---
@@ -499,9 +616,11 @@ Would you like me to implement any of these suggestions?"
 **Scenario:** You want to refactor JavaScript files to TypeScript.
 
 ```
-You: "Refactor utils/*.js files to TypeScript"
+
+You: "Refactor utils/\*.js files to TypeScript"
 
 Agent: "Found 5 files to refactor:
+
 - utils/date.js (45 lines)
 - utils/string.js (32 lines)
 - utils/format.js (28 lines)
@@ -518,7 +637,8 @@ Running parallel refactoring...
 
 All files refactored. TypeScript compiles with 0 errors.
 Would you like me to run the tests?"
-```
+
+````
 
 ---
 
@@ -534,10 +654,12 @@ In your project's `.opencode.json`:
     "chief-of-staff/oracle": { "model": "openrouter/anthropic/claude-3.5-sonnet" }
   }
 }
-```
+````
 
 ### Optional: Custom Agents
+
 Create your own agents in `~/.config/opencode/skill/`:
+
 ```
 ~/.config/opencode/skill/
 └── my-skill/
@@ -550,6 +672,6 @@ Create your own agents in `~/.config/opencode/skill/`:
 
 ## 📚 Further Reading
 
-- [PLAN.md](./PLAN.md) - Technical architecture
+- [SPEC.md](./SPEC.md) - Technical architecture
 - [Workflow Patterns Guide](../docs/WORKFLOW_PATTERNS_GUIDE.md) - Detailed patterns with code
 - [SKILL_BASED_AGENTS_SPEC.md](../docs/SKILL_BASED_AGENTS_SPEC.md) - Full specification

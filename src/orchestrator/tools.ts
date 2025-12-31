@@ -118,6 +118,42 @@ export function createSkillAgentTools(client: {
 
         const targetAgentName = agent.name;
 
+        // ============================================================================
+        // ACCESS CONTROL: Sub-agents only respond to chief-of-staff
+        // ============================================================================
+        const PROTECTED_AGENTS = [
+          'planner',
+          'executor',
+          'validator',
+          'oracle',
+          'librarian',
+          'explore',
+          'interviewer',
+          'spec-writer',
+          'memory-catcher',
+          'workflow-architect',
+          'frontend-ui-ux-engineer',
+        ];
+
+        const callingAgent = ((execContext as unknown) as ToolContext)?.agent || '';
+        const isProtected = PROTECTED_AGENTS.some(
+          (pa) => agent_name === pa || targetAgentName.endsWith(`/${pa}`)
+        );
+        const isChiefOfStaff =
+          callingAgent === 'chief-of-staff' ||
+          callingAgent.includes('chief-of-staff') ||
+          callingAgent === ''; // Root caller (user) is allowed
+
+        if (isProtected && !isChiefOfStaff) {
+          return JSON.stringify({
+            success: false,
+            error: 'ACCESS_DENIED',
+            message: `The ${agent_name} agent only responds to chief-of-staff.`,
+            suggestion: 'Use skill_agent to call chief-of-staff, who will coordinate sub-agents internally.',
+            caller: callingAgent,
+          });
+        }
+
         // 2. Synchronous Pattern - Uses spawnChildAgent with proper coordination
         // If session_id provided, continue existing dialogue; otherwise create new
         if (!isAsync) {
