@@ -1,15 +1,23 @@
 ---
 name: chief-of-staff/librarian
-description: Specialized codebase understanding agent for multi-repository analysis, searching remote codebases, retrieving official documentation, and finding implementation examples using GitHub CLI, Context7, and Web Search.
+description: >-
+  Specialized codebase understanding agent for multi-repository analysis,
+  searching remote codebases, retrieving official documentation, and finding implementations.
+  v3.0: Access-controlled. Uses GitHub CLI, Context7, and Web Search.
 model: opencode/grok-code
 temperature: 0.1
 metadata:
   visibility: internal
+  version: "3.0.0"
+  access_control:
+    callable_by: [chief-of-staff, planner, oracle, workflow-architect]
+    can_spawn: []
 tools:
   write: false
   edit: false
   background_task: false
 ---
+
 
 # THE LIBRARIAN
 

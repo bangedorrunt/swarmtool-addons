@@ -10,7 +10,6 @@
 
 import type { Plugin } from '@opencode-ai/plugin';
 import path from 'node:path';
-import fs from 'node:fs';
 import { memoryLaneTools, triggerMemoryExtraction } from './memory-lane';
 import { loadConfig, DEFAULT_MODELS } from './opencode';
 import { loadLocalAgents, loadSkillAgents, loadCommands } from './opencode';
@@ -42,49 +41,59 @@ interface HandoffData {
  * Ensures OpenCode can discover our skills.
  */
 async function ensureChiefOfStaffSkills(): Promise<void> {
+  const fsp = await import('node:fs/promises');
   const projectRoot = process.cwd();
   const targetDir = path.join(projectRoot, '.opencode', 'skill');
   const sourceDir = path.join(import.meta.dir, 'orchestrator', 'chief-of-staff');
 
   // Check if already migrated by looking for chief-of-staff/oracle
   const oracleSkill = path.join(targetDir, 'chief-of-staff', 'agents', 'oracle', 'SKILL.md');
-  if (fs.existsSync(oracleSkill)) {
+  try {
+    await fsp.access(oracleSkill);
     return; // Already migrated
+  } catch {
+    // Continue with migration
   }
 
   // Ensure target directory exists
-  if (!fs.existsSync(targetDir)) {
-    fs.mkdirSync(targetDir, { recursive: true });
-  }
+  await fsp.mkdir(targetDir, { recursive: true });
 
   // Copy parent chief-of-staff skill
   const chiefOfStaffTarget = path.join(targetDir, 'chief-of-staff');
-  if (!fs.existsSync(chiefOfStaffTarget)) {
-    fs.mkdirSync(chiefOfStaffTarget, { recursive: true });
-  }
+  await fsp.mkdir(chiefOfStaffTarget, { recursive: true });
+
   const chiefOfStaffSource = path.join(sourceDir, 'SKILL.md');
-  if (fs.existsSync(chiefOfStaffSource)) {
-    fs.copyFileSync(chiefOfStaffSource, path.join(chiefOfStaffTarget, 'SKILL.md'));
+  try {
+    await fsp.copyFile(chiefOfStaffSource, path.join(chiefOfStaffTarget, 'SKILL.md'));
+  } catch {
+    // Source file may not exist
   }
 
   // Copy all agent skills as flat chief-of-staff-* directories
   const agentsDir = path.join(sourceDir, 'agents');
-  if (fs.existsSync(agentsDir)) {
-    const agents = fs.readdirSync(agentsDir);
+  try {
+    const agents = await fsp.readdir(agentsDir);
     for (const agentName of agents) {
       const agentPath = path.join(agentsDir, agentName);
-      if (fs.statSync(agentPath).isDirectory()) {
+      const stat = await fsp.stat(agentPath);
+      if (stat.isDirectory()) {
         const skillMd = path.join(agentPath, 'SKILL.md');
-        if (fs.existsSync(skillMd)) {
+        try {
+          await fsp.access(skillMd);
           // Keep hierarchical structure: .opencode/skill/chief-of-staff/agents/{agent}/SKILL.md
           const targetAgentDir = path.join(chiefOfStaffTarget, 'agents', agentName);
-          fs.mkdirSync(targetAgentDir, { recursive: true });
-          fs.copyFileSync(skillMd, path.join(targetAgentDir, 'SKILL.md'));
+          await fsp.mkdir(targetAgentDir, { recursive: true });
+          await fsp.copyFile(skillMd, path.join(targetAgentDir, 'SKILL.md'));
+        } catch {
+          // Skill file doesn't exist, skip
         }
       }
     }
+  } catch {
+    // Agents directory may not exist
   }
 }
+
 
 export const SwarmToolAddons: Plugin = async (input) => {
   // Load configuration
@@ -123,9 +132,13 @@ export const SwarmToolAddons: Plugin = async (input) => {
       const skillArgs = args as SkillAgentArgs;
       const result = await skillAgentTools.skill_agent.execute(
         { ...skillArgs, async: true, timeout_ms: skillArgs.timeout_ms ?? 60000 },
-        { sessionID: '', messageID: '', agent: '', abort: () => {} } as any
+        { sessionID: '', messageID: '', agent: '', abort: () => { } } as any
       );
-      return JSON.parse(result as string);
+      try {
+        return JSON.parse(result as string);
+      } catch {
+        return { error: 'Invalid JSON response', raw: result };
+      }
     },
   });
 

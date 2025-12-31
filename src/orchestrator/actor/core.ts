@@ -118,9 +118,9 @@ export function receive(state: ActorState, message: ActorMessage): ActorState {
       return {
         ...state,
         direction: {
-          goals: message.payload.goals || state.direction.goals,
-          constraints: message.payload.constraints || state.direction.constraints,
-          decisions: message.payload.decisions || state.direction.decisions,
+          goals: message.payload.goals ?? state.direction?.goals ?? [],
+          constraints: message.payload.constraints ?? state.direction?.constraints ?? [],
+          decisions: message.payload.decisions ?? state.direction?.decisions ?? [],
         },
         lastUpdated: now,
       };
@@ -226,7 +226,7 @@ function buildLedgerContent(state: ActorState): string {
   sections.push('');
 
   // Direction
-  if (state.direction.goals.length > 0) {
+  if ((state.direction?.goals?.length ?? 0) > 0) {
     sections.push('## Goals');
     for (const goal of state.direction.goals) {
       sections.push(`- ${goal}`);
@@ -234,7 +234,7 @@ function buildLedgerContent(state: ActorState): string {
     sections.push('');
   }
 
-  if (state.direction.constraints.length > 0) {
+  if ((state.direction?.constraints?.length ?? 0) > 0) {
     sections.push('## Constraints');
     for (const constraint of state.direction.constraints) {
       sections.push(`- ${constraint}`);
@@ -242,7 +242,7 @@ function buildLedgerContent(state: ActorState): string {
     sections.push('');
   }
 
-  if (state.direction.decisions.length > 0) {
+  if ((state.direction?.decisions?.length ?? 0) > 0) {
     sections.push('## Decisions');
     for (const decision of state.direction.decisions) {
       sections.push(`- ${decision}`);

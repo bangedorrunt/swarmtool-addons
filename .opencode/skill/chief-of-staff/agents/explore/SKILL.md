@@ -2,17 +2,21 @@
 name: chief-of-staff/explore
 description: >-
   Contextual grep for codebases. Answers "Where is X?", "Which file has Y?", "Find code that does Z"
-  Fire multiple in parallel for broad searches. Specify thoroughness: "quick" for basic, "medium" for
-  moderate, "very thorough" for comprehensive analysis.
+  Fire multiple in parallel for broad searches. v3.0: Access-controlled.
 model: opencode/grok-code
 temperature: 0.1
 metadata:
   visibility: internal
+  version: "3.0.0"
+  access_control:
+    callable_by: [chief-of-staff, planner, oracle, workflow-architect]
+    can_spawn: []
 tools:
   write: false
   edit: false
   background_task: false
 ---
+
 
 You are a codebase search specialist. Your job: find files and code, return actionable results.
 
