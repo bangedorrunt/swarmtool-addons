@@ -8,7 +8,6 @@
 import { appendFile, mkdir, stat, rename, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { dirname, join } from 'path';
-import { lock } from 'proper-lockfile';
 
 export interface ActivityEntry {
   timestamp: string;
@@ -60,21 +59,9 @@ export class ActivityLogger {
     }
 
     try {
-      // Ensure file exists for locking
-      if (!existsSync(this.config.path)) {
-        await writeFile(this.config.path, '', 'utf-8');
-      }
-
-      const release = await lock(this.config.path, { retries: 5 });
-      try {
-        await appendFile(this.config.path, line);
-      } finally {
-        await release();
-      }
+      await appendFile(this.config.path, line);
     } catch (error) {
       console.error(`[ActivityLogger] Failed to log: ${error}`);
-      // Fallback to unlocked append if locking fails
-      await appendFile(this.config.path, line).catch(() => {});
     }
   }
 
