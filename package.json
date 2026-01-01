@@ -1,7 +1,7 @@
 {
-  "name": "swarmtool-addons",
+  "name": "opencode-addons",
   "version": "0.1.0",
-  "description": "Add-on features for swarmtools",
+  "description": "Add-on features for OpenCode",
   "author": {
     "name": "bangedorrunt"
   },
@@ -14,7 +14,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/bangedorrunt/swarmtool-addons"
+    "url": "https://github.com/bangedorrunt/opencode-addons"
   },
   "publishConfig": {
     "access": "public",

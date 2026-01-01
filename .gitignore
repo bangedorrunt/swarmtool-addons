@@ -13,3 +13,6 @@ coverage/
 package-lock.json
 .opencode/eval-data.jsonl
 .opencode/swarm.db
+.opencode/*.jsonl
+.opencode/memories.db
+.opencode/assumptions.json
