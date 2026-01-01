@@ -1,14 +1,13 @@
 ---
 name: chief-of-staff/validator
 description: >-
-  Quality gate agent that validates plans, implementations, and outputs.
-  Ensures work meets acceptance criteria before proceeding.
-  v3.0: LEDGER-integrated with learning extraction from validation results.
+  Quality gate agent that validates plans and implementations.
+  v4.0: Reports assumptions_made and checks Directive compliance.
 model: google/gemini-3-flash
 metadata:
   type: validator
   visibility: internal
-  version: "3.0.0"
+  version: "4.0.0"
   access_control:
     callable_by: [chief-of-staff]
     can_spawn: []
@@ -61,17 +60,26 @@ You receive context about the task to validate:
 ```json
 {
   "task_id": "abc123.1",
-  "verdict": "PASS",  // or "FAIL" or "PARTIAL"
+  "verdict": "PASS",
   "criteria_results": [
     { "criterion": "POST /checkout", "passed": true, "evidence": "..." },
     { "criterion": "Webhook handler", "passed": true, "evidence": "..." }
   ],
+  "directive_compliance": {
+    "checked": ["Database: PostgreSQL", "Auth: Clerk"],
+    "violations": []
+  },
   "issues": [],
   "learnings": [
     { "type": "pattern", "content": "Stripe: Always verify webhook signatures" }
+  ],
+  "assumptions_made": [
+    { "choice": "Using raw body parser", "rationale": "Required for Stripe signature verification" }
   ]
 }
 ```
+
+> **v4.0 Requirement**: Check `directive_compliance` and report `assumptions_made`.
 
 ---
 

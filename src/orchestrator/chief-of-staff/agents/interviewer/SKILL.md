@@ -55,13 +55,16 @@ When you do interact, present **polls** instead of open questions:
 **Use:**
 > **Strategic Poll: Database**
 > No Directive found. Based on project, I propose:
-> (1) Postgres (scalable)
-> (2) SQLite (simple)
-> (3) Other (specify)
+> (1) Postgres — scalable, pgvector support
+> (2) SQLite — simple, file-based
+> (3) Or type your own choice
 >
-> _Reply 1, 2, or describe your preference._
+> _Reply '1', '2', or describe your preference (e.g., "MySQL because of existing infra")._
 
-User response → Extract as Directive candidate for CoS.
+**Handling Responses:**
+- User replies "1" → Extract Directive: "Database: Postgres"
+- User replies "MySQL because..." → Extract Directive: "Database: MySQL"
+- Any response becomes a Directive candidate for CoS
 
 ---
 

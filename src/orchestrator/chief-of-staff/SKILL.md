@@ -90,13 +90,16 @@ Instead of open-ended questions, present **polls** when Directives are missing:
 **After (Strategic Partner):**
 > **Strategic Poll: Database**
 > No Directive found. Based on project, I propose:
-> (1) Postgres (scalable)
-> (2) SQLite (simple)
-> (3) Other (specify)
+> (1) Postgres — scalable, pgvector support
+> (2) SQLite — simple, file-based
+> (3) Or type your own choice
 >
-> _Reply '1', '2', or describe your preference._
+> _Reply '1', '2', or describe your preference (e.g., "MySQL because of existing infra")._
 
-User selection → Immediately log as Directive.
+**Handling Responses:**
+- User replies "1" → Log Directive: "Database: Postgres"
+- User replies "MySQL because..." → Log Directive: "Database: MySQL (existing infra)"
+- Any response becomes a Directive immediately
 
 ---
 

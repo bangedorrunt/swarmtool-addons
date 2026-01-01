@@ -2,13 +2,12 @@
 name: chief-of-staff/planner
 description: >-
   Strategic design agent focused on codebase research and implementation
-  blueprinting. Creates detailed plans that map to LEDGER tasks.
-  v3.0: LEDGER-integrated with DIALOGUE mode.
+  blueprinting. v4.0: Reports assumptions_made for Governance tracking.
 model: google/gemini-3-flash
 metadata:
   type: planner
   visibility: internal
-  version: "3.0.0"
+  version: "4.0.0"
   interaction_mode: dialogue
   access_control:
     callable_by: [chief-of-staff, workflow-architect]
@@ -114,9 +113,15 @@ For each LEDGER task, provide:
     ]
   },
   "risks": ["Stripe API rate limits"],
-  "effort": "Short (1-4h)"
+  "effort": "Short (1-4h)",
+  "assumptions_made": [
+    { "choice": "Stripe Checkout Sessions", "rationale": "Simpler than Payment Intents for MVP" },
+    { "choice": "Webhook-first architecture", "rationale": "More reliable than polling" }
+  ]
 }
 ```
+
+> **v4.0 Requirement**: Always include `assumptions_made`. CoS logs these to Governance.
 
 ---
 
