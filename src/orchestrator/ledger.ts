@@ -68,6 +68,15 @@ export interface Task {
   completedAt?: number;
   sessionId?: string; // Durable Subagent Reference
   yieldReason?: string;
+  // v4.1: Parallel execution tracking
+  affectsFiles?: string[]; // Files this task will modify
+  filesModified?: Array<{ path: string; operation: 'create' | 'modify' | 'delete' }>;
+  conflictInfo?: {
+    type: 'file_collision' | 'import_conflict' | 'state_conflict' | 'resource_lock';
+    conflictingTaskId?: string;
+    conflictingFiles?: string[];
+    resolution?: 'retried' | 'redecomposed' | 'sequential';
+  };
 }
 
 export interface Epic {

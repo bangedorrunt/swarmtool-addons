@@ -258,16 +258,117 @@ Agent: planner (async: true)
 → Update task details in LEDGER
 ```
 
-### PHASE 4: EXECUTION
+### PHASE 4: EXECUTION (Parallel-Aware)
 
 ```
-For each task:
-  1. Update status to running in LEDGER
-  2. skill_agent({ agent_name: 'chief-of-staff/executor', async: false })
-  3. Update status to completed in LEDGER
-  4. Extract learnings from result
-  5. Save LEDGER
+0. READ execution_strategy from Oracle decomposition
+1. IF execution_strategy.mode === 'parallel':
+     - Use skill_spawn_batch for all tasks
+     - Analyze results for conflicts
+     - If conflicts → trigger RE-DECOMPOSITION
+2. ELSE IF execution_strategy.mode === 'sequential':
+     - Execute tasks one-by-one in order
+3. ELSE (mixed):
+     - Build dependency waves
+     - Execute independent tasks in parallel per wave
+4. Update all task statuses in LEDGER
+5. Extract learnings from results
+6. Save LEDGER
 ```
+
+#### Parallel Execution Code
+
+```typescript
+// Use skill_spawn_batch for independent tasks
+if (oracle_output.execution_strategy.mode === 'parallel') {
+  const results = await skill_spawn_batch({
+    tasks: oracle_output.tasks.map(t => ({
+      agent_name: 'chief-of-staff/executor',
+      prompt: JSON.stringify({
+        ledger_task: t,
+        parallel_context: {
+          is_parallel: true,
+          sibling_tasks: oracle_output.tasks.map(s => s.id),
+          expected_files: t.affects_files,
+        },
+      }),
+    })),
+    wait: true,
+    timeout_ms: 180000,
+  });
+  
+  // Check for conflicts
+  const conflicts = results.filter(r => 
+    r.status === 'conflict' || 
+    (r.status === 'failed' && r.result?.includes('collision'))
+  );
+  
+  if (conflicts.length > 0) {
+    await handleConflicts(conflicts, oracle_output);
+  }
+}
+```
+
+#### Conflict Handling
+
+```typescript
+async function handleConflicts(conflicts, oracle_output) {
+  // Build conflict report
+  const conflictReport = {
+    failed_tasks: conflicts.map(c => c.task_id),
+    conflict_type: detectConflictType(conflicts),
+    conflicting_files: extractConflictingFiles(conflicts),
+    error_messages: conflicts.map(c => c.error || c.conflict?.actual_state),
+  };
+  
+  // Ask Oracle to re-decompose (max 2 attempts)
+  const redecomposition = await skill_agent({
+    agent_name: 'chief-of-staff/oracle',
+    prompt: JSON.stringify({
+      type: 'CONFLICT_REDECOMPOSE',
+      original_tasks: oracle_output.tasks,
+      conflict_report: conflictReport,
+      attempt: currentAttempt,
+    }),
+    async: false,
+  });
+  
+  // Apply Oracle's decision
+  await applyRedecomposition(redecomposition);
+}
+```
+
+#### Apply Re-Decomposition
+
+| Oracle Action | Chief-of-Staff Response |
+|---------------|------------------------|
+| `ADD_DEPENDENCY` | Update LEDGER task dependencies, re-run with new order |
+| `SEQUENTIAL` | Switch to sequential execution, run one-by-one |
+| `REDECOMPOSE` | Archive failed tasks, create new tasks, restart execution |
+
+#### Conflict Detection Helper
+
+```typescript
+function detectConflictType(conflicts) {
+  const types = conflicts.map(c => c.conflict?.type).filter(Boolean);
+  if (types.includes('file_collision')) return 'file_collision';
+  if (types.includes('import_conflict')) return 'import_conflict';
+  if (types.includes('state_conflict')) return 'state_conflict';
+  return 'resource_lock';
+}
+
+function extractConflictingFiles(conflicts) {
+  return [...new Set(
+    conflicts.flatMap(c => c.conflict?.file ? [c.conflict.file] : [])
+  )];
+}
+```
+
+#### Max Retry Policy
+
+- **Max 2 re-decomposition attempts** per Epic
+- After 2 conflicts on same task → force sequential mode
+- After 2 Epic-level failures → fail Epic with learning logged
 
 ### PHASE 5: COMPLETION
 
