@@ -6,7 +6,7 @@
       "name": "swarmtool-addons",
       "dependencies": {
         "@libsql/client": "^0.15.15",
-        "@opencode-ai/plugin": "^1.0.209",
+        "@opencode-ai/plugin": "dev",
         "@types/proper-lockfile": "^4.1.4",
         "drizzle-orm": "^0.45.1",
         "gray-matter": "^4.0.3",
@@ -188,9 +188,9 @@
 
     "@nodelib/fs.walk": ["@nodelib/fs.walk@1.2.8", "", { "dependencies": { "@nodelib/fs.scandir": "2.1.5", "fastq": "^1.6.0" } }, "sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg=="],
 
-    "@opencode-ai/plugin": ["@opencode-ai/plugin@1.0.209", "", { "dependencies": { "@opencode-ai/sdk": "1.0.209", "zod": "4.1.8" } }, "sha512-5lD71hEoohuLVTFv1aDys5T4wk1Hfc+3/lchQmL8tZgqtP3sVny9mQa+xN1uB1itHn/YNHQZ76BdQev9FawckA=="],
+    "@opencode-ai/plugin": ["@opencode-ai/plugin@0.0.0-dev-202601010035", "", { "dependencies": { "@opencode-ai/sdk": "0.0.0-dev-202601010035", "zod": "4.1.8" } }, "sha512-pcyE0CjbqT0c9M84iYuGxbehI0xj6nV16SLsMrNB5ZL6naVJVkoGXCBwic3Kih8V45w15yGfmik0RTcLCtEQ1w=="],
 
-    "@opencode-ai/sdk": ["@opencode-ai/sdk@1.0.209", "", {}, "sha512-WUyuyURyN391tbfdct3/qj7JNOGNyK36AIHdlPJz6s0nmETcASmOMCDUhI/VgUc0noNOVKAulPq1RMssVVi78g=="],
+    "@opencode-ai/sdk": ["@opencode-ai/sdk@0.0.0-dev-202601010035", "", {}, "sha512-X8p0JoGhBUa4sJ2cC51Vdwx+ykW9RHhzqbI52jDA1cGW/ExKVVTjgHENgZ2haMqszzggI+nzHc8H7HOCuLq7Ng=="],
 
     "@pkgr/core": ["@pkgr/core@0.2.9", "", {}, "sha512-QNqXyfVS2wm9hweSYD2O7F0G06uurj9kZ96TRQE5Y9hU7+tgdZwIkbAKc5Ocy1HxEY2kuDQa6cQ1WRs/O5LFKA=="],
 
@@ -702,7 +702,7 @@
 
     "yocto-queue": ["yocto-queue@0.1.0", "", {}, "sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q=="],
 
-    "zod": ["zod@4.3.2", "", {}, "sha512-b8L8yn4rIVfiXyHAmnr52/ZEpDumlT0bmxiq3Ws1ybrinhflGpt12Hvv54kYnEsGPRs6o/Ka3/ppA2OWY21IVg=="],
+    "zod": ["zod@4.3.4", "", {}, "sha512-Zw/uYiiyF6pUT1qmKbZziChgNPRu+ZRneAsMUDU6IwmXdWt5JwcUfy2bvLOCUtz5UniaN/Zx5aFttZYbYc7O/A=="],
 
     "@changesets/apply-release-plan/prettier": ["prettier@2.8.8", "", { "bin": "bin-prettier.js" }, "sha512-tdN8qQGvNjw4CHbY+XXk0JgCXn9QiF21a55rBe5LJAU+kDyC4WQn4+awm2Xfk2lQMk5fKup9XgzTZtGkjBdP9Q=="],
 

@@ -297,20 +297,46 @@ export class TaskObserver {
       return;
     }
 
-    // Session is running but no heartbeat - truly stuck
-    console.log(`[Observer] Killing stuck session ${task.sessionId}`);
-    await this.cleanupSession(task.sessionId);
+    // Session is running but no heartbeat - CoS Step-in required
+    console.warn(`[Observer] CoS Step-in: Task ${task.id} stuck. Pausing epic.`);
 
-    if (task.retryCount < task.maxRetries) {
-      await this.retryTask(task);
-    } else {
-      await this.registry.updateStatus(
-        task.id,
-        'failed',
-        undefined,
-        'Task stuck, max retries exceeded'
-      );
-      this.stats.tasksFailed++;
+    // 1. Mark task as stale
+    await this.registry.updateStatus(task.id, 'stale', undefined, 'Task stuck (no heartbeat)');
+
+    // 2. Pause Epic in LEDGER
+    if (this.config.ledgerPath) {
+      try {
+        const ledger = await loadLedger(this.config.ledgerPath);
+        if (ledger.epic) {
+          ledger.epic.status = 'paused';
+          ledger.meta.status = 'paused';
+          ledger.epic.progressLog.push(
+            `[${new Date().toISOString()}] CoS Intervention: Task ${task.id} timed out (no heartbeat). Pausing epic.`
+          );
+          await saveLedger(ledger, this.config.ledgerPath);
+          console.log(`[Observer] Epic paused due to stuck task ${task.id}`);
+        }
+      } catch (err) {
+        console.error('[Observer] Failed to pause epic in LEDGER:', err);
+      }
+    }
+
+    // 3. Emit human intervention event
+    try {
+      const stream = getDurableStreamOrchestrator();
+      await stream.append({
+        type: 'human.intervention',
+        sessionId: task.sessionId,
+        agent: task.agentName,
+        payload: {
+          taskId: task.id,
+          reason: 'heartbeat_timeout',
+          message: `Task ${task.id} (${task.agentName}) has stopped sending heartbeats. Epic paused for intervention.`,
+        },
+        metadata: { sourceAgent: 'observer' },
+      });
+    } catch (err) {
+      console.error('[Observer] Failed to emit intervention event:', err);
     }
   }
 

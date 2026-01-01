@@ -62,8 +62,14 @@ export interface ActorState {
   /** OpenCode session ID for this actor */
   sessionId: string;
 
-  /** Parent session ID if this is a child actor */
-  parentSessionId?: string;
+  /** Parent session ID (Required in SDK V2 for trace propagation) */
+  parentSessionId: string;
+
+  /** Root session ID of the user request */
+  rootSessionId: string;
+
+  /** Ancestor chain of session IDs to prevent recursion */
+  executionStack: string[];
 
   /** Explicit direction from user */
   direction: ExplicitDirection;
@@ -92,11 +98,17 @@ export interface ActorState {
  */
 export function createInitialState(
   sessionId: string,
+  parentSessionId: string,
+  rootSessionId?: string,
+  executionStack: string[] = [],
   direction?: Partial<ExplicitDirection>
 ): ActorState {
   return {
     phase: 'INIT',
     sessionId,
+    parentSessionId,
+    rootSessionId: rootSessionId || sessionId,
+    executionStack: [...executionStack, sessionId],
     direction: {
       goals: direction?.goals || [],
       constraints: direction?.constraints || [],

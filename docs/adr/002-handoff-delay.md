@@ -1,7 +1,7 @@
 # ADR 002: Hook-Based Async Handoff with Settlement Delay
 
 ## Status
-Accepted
+Done
 
 ## Context
 

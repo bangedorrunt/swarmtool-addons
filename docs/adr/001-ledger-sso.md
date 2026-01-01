@@ -1,7 +1,7 @@
 # ADR 001: LEDGER.md as Single Source of Truth
 
 ## Status
-Accepted
+Done
 
 ## Context
 

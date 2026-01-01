@@ -15,7 +15,7 @@
 import { loadActorState } from './actor/state';
 import { processMessage } from './actor/core';
 import { queryLearnings } from './hooks/opencode-session-learning';
-import { getDurableStreamOrchestrator } from './durable-stream';
+import { getDurableStreamOrchestrator, StreamEvent } from './durable-stream';
 
 /**
  * Result of spawning a child agent
@@ -285,73 +285,110 @@ export async function spawnChildAgent(
 /**
  * Wait for a session to complete
  *
- * Uses exponential backoff polling with session.status()
- * In future, could use global.event() subscription for true event-driven approach
+ * Uses Event-Driven Promise with DurableStream
  */
-async function waitForSessionCompletion(
+export async function waitForSessionCompletion(
   client: any,
   sessionId: string,
   agent: string,
   timeoutMs: number,
   onStatusChange?: (status: string) => void
 ): Promise<SpawnResult> {
-  const startTime = Date.now();
-  let pollInterval = 500; // Start with 500ms
-  const maxPollInterval = 3000; // Max 3 seconds between polls
+  // 1. Check history for missed events (Race condition handling)
+  // Check DurableStream history first to avoid deadlocks if event fired before subscription
+  const durableStream = getDurableStreamOrchestrator();
+  const history = durableStream.getEventHistory();
 
-  while (Date.now() - startTime < timeoutMs) {
-    try {
-      // Check session status
-      const statusResult = await client.session.status();
-      const sessionStatus = statusResult.data?.[sessionId];
+  // Find the LAST relevant event for this session
+  const previousEvent = history.find(
+    (e) => e.sessionId === sessionId && (e.type === 'agent.completed' || e.type === 'agent.failed')
+  );
 
-      if (!sessionStatus) {
-        // Session might have completed and been cleaned up
-        break;
-      }
+  if (previousEvent) {
+    if (previousEvent.type === 'agent.completed') {
+      return {
+        success: true,
+        sessionId,
+        agent,
+        status: 'completed',
+        result: previousEvent.payload.result as string,
+        completionEventId: previousEvent.id,
+      };
+    } else {
+      return {
+        success: false,
+        sessionId,
+        agent,
+        status: 'failed',
+        error: previousEvent.payload.error as string,
+        completionEventId: previousEvent.id,
+      };
+    }
+  }
 
-      const statusType = sessionStatus.type;
-      onStatusChange?.(statusType);
+  // 2. Setup Event-Driven Promise
+  let cleanup: (() => void) | undefined;
 
-      if (statusType === 'idle') {
-        // Session is idle - work is done
-        break;
-      }
+  const eventPromise = new Promise<SpawnResult>((resolve) => {
+    const handler = (event: StreamEvent) => {
+      if (event.sessionId !== sessionId) return;
 
-      if (statusType === 'error') {
-        return {
+      if (event.type === 'agent.completed') {
+        resolve({
+          success: true,
+          sessionId,
+          agent,
+          status: 'completed',
+          result: event.payload.result as string,
+          completionEventId: event.id,
+        });
+      } else if (event.type === 'agent.failed') {
+        resolve({
           success: false,
           sessionId,
           agent,
           status: 'failed',
-          error: 'Session entered error state',
-          completionEventId: undefined,
-        };
+          error: event.payload.error as string,
+          completionEventId: event.id,
+        });
       }
+    };
 
-      // Exponential backoff
-      await new Promise((r) => setTimeout(r, pollInterval));
-      pollInterval = Math.min(pollInterval * 1.5, maxPollInterval);
-    } catch {
-      // Network error - retry with backoff
-      await new Promise((r) => setTimeout(r, pollInterval));
-      pollInterval = Math.min(pollInterval * 2, maxPollInterval);
-    }
-  }
+    const unsubCompleted = durableStream.subscribe('agent.completed', handler);
+    const unsubFailed = durableStream.subscribe('agent.failed', handler);
 
-  // Check if timed out
-  if (Date.now() - startTime >= timeoutMs) {
+    cleanup = () => {
+      unsubCompleted();
+      unsubFailed();
+    };
+  });
+
+  const timeoutPromise = new Promise<SpawnResult>((_, reject) => {
+    setTimeout(() => reject(new Error(`Timeout after ${timeoutMs}ms`)), timeoutMs);
+  });
+
+  // 3. Execute Race
+  try {
+    return await Promise.race([eventPromise, timeoutPromise]);
+  } catch (err: any) {
     return {
       success: false,
       sessionId,
       agent,
       status: 'failed',
-      error: `Timeout after ${timeoutMs}ms`,
+      error: err.message,
       completionEventId: undefined,
     };
+  } finally {
+    if (cleanup) cleanup();
   }
+}
 
-  // Fetch the result
+async function fetchSessionResult(
+  client: any,
+  sessionId: string,
+  agent: string
+): Promise<SpawnResult> {
   try {
     const msgResult = await client.session.messages({
       path: { id: sessionId },

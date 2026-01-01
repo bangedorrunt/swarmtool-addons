@@ -1,25 +1,33 @@
+# LEDGER
+
 ## Meta
 
-Session State: paused
-Current Phase: 4 (Planning Completed)
-Progress: Refactor Orchestrator for Markdown Workflow Patterns - Spec and Plan approved, waiting for execution.
+session_id: sess_dps_001
+status: active
+phase: PLANNING
+last_updated: 2026-01-01T00:00:00.000Z
+tasks_completed: 2/2
+current_task: -
 
-## Epic: orch006
+---
 
-**Title**: Refactor Orchestrator for Markdown Workflow Patterns
-**Status**: pending
-**Plan**: [IMPLEMENTATION_PLAN.md](../src/orchestrator/workflow/IMPLEMENTATION_PLAN.md)
+## Epic: orch-sdk-v2
 
-| ID        | Title                                  | Agent    | Status | Outcome |
-| --------- | -------------------------------------- | -------- | ------ | ------- |
-| orch006.1 | Implement WorkflowProcessor & Loader   | executor | ⏳     | -       |
-| orch006.2 | Integrate Pattern Recognition into CoS | executor | ⏳     | -       |
-| orch006.3 | LEDGER-based HITL Persistence          | executor | ⏳     | -       |
+**Title**: Refactor Orchestrator to Native Event-Driven SDK V2
+**Status**: in_progress
+
+| ID     | Title                                       | Agent              | Status | Outcome   |
+| ------ | ------------------------------------------- | ------------------ | ------ | --------- |
+| orch.1 | Update ActorState & Trace Propagation       | workflow-architect | ✅     | SUCCEEDED |
+| orch.2 | Implement Async Spawn & Resume Logic        | executor           | ✅     | SUCCEEDED |
+| orch.3 | Add Cascading Cancellation & Loop Detection | executor           | ✅     | SUCCEEDED |
 
 ### Dependencies
 
-- orch006.2 depends on orch006.1
-- orch006.3 depends on orch006.2
+- orch.2 -> depends on -> orch.1
+- orch.3 -> depends on -> orch.2
+
+---
 
 ## Learnings
 
@@ -28,6 +36,8 @@ Progress: Refactor Orchestrator for Markdown Workflow Patterns - Spec and Plan a
 - Sử dụng `async: false` trong định nghĩa lệnh để biến sub-agent thành đơn vị thực thi tuần tự, giúp quản lý luồng HITL dễ dàng.
 - Cơ chế trích xuất trạng thái đa tầng (multi-strategy extraction) giúp hệ thống ổn định ngay cả khi agent phản hồi bằng ngôn ngữ tự nhiên.
 - Định nghĩa Workflow bằng Markdown giúp tách biệt logic khỏi code, tăng tính linh hoạt và dễ mở rộng.
+- Sử dụng Durable Stream kết hợp với Heartbeat là mô hình chuẩn cho Long-running Agents.
+- Event-Driven Architecture + History Check là giải pháp triệt để cho Deadlock thay vì Polling.
 
 ### Anti-Patterns ❌
 
@@ -38,28 +48,25 @@ Progress: Refactor Orchestrator for Markdown Workflow Patterns - Spec and Plan a
 - Duy trì `session_id` xuyên suốt vòng lặp đối thoại để tránh mất ngữ cảnh.
 - Sử dụng `skill_agent` với `async: false` cho các lệnh slash để đảm bảo tuần tự và dễ quản lý.
 - Chọn `LEDGER.md` làm Source of Truth cho trạng thái Workflow HITL.
+- **Ưu tiên Epic dps001**: Lưu trữ orch006 vào Archive để tập trung vào hệ thống streaming mới.
+- Tự động Pause Epic khi Task Stale là cơ chế fail-safe quan trọng để bảo vệ state.
+- Luôn kiểm tra Event History trước khi Subscribe để tránh Race Condition (Subagent xong trước khi Parent chờ).
+
+---
 
 ## Handoff
 
-**Context**: Đã hoàn thành giai đoạn Spec và Planning cho việc refactor Orchestrator sang cơ chế Markdown Workflow.
-**Next Steps**: Bắt đầu thực hiện Task `orch006.1` (Xây dựng WorkflowProcessor & Loader).
-**Note**: Mọi đặc tả kỹ thuật và kế hoạch đã được lưu trữ trong session history và tóm tắt trong LEDGER.
+**Context**: Đã chuyển đổi hoàn toàn cơ chế chờ sang Event-Driven, loại bỏ deadlock khi chạy song song.
+
+**Next Steps**: Hệ thống sẵn sàng cho các tác vụ phức tạp hoặc high-concurrency.
+
+---
 
 ## Archive
 
-### Epic: ama001
-
-**Title**: Interactive AMA Delegation Workflow
-**Status**: completed
-**Outcome**: SUCCEEDED
-
-| ID       | Title                                  | Agent                             | Status | Outcome   |
-| -------- | -------------------------------------- | --------------------------------- | ------ | --------- |
-| ama001.1 | Implement Interaction Delegation Logic | chief-of-staff/workflow-architect | ✅     | SUCCEEDED |
-| ama001.2 | Integrate LEDGER for AMA Context       | chief-of-staff/executor           | ✅     | SUCCEEDED |
-| ama001.3 | Validate AMA Dialogue Loop             | chief-of-staff/validator          | ✅     | SUCCEEDED |
-
-### Dependencies
-
-- ama001.2 → depends on → ama001.1
-- ama001.3 → depends on → ama001.2
+| Epic             | Title                                                | Outcome   | Date       |
+| ---------------- | ---------------------------------------------------- | --------- | ---------- |
+| deadlock-fix-001 | Refactor Waiting Mechanism to Event-Driven           | SUCCEEDED | 2026-01-01 |
+| dps001           | Durable Progress Streaming                           | SUCCEEDED | 2026-01-01 |
+| orch006          | Refactor Orchestrator for Markdown Workflow Patterns | PARTIAL   | 2026-01-01 |
+| ama001           | Interactive AMA Delegation Workflow                  | SUCCEEDED | 2025-12-31 |

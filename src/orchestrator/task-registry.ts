@@ -26,7 +26,8 @@ export type RegistryTaskStatus =
   | 'completed'
   | 'failed'
   | 'timeout'
-  | 'blocked';
+  | 'blocked'
+  | 'stale';
 
 export interface RegistryTask {
   id: string; // Unique task ID (format: epicId.taskNum)
@@ -46,6 +47,7 @@ export interface RegistryTask {
   ledgerTaskId?: string; // Link to LEDGER task (if any)
   complexity?: 'low' | 'medium' | 'high'; // For adaptive supervision
   lastHeartbeat?: number; // Last heartbeat timestamp
+  heartbeatIntervalMs?: number; // ⭐ NEW: Expected heartbeat frequency
 }
 
 export interface TaskRegistryOptions {
@@ -291,12 +293,14 @@ export class TaskRegistry {
    */
   private mapToLedgerStatus(
     status: RegistryTaskStatus
-  ): 'pending' | 'running' | 'completed' | 'failed' | 'timeout' {
+  ): 'pending' | 'running' | 'completed' | 'failed' | 'timeout' | 'stale' {
     switch (status) {
       case 'blocked':
         return 'running'; // Blocked is still considered "running" in LEDGER
+      case 'stale':
+        return 'stale';
       default:
-        return status as 'pending' | 'running' | 'completed' | 'failed' | 'timeout';
+        return status as 'pending' | 'running' | 'completed' | 'failed' | 'timeout' | 'stale';
     }
   }
 

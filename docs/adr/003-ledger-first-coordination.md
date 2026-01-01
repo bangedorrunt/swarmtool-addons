@@ -1,7 +1,7 @@
 # ADR 003: LEDGER-FIRST COORDINATION PATTERN
 
 ## Status
-Accepted
+Done
 
 ## Context
 As agentic workflows become more complex, relying on the LLM's conversation context for state management leads to "context rot" (degraded performance due to noise, token limits, and lost focus). We need a robust way to maintain state across long-running tasks, multiple sessions, and parallel agent executions.

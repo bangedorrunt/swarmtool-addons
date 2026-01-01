@@ -11,6 +11,7 @@
 import { tool } from '@opencode-ai/plugin';
 import { getTaskRegistry, RegistryTask, RegistryTaskStatus } from './task-registry';
 import { getTaskObserver, startTaskObservation, stopTaskObservation } from './observer';
+import { getDurableStreamOrchestrator } from './durable-stream';
 
 // ============================================================================
 // Tool Definitions
@@ -128,16 +129,28 @@ export function createResilienceTools(client: any) {
         'Send heartbeat to indicate task is still alive. Call periodically in long-running tasks.',
       args: {
         task_id: tool.schema.string().describe('Task ID'),
-        progress: tool.schema.string().optional().describe('Optional progress message'),
+        message: tool.schema.string().describe('Progress message describing current activity'),
+        status: tool.schema
+          .string()
+          .optional()
+          .default('running')
+          .describe('Current status (running, etc)'),
+        progress: tool.schema.number().optional().describe('Progress percentage (0-100)'),
       },
       async execute(args) {
+        // 1. Update Registry (keep alive)
         registry.heartbeat(args.task_id);
+
+        // 2. Publish to Durable Stream (progress tracking)
+        const durableStream = getDurableStreamOrchestrator();
+        await durableStream.progressTask(args.task_id, args.message, args.status || 'running');
 
         return JSON.stringify({
           success: true,
           task_id: args.task_id,
           timestamp: new Date().toISOString(),
-          progress: args.progress,
+          message: args.message,
+          next_heartbeat_in_ms: 30000,
         });
       },
     }),

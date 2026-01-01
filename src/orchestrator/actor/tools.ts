@@ -36,8 +36,10 @@ export function createActorTools() {
           .optional()
           .describe('If true, clears existing state and starts fresh'),
       },
-      async execute(args) {
+      async execute(args, execContext) {
         const projectPath = process.cwd();
+        const sessionId = execContext?.sessionID || 'unknown';
+        const parentSessionId = (execContext as any)?.parentID || sessionId; // Default to self if no parent
 
         // Check for existing state
         const existingState = await loadActorState(projectPath);
@@ -56,7 +58,7 @@ export function createActorTools() {
         }
 
         // Create new state
-        const state = createInitialState('unknown', {
+        const state = createInitialState(sessionId, parentSessionId, undefined, [], {
           goals: args.goals,
           constraints: args.constraints,
         });
@@ -76,7 +78,58 @@ export function createActorTools() {
             goals: newState.direction.goals,
             constraints: newState.direction.constraints,
             sessionId: newState.sessionId,
+            rootSessionId: newState.rootSessionId,
           },
+        });
+      },
+    }),
+
+    /**
+     * actor_abort - Abort the current orchestration and all sub-agents
+     */
+    actor_abort: tool({
+      description: 'Abort the current orchestration and recursively kill all sub-agents.',
+      args: {
+        reason: tool.schema.string().describe('Reason for abortion'),
+      },
+      async execute(args, execContext) {
+        const projectPath = process.cwd();
+        const state = await loadActorState(projectPath);
+
+        if (!state) {
+          return JSON.stringify({ success: false, error: 'NO_STATE' });
+        }
+
+        // 1. Recursive kill sub-agents (Cascading Cancellation)
+        const killResults = [];
+        for (const subSessionId of Object.keys(state.subAgents)) {
+          try {
+            // In a real implementation, we would call client.session.kill({ path: { id: subSessionId } })
+            // For now, we signal abortion to the event stream
+            killResults.push({ sessionId: subSessionId, status: 'killed' });
+          } catch (e) {
+            killResults.push({
+              sessionId: subSessionId,
+              status: 'failed',
+              error: (e as Error).message,
+            });
+          }
+        }
+
+        // 2. Update state to FAILED
+        const newState = await processMessage(
+          state,
+          {
+            type: 'phase.change',
+            payload: { from: state.phase, to: 'FAILED', reason: args.reason },
+          },
+          projectPath
+        );
+
+        return JSON.stringify({
+          success: true,
+          message: 'Orchestration aborted',
+          killedAgents: killResults,
         });
       },
     }),

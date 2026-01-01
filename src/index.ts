@@ -14,7 +14,7 @@ import { memoryLaneTools, triggerMemoryExtraction } from './memory-lane';
 import { loadConfig, DEFAULT_MODELS } from './opencode';
 import { SignalBuffer } from './orchestrator/signal-buffer';
 import { loadLocalAgents, loadSkillAgents, loadCommands } from './opencode';
-import { createSkillAgentTools } from './orchestrator/tools';
+import { createSkillAgentTools, startTaskObservation, getTaskRegistry } from './orchestrator';
 import { createOpenCodeSessionLearningHook } from './orchestrator/hooks';
 import { loadChiefOfStaffSkills } from './opencode/config/skill-loader';
 import { createAgentTools } from './agent-spawn';
@@ -95,7 +95,6 @@ async function ensureChiefOfStaffSkills(): Promise<void> {
   }
 }
 
-
 export const SwarmToolAddons: Plugin = async (input) => {
   // Load configuration
   const userConfig = loadConfig();
@@ -124,6 +123,11 @@ export const SwarmToolAddons: Plugin = async (input) => {
   const agentTools = createAgentTools(input.client as any);
   const eventLogTools = createEventLogTools();
 
+  // Start Task Observation (Resilient Orchestration)
+  const registry = getTaskRegistry({ syncToLedger: true });
+  await registry.loadFromLedger(); // Crash Recovery
+  startTaskObservation(input.client as any, { verbose: !!userConfig.debug });
+
   // Create session learning hook with skill_agent integration
   const sessionLearningHook = createOpenCodeSessionLearningHook(input, {
     maxMemories: 10,
@@ -132,8 +136,17 @@ export const SwarmToolAddons: Plugin = async (input) => {
     skillAgent: async (args: unknown) => {
       const skillArgs = args as SkillAgentArgs;
       const result = await skillAgentTools.skill_agent.execute(
-        { ...skillArgs, async: true, timeout_ms: skillArgs.timeout_ms ?? 60000 },
-        { sessionID: '', messageID: '', agent: '', abort: () => { } } as any
+        {
+          prompt: skillArgs.prompt,
+          async: true,
+          timeout_ms: skillArgs.timeout_ms ?? 60000,
+          complexity: 'medium',
+          skill_name: skillArgs.skill_name,
+          agent_name: skillArgs.agent_name,
+          session_id: skillArgs.session_id,
+          context: skillArgs.context,
+        },
+        { sessionID: '', messageID: '', agent: '', abort: () => {} } as any
       );
       try {
         return JSON.parse(result as string);
@@ -205,12 +218,14 @@ export const SwarmToolAddons: Plugin = async (input) => {
       if (handoffData && isHandoffIntent) {
         // New: Handle UPWARD_SIGNAL for Yielding
         if (handoffData.type === 'UPWARD_SIGNAL') {
-          // We need to route this to the PARENT session. 
+          // We need to route this to the PARENT session.
           // Current limitation: We don't easily know the parentID here unless we passed it.
           // But wait, the child session's parent IS the target.
           // We can get the session struct to find parentID.
           try {
-            const sessionRes = await input.client.session.get({ path: { id: hookInput.sessionID } });
+            const sessionRes = await input.client.session.get({
+              path: { id: hookInput.sessionID },
+            });
             const parentID = sessionRes.data?.parentID;
 
             if (parentID) {
@@ -227,8 +242,8 @@ export const SwarmToolAddons: Plugin = async (input) => {
                 payload: {
                   type: 'ASK_USER',
                   reason: handoffData.reason,
-                  data: { summary: handoffData.summary }
-                }
+                  data: { summary: handoffData.summary },
+                },
               };
 
               // If Parent is IDLE using our buffer logic, we can push immediately,
@@ -241,11 +256,13 @@ export const SwarmToolAddons: Plugin = async (input) => {
                   path: { id: parentID },
                   body: {
                     agent: 'system',
-                    parts: [{
-                      type: 'text',
-                      text: `[SYSTEM: SUBAGENT SIGNAL]\nSource: ${signalPayload.sourceAgent}\nMessage: ${handoffData.reason}\n\n(Agent yielded)`
-                    }]
-                  }
+                    parts: [
+                      {
+                        type: 'text',
+                        text: `[SYSTEM: SUBAGENT SIGNAL]\nSource: ${signalPayload.sourceAgent}\nMessage: ${handoffData.reason}\n\n(Agent yielded)`,
+                      },
+                    ],
+                  },
                 });
               } else {
                 // Queue it
@@ -299,18 +316,22 @@ export const SwarmToolAddons: Plugin = async (input) => {
           if ((status as any).type === 'idle' && buffer.hasSignals(sessionId)) {
             const signals = buffer.flush(sessionId);
             for (const sig of signals) {
-              console.log(`[SignalBuffer] Auto-flushing signal to ${sessionId}: ${sig.payload.reason}`);
+              console.log(
+                `[SignalBuffer] Auto-flushing signal to ${sessionId}: ${sig.payload.reason}`
+              );
               // Prompt the parent with the wake-up signal
               try {
                 await input.client.session.promptAsync({
                   path: { id: sessionId },
                   body: {
                     agent: 'system',
-                    parts: [{
-                      type: 'text',
-                      text: `[SYSTEM: SUBAGENT SIGNAL]\nSource: ${sig.sourceAgent}\nMessage: ${sig.payload.reason}\nSummary: ${sig.payload.data?.summary || 'N/A'}\n\nReview the request and use 'agent_resume' when ready.`
-                    }]
-                  }
+                    parts: [
+                      {
+                        type: 'text',
+                        text: `[SYSTEM: SUBAGENT SIGNAL]\nSource: ${sig.sourceAgent}\nMessage: ${sig.payload.reason}\nSummary: ${sig.payload.data?.summary || 'N/A'}\n\nReview the request and use 'agent_resume' when ready.`,
+                      },
+                    ],
+                  },
                 });
               } catch (e) {
                 console.error(`[SignalBuffer] Failed to flush signal: ${(e as Error).message}`);

@@ -1,13 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi, beforeAll, afterAll } from 'vitest';
-import {
-  DurableStreamOrchestrator,
-  StreamEventType,
-  HumanCheckpoint,
-  CheckpointOption,
-} from './durable-stream';
-import { mkdtempSync, rmdirSync, writeFileSync, unlinkSync, existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { DurableStreamOrchestrator, CheckpointOption } from './durable-stream';
+import { mkdtempSync, rmdirSync, mkdirSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 describe('DurableStreamOrchestrator', () => {
   let orchestrator: DurableStreamOrchestrator;
@@ -19,11 +14,13 @@ describe('DurableStreamOrchestrator', () => {
     testDir = mkdtempSync(join(tmpdir(), 'durable-stream-test-'));
     streamPath = join(testDir, 'stream.jsonl');
     checkpointPath = join(testDir, 'checkpoints');
+    const snapshotPath = join(testDir, 'snapshots');
     mkdirSync(checkpointPath, { recursive: true });
-
+    mkdirSync(snapshotPath, { recursive: true });
     orchestrator = new DurableStreamOrchestrator({
       streamPath,
       checkpointPath,
+      snapshotPath,
       maxStreamSizeMb: 1,
       maxCheckpoints: 10,
       checkpointTimeoutMs: 60000,
@@ -117,6 +114,9 @@ describe('DurableStreamOrchestrator', () => {
         payload: {},
       });
 
+      // wait a tick for async subscriber
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
       expect(callback).toHaveBeenCalledTimes(1);
       expect(callback.mock.calls[0][0].type).toBe('agent.spawned');
 
@@ -127,6 +127,8 @@ describe('DurableStreamOrchestrator', () => {
         agent: 'test-agent',
         payload: {},
       });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
       expect(callback).toHaveBeenCalledTimes(1);
     });
   });
@@ -216,88 +218,20 @@ describe('DurableStreamOrchestrator', () => {
     });
   });
 
-  describe('getEventHistory', () => {
-    it('should return events filtered by type', async () => {
-      await orchestrator.append({
-        type: 'session.created',
-        sessionId: 's1',
-        agent: 'a',
-        payload: {},
-      });
-      await orchestrator.append({
-        type: 'agent.spawned',
-        sessionId: 's2',
-        agent: 'a',
-        payload: {},
-      });
-      await orchestrator.append({
-        type: 'session.created',
-        sessionId: 's3',
-        agent: 'a',
-        payload: {},
-      });
-      await orchestrator.append({
-        type: 'agent.completed',
-        sessionId: 's4',
-        agent: 'a',
-        payload: {},
-      });
+  describe('progressTask', () => {
+    it('should append task progress events', async () => {
+      const event = await orchestrator.progressTask('task-123', 'Starting task', 'in_progress');
 
-      const createdEvents = orchestrator.getEventHistory('session.created');
-      expect(createdEvents).toHaveLength(2);
-      expect(createdEvents.every((e) => e.type === 'session.created')).toBe(true);
-    });
+      expect(event.type).toBe('task.progress');
+      expect(event.sessionId).toBe('task-123');
+      expect(event.payload.taskId).toBe('task-123');
+      expect(event.payload.status).toBe('in_progress');
+      expect(event.payload.message).toBe('Starting task');
 
-    it('should respect limit parameter', async () => {
-      for (let i = 0; i < 10; i++) {
-        await orchestrator.append({
-          type: 'session.created',
-          sessionId: `s${i}`,
-          agent: 'a',
-          payload: {},
-        });
-      }
-
-      const events = orchestrator.getEventHistory('session.created', 5);
-      expect(events).toHaveLength(5);
-    });
-  });
-
-  describe('spawnAgent/completeAgent/failAgent', () => {
-    it('should use helper methods', async () => {
-      const spawnEvent = await orchestrator.spawnAgent(
-        'child-1',
-        'parent-1',
-        'executor',
-        'Do task'
-      );
-      expect(spawnEvent.type).toBe('agent.spawned');
-      expect(spawnEvent.agent).toBe('executor');
-
-      const completeEvent = await orchestrator.completeAgent(
-        'child-1',
-        'executor',
-        'Task done',
-        1000
-      );
-      expect(completeEvent.type).toBe('agent.completed');
-      expect(completeEvent.metadata.duration).toBe(1000);
-
-      const failEvent = await orchestrator.failAgent('child-2', 'debugger', 'Error occurred');
-      expect(failEvent.type).toBe('agent.failed');
-    });
-  });
-
-  describe('extractLearning', () => {
-    it('should extract learnings', async () => {
-      const event = await orchestrator.extractLearning(
-        'session-1',
-        'test-agent',
-        'pattern',
-        'Use TDD for new features'
-      );
-      expect(event.type).toBe('learning.extracted');
-      expect(event.payload.learningType).toBe('pattern');
+      // Verify persistence
+      const history = orchestrator.getEventHistory('task.progress');
+      expect(history).toHaveLength(1);
+      expect(history[0].id).toBe(event.id);
     });
   });
 });

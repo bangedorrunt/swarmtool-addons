@@ -6,6 +6,7 @@ import { loadActorState } from './actor/state';
 import { processMessage } from './actor/core';
 import { canCallAgent } from './access-control';
 import { loadLedger, saveLedger, updateTaskStatus } from './ledger';
+import { getTaskRegistry } from './task-registry';
 
 interface AgentConfig {
   name: string;
@@ -59,7 +60,9 @@ export function createSkillAgentTools(client: PluginInput['client']) {
           const ledger = await loadLedger();
           if (ledger.epic) {
             // Find task for this agent/session
-            const task = ledger.epic.tasks.find((t) => t.sessionId === sessionId || t.agent === agent && t.status === 'running');
+            const task = ledger.epic.tasks.find(
+              (t) => t.sessionId === sessionId || (t.agent === agent && t.status === 'running')
+            );
             if (task) {
               task.status = 'suspended';
               task.yieldReason = reason;
@@ -81,7 +84,7 @@ export function createSkillAgentTools(client: PluginInput['client']) {
               target_agent: 'parent', // System resolves this
               reason: reason,
               summary: summary,
-              session_id: sessionId
+              session_id: sessionId,
             },
           },
         });
@@ -93,7 +96,9 @@ export function createSkillAgentTools(client: PluginInput['client']) {
       args: {
         task_id: tool.schema.string().optional().describe('Task ID to resume (from Ledger)'),
         session_id: tool.schema.string().optional().describe('Session ID to resume'),
-        signal_data: tool.schema.string().describe('Instruction/Data to inject to resume the agent'),
+        signal_data: tool.schema
+          .string()
+          .describe('Instruction/Data to inject to resume the agent'),
       },
       async execute(args, execContext) {
         const { task_id, session_id, signal_data } = args;
@@ -103,7 +108,7 @@ export function createSkillAgentTools(client: PluginInput['client']) {
         // 1. Resolve Session ID from Ledger if task_id provided
         const ledger = await loadLedger();
         if (task_id && ledger.epic) {
-          const task = ledger.epic.tasks.find(t => t.id === task_id);
+          const task = ledger.epic.tasks.find((t) => t.id === task_id);
           if (task) {
             targetSessionId = task.sessionId;
             // Update status back to running
@@ -114,7 +119,11 @@ export function createSkillAgentTools(client: PluginInput['client']) {
         }
 
         if (!targetSessionId) {
-          return JSON.stringify({ success: false, error: 'NOT_FOUND', message: 'Target session not found' });
+          return JSON.stringify({
+            success: false,
+            error: 'NOT_FOUND',
+            message: 'Target session not found',
+          });
         }
 
         // 2. Trigger Resume Prompt
@@ -123,11 +132,15 @@ export function createSkillAgentTools(client: PluginInput['client']) {
             path: { id: targetSessionId },
             body: {
               agent: 'system', // or implicit
-              parts: [{ type: 'text', text: `[SYSTEM: RESUME SIGNAL]\n${signal_data}` }]
-            }
+              parts: [{ type: 'text', text: `[SYSTEM: RESUME SIGNAL]\n${signal_data}` }],
+            },
           });
         } catch (e) {
-          return JSON.stringify({ success: false, error: 'PROMPT_FAILED', message: (e as Error).message });
+          return JSON.stringify({
+            success: false,
+            error: 'PROMPT_FAILED',
+            message: (e as Error).message,
+          });
         }
 
         return JSON.stringify({
@@ -160,6 +173,11 @@ export function createSkillAgentTools(client: PluginInput['client']) {
           .optional()
           .default(60000)
           .describe('Timeout in ms for sync mode (default: 60000)'),
+        complexity: tool.schema
+          .enum(['low', 'medium', 'high'])
+          .optional()
+          .default('medium')
+          .describe('Task complexity (affects supervision interval)'),
       },
       async execute(args, execContext) {
         const {
@@ -171,6 +189,7 @@ export function createSkillAgentTools(client: PluginInput['client']) {
           context,
           async: isAsync = true,
           timeout_ms = 60000,
+          complexity = 'medium',
         } = args;
 
         const agent_name = raw_agent_name || agent_alias;
@@ -190,6 +209,16 @@ export function createSkillAgentTools(client: PluginInput['client']) {
 
         // 1. Resolve agent
         const searchNames = [agent_name];
+        if (skill_name) {
+          const prefixed1 = `${skill_name}/${agent_name}`;
+          const prefixed2 = `${skill_name}-${agent_name}`;
+          if (!searchNames.includes(prefixed1)) {
+            searchNames.push(prefixed1);
+          }
+          if (!searchNames.includes(prefixed2)) {
+            searchNames.push(prefixed2);
+          }
+        }
 
         const [skillAgents, chiefOfStaffSkills] = await Promise.all([
           loadSkillAgents(),
@@ -202,32 +231,44 @@ export function createSkillAgentTools(client: PluginInput['client']) {
         ];
 
         const agent = allAgents.find((a: any) => searchNames.includes(a.name));
-        const targetAgentName = agent ? agent.name : agent_name;
 
-        // If not found in custom skills, we assume it's a native agent and allow passthrough
-        // However, we must still respect access control for KNOWN internal agents
-
-        // ============================================================================
-        // ACCESS CONTROL (Refactored)
-        // ============================================================================
-        const callingAgent = (execContext as unknown as ToolContext)?.agent || '';
-
-        // Use our functional guard
-        const accessCheck = canCallAgent(callingAgent, targetAgentName, !!agent);
-
-        if (!accessCheck.allowed) {
+        if (!agent) {
           return JSON.stringify({
             success: false,
-            error: 'ACCESS_DENIED',
-            message: accessCheck.reason,
-            suggestion: accessCheck.suggestion,
-            caller: callingAgent,
+            error: 'AGENT_NOT_FOUND',
+            message: `Agent not found: ${agent_name}`,
+          });
+        }
+
+        const targetAgentName = agent.name;
+
+        // 1.5 Load Actor State for Trace Propagation & Loop Detection
+        const actorState = await loadActorState();
+        const executionStack = actorState?.executionStack || [];
+
+        // Loop Detection (Max depth 10 or agent recursion)
+        if (executionStack.includes(targetAgentName) || executionStack.length > 10) {
+          return JSON.stringify({
+            success: false,
+            error: 'RECURSION_DETECTED',
+            message: `Recursion or max depth detected: ${targetAgentName} cannot be spawned.`,
+            stack: executionStack,
           });
         }
 
         // 2. Synchronous Pattern - Uses spawnChildAgent with proper coordination
-        // If session_id provided, continue existing dialogue; otherwise create new
         if (!isAsync) {
+          const registry = getTaskRegistry();
+          const taskId = await registry.register({
+            sessionId: '',
+            agentName: targetAgentName,
+            prompt: finalPrompt,
+            maxRetries: 2,
+            timeoutMs: timeout_ms,
+            complexity,
+            parentSessionId: execContext?.sessionID,
+          });
+
           let targetSessionId = session_id;
 
           // If no session_id, create new child session
@@ -244,15 +285,16 @@ export function createSkillAgentTools(client: PluginInput['client']) {
               targetSessionId = createResult.data.id;
             } catch (err) {
               const errorMessage = err instanceof Error ? err.message : String(err);
+              registry.updateStatus(taskId, 'failed', undefined, errorMessage);
               return JSON.stringify({
                 success: false,
                 error: 'SESSION_CREATE_FAILED',
                 message: `Failed to create session: ${errorMessage}`,
               });
             }
-          } else {
-            // Continuing dialog in session
           }
+
+          registry.updateSessionId(taskId, targetSessionId);
 
           // Send prompt to session
           try {
@@ -265,6 +307,7 @@ export function createSkillAgentTools(client: PluginInput['client']) {
             });
           } catch (err: any) {
             if (!err.message.includes('Unexpected EOF')) {
+              registry.updateStatus(taskId, 'failed', undefined, err.message);
               return JSON.stringify({
                 success: false,
                 error: 'PROMPT_FAILED',
@@ -288,6 +331,7 @@ export function createSkillAgentTools(client: PluginInput['client']) {
               break;
             }
 
+            registry.heartbeat(taskId);
             await new Promise((r) => setTimeout(r, pollInterval));
             pollInterval = Math.min(pollInterval * 1.5, maxPollInterval);
           }
@@ -313,12 +357,19 @@ export function createSkillAgentTools(client: PluginInput['client']) {
           // Extract dialogue_state using robust multi-strategy parser
           const dialogueState = extractDialogueState(responseText);
 
+          if (timedOut) {
+            registry.updateStatus(taskId, 'timeout', responseText);
+          } else {
+            registry.updateStatus(taskId, 'completed', responseText);
+          }
+
           // Return structured response with session_id for continuation
           return JSON.stringify(
             {
               success: true,
               agent: targetAgentName,
               session_id: targetSessionId,
+              task_id: taskId,
               result: responseText,
               dialogue_state: dialogueState,
               timed_out: timedOut,
@@ -370,39 +421,49 @@ export function createSkillAgentTools(client: PluginInput['client']) {
           if (!err.message.includes('Unexpected EOF')) {
             return JSON.stringify({
               success: false,
-              error: 'SPAWN_FAILED',
+              error: 'PROMPT_FAILED',
               message: err.message,
+              session_id: activeSessionID,
             });
           }
         }
 
-        // Track spawn in actor state (if initialized)
-        const actorState = await loadActorState();
-        if (actorState) {
-          await processMessage(actorState, {
-            type: 'subagent.spawn',
-            payload: { agent: targetAgentName, sessionId: activeSessionID!, prompt: finalPrompt },
-          });
-        }
-
-        // Handoff to target agent
-
-        return JSON.stringify(
-          {
-            success: true,
-            status: 'HANDOFF',
-            agent: targetAgentName,
-            session_id: activeSessionID,
-            message: `Handed off to ${targetAgentName}. Monitor for response.`,
+        // Return HANDOOF_INTENT
+        return JSON.stringify({
+          success: true,
+          status: 'HANDOFF_INTENT',
+          message: `Spawned ${targetAgentName} asynchronously`,
+          agent: targetAgentName,
+          session_id: activeSessionID,
+          metadata: {
+            handoff: {
+              type: 'DELEGATION',
+              target_agent: targetAgentName,
+              session_id: activeSessionID,
+            },
           },
-          null,
-          2
-        );
+        });
       },
     }),
 
     /**
-     * skill_list - List available registered agents
+     * task_heartbeat - Signal that a task is still in progress
+     */
+    task_heartbeat: tool({
+      description: 'Signal that a task is still in progress (prevents timeout)',
+      args: {
+        task_id: tool.schema.string().describe('Task ID from TaskRegistry or LEDGER'),
+      },
+      async execute(args) {
+        const { task_id } = args;
+        const registry = getTaskRegistry();
+        registry.heartbeat(task_id);
+        return JSON.stringify({ success: true, message: 'Heartbeat recorded' });
+      },
+    }),
+
+    /**
+     * task_status - Get the status of a specific task
      */
     skill_list: tool({
       description: 'List available skill-based agents',
@@ -536,8 +597,14 @@ export function createSkillAgentTools(client: PluginInput['client']) {
         const spawnPromises = tasks.map(async (task, index) => {
           const searchNames = [task.agent_name];
           if (task.skill_name) {
-            searchNames.push(`${task.skill_name}/${task.agent_name}`);
-            searchNames.push(`${task.skill_name}-${task.agent_name}`);
+            const prefixed1 = `${task.skill_name}/${task.agent_name}`;
+            const prefixed2 = `${task.skill_name}-${task.agent_name}`;
+            if (!searchNames.includes(prefixed1)) {
+              searchNames.push(prefixed1);
+            }
+            if (!searchNames.includes(prefixed2)) {
+              searchNames.push(prefixed2);
+            }
           }
 
           const agent = allAgents.find((a) => searchNames.includes(a.name));

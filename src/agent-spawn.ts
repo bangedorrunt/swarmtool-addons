@@ -18,18 +18,19 @@
  */
 
 import { tool, type ToolContext } from '@opencode-ai/plugin';
+import { getDurableStreamOrchestrator } from './orchestrator/durable-stream.ts';
 
 /**
  * Dialogue state for multi-turn interactions
  */
 export interface DialogueState {
   status:
-  | 'needs_input'
-  | 'needs_approval'
-  | 'needs_verification'
-  | 'approved'
-  | 'rejected'
-  | 'completed';
+    | 'needs_input'
+    | 'needs_approval'
+    | 'needs_verification'
+    | 'approved'
+    | 'rejected'
+    | 'completed';
   turn: number;
   message_to_user: string;
   pending_questions?: string[];
@@ -119,7 +120,14 @@ export function createAgentTools(client: any) {
         session_id: tool.schema
           .string()
           .optional()
-          .describe('Existing session ID for dialogue continuation (reuses session instead of creating new)'),
+          .describe(
+            'Existing session ID for dialogue continuation (reuses session instead of creating new)'
+          ),
+        timeout_ms: tool.schema
+          .number()
+          .optional()
+          .default(60000)
+          .describe('Timeout in milliseconds for synchronous execution (default: 60000)'),
         async: tool.schema
           .boolean()
           .optional()
@@ -136,6 +144,7 @@ export function createAgentTools(client: any) {
           interaction_mode = 'one_shot',
           dialogue_state,
           session_id,
+          timeout_ms = 60000,
           async: isAsync = true,
         } = args;
 
@@ -188,33 +197,60 @@ export function createAgentTools(client: any) {
               },
             });
 
-            // Polling for IDLE
-            let isIdle = false;
-            let attempts = 0;
-            while (!isIdle && attempts < 30) {
-              await new Promise((r) => globalThis.setTimeout(r, 2000));
-              attempts++;
-              const statusResult = await client.session.status();
-              const sessionStatus = statusResult.data?.[syncSessionID as string];
-              if (sessionStatus?.type === 'idle' || !sessionStatus) isIdle = true;
+            // Event-Driven Wait (Deadlock Fix 001.1)
+            const orchestrator = getDurableStreamOrchestrator();
+
+            // Race Condition Check: Verify if completion occurred before subscription
+            const history = orchestrator.getEventHistory(undefined, 200);
+            const completedEvent = history.find(
+              (e) => e.type === 'agent.completed' && e.sessionId === syncSessionID
+            );
+            if (completedEvent) {
+              return (completedEvent.payload as any).result || '';
             }
 
-            // Get response
-            const msgResult = await client.session.messages({ path: { id: syncSessionID as string } });
-            if (msgResult.error) throw new Error(JSON.stringify(msgResult.error));
+            const failedEvent = history.find(
+              (e) => e.type === 'agent.failed' && e.sessionId === syncSessionID
+            );
+            if (failedEvent) {
+              throw new Error((failedEvent.payload as any).error || 'Agent execution failed');
+            }
 
-            const lastAssistantMsg = msgResult.data
-              .filter((m: any) => m.info.role === 'assistant')
-              .sort(
-                (a: any, b: any) => (b.info.time?.created || 0) - (a.info.time?.created || 0)
-              )[0];
+            return await new Promise<string>((resolve, reject) => {
+              let isResolved = false;
+              let timer: ReturnType<typeof setTimeout>;
 
-            if (!lastAssistantMsg) return `Error: No response from ${agent}.`;
+              const cleanup = () => {
+                if (unsubscribeComplete) unsubscribeComplete();
+                if (unsubscribeFailed) unsubscribeFailed();
+                if (timer) clearTimeout(timer);
+              };
 
-            return lastAssistantMsg.parts
-              .filter((p: any) => p.type === 'text')
-              .map((p: any) => p.text)
-              .join('\n');
+              const unsubscribeComplete = orchestrator.subscribe('agent.completed', (event) => {
+                if (event.sessionId === syncSessionID && !isResolved) {
+                  isResolved = true;
+                  cleanup();
+                  const result = (event.payload as any).result || '';
+                  resolve(result);
+                }
+              });
+
+              const unsubscribeFailed = orchestrator.subscribe('agent.failed', (event) => {
+                if (event.sessionId === syncSessionID && !isResolved) {
+                  isResolved = true;
+                  cleanup();
+                  reject(new Error((event.payload as any).error || 'Agent execution failed'));
+                }
+              });
+
+              timer = setTimeout(() => {
+                if (!isResolved) {
+                  isResolved = true;
+                  cleanup();
+                  reject(new Error(`Timeout waiting for agent ${agent} after ${timeout_ms}ms`));
+                }
+              }, timeout_ms);
+            });
           } catch (err: any) {
             return `Error during synchronous agent spawn: ${err.message}`;
           }
@@ -231,9 +267,9 @@ export function createAgentTools(client: any) {
             dialogue_state:
               interaction_mode === 'dialogue'
                 ? {
-                  status: 'needs_input',
-                  message_to_user: 'Please check the main chat for the agent response.',
-                }
+                    status: 'needs_input',
+                    message_to_user: 'Please check the main chat for the agent response.',
+                  }
                 : undefined,
             metadata: {
               handoff: {
@@ -327,33 +363,60 @@ export function createAgentTools(client: any) {
               },
             });
 
-            // Polling for IDLE
-            let isIdle = false;
-            let attempts = 0;
-            while (!isIdle && attempts < 30) {
-              await new Promise((r) => globalThis.setTimeout(r, 2000));
-              attempts++;
-              const statusResult = await client.session.status();
-              const sessionStatus = statusResult.data?.[syncSessionID];
-              if (sessionStatus?.type === 'idle' || !sessionStatus) isIdle = true;
+            // Event-Driven Wait (Deadlock Fix 001.1)
+            const orchestrator = getDurableStreamOrchestrator();
+
+            // Race Condition Check: Verify if completion occurred before subscription
+            const history = orchestrator.getEventHistory(undefined, 200);
+            const completedEvent = history.find(
+              (e) => e.type === 'agent.completed' && e.sessionId === syncSessionID
+            );
+            if (completedEvent) {
+              return (completedEvent.payload as any).result || '';
             }
 
-            // Get response
-            const msgResult = await client.session.messages({ path: { id: syncSessionID } });
-            if (msgResult.error) throw new Error(JSON.stringify(msgResult.error));
+            const failedEvent = history.find(
+              (e) => e.type === 'agent.failed' && e.sessionId === syncSessionID
+            );
+            if (failedEvent) {
+              throw new Error((failedEvent.payload as any).error || 'Agent execution failed');
+            }
 
-            const lastAssistantMsg = msgResult.data
-              .filter((m: any) => m.info.role === 'assistant')
-              .sort(
-                (a: any, b: any) => (b.info.time?.created || 0) - (a.info.time?.created || 0)
-              )[0];
+            return await new Promise<string>((resolve, reject) => {
+              let isResolved = false;
+              let timer: ReturnType<typeof setTimeout>;
 
-            if (!lastAssistantMsg) return `Error: No response from ${agent}.`;
+              const cleanup = () => {
+                if (unsubscribeComplete) unsubscribeComplete();
+                if (unsubscribeFailed) unsubscribeFailed();
+                if (timer) clearTimeout(timer);
+              };
 
-            return lastAssistantMsg.parts
-              .filter((p: any) => p.type === 'text')
-              .map((p: any) => p.text)
-              .join('\n');
+              const unsubscribeComplete = orchestrator.subscribe('agent.completed', (event) => {
+                if (event.sessionId === syncSessionID && !isResolved) {
+                  isResolved = true;
+                  cleanup();
+                  const result = (event.payload as any).result || '';
+                  resolve(result);
+                }
+              });
+
+              const unsubscribeFailed = orchestrator.subscribe('agent.failed', (event) => {
+                if (event.sessionId === syncSessionID && !isResolved) {
+                  isResolved = true;
+                  cleanup();
+                  reject(new Error((event.payload as any).error || 'Agent execution failed'));
+                }
+              });
+
+              timer = setTimeout(() => {
+                if (!isResolved) {
+                  isResolved = true;
+                  cleanup();
+                  reject(new Error(`Timeout waiting for agent ${agent} after 60000ms`));
+                }
+              }, 60000);
+            });
           } catch (err: any) {
             return `Error during synchronous agent dialogue: ${err.message}`;
           }
