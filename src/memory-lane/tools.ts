@@ -74,7 +74,20 @@ export const memory_lane_store = tool({
   description: 'Store a memory with specific taxonomy and entity associations.',
   args: {
     information: tool.schema.string().describe('The knowledge to store'),
-    type: MemoryTypeSchema.describe('Memory type (correction, decision, etc.)'),
+    type: tool.schema
+      .enum([
+        'correction',
+        'decision',
+        'commitment',
+        'insight',
+        'learning',
+        'confidence',
+        'pattern_seed',
+        'cross_agent',
+        'workflow_note',
+        'gap',
+      ])
+      .describe('Memory type (correction, decision, etc.)'),
     entities: tool.schema
       .array(tool.schema.string())
       .optional()
@@ -83,7 +96,7 @@ export const memory_lane_store = tool({
   },
   async execute(args) {
     const store = getMemoryLaneStore();
-    const result = await store.store(args);
+    const result = await store.store(args as any);
 
     return JSON.stringify(result, null, 2);
   },

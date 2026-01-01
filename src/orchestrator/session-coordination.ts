@@ -16,6 +16,7 @@ import { loadActorState } from './actor/state';
 import { processMessage } from './actor/core';
 import { queryLearnings } from './hooks/opencode-session-learning';
 import { getDurableStream, StreamEvent } from '../durable-stream';
+import { getEventDrivenLedger } from './event-driven-ledger';
 
 /**
  * Result of spawning a child agent
@@ -171,14 +172,14 @@ export async function spawnChildAgent(
     childSessionId = createResult.data.id;
     onStatusChange?.('created');
 
-    const durableStream = getDurableStream();
-    const spawnEvent = await durableStream.spawnAgent(
-      childSessionId,
-      parentSessionId,
+    const ledger = getEventDrivenLedger();
+    const spawnEvent = await ledger.emit('ledger.task.started', {
+      epicId: parentSessionId,
+      taskId: childSessionId,
+      taskTitle: `Agent: ${agent}`,
       agent,
-      finalPrompt
-    );
-    spawnEventId = spawnEvent.id;
+    });
+    spawnEventId = spawnEvent?.id;
   } catch (err: any) {
     return {
       success: false,
@@ -249,16 +250,21 @@ export async function spawnChildAgent(
   completionEventId = result.completionEventId;
 
   // 7. Track completion/failure in actor state AND durable stream
-  const durableStream = getDurableStream();
+  const ledger = getEventDrivenLedger();
   if (result.status === 'completed') {
-    await durableStream.completeAgent(
-      childSessionId,
+    await ledger.emit('ledger.task.completed', {
+      epicId: parentSessionId,
+      taskId: childSessionId,
       agent,
-      result.result || '',
-      Date.now() - startTime
-    );
+      result: result.result || '',
+    });
   } else {
-    await durableStream.failAgent(childSessionId, agent, result.error || 'Unknown error');
+    await ledger.emit('ledger.task.failed', {
+      epicId: parentSessionId,
+      taskId: childSessionId,
+      agent,
+      error: result.error || 'Unknown error',
+    });
   }
 
   if (actorState) {
@@ -267,13 +273,13 @@ export async function spawnChildAgent(
       const msg =
         result.status === 'completed'
           ? ({
-            type: 'subagent.complete' as const,
-            payload: { sessionId: childSessionId, agent, result: result.result?.slice(0, 500) },
-          } as const)
+              type: 'subagent.complete' as const,
+              payload: { sessionId: childSessionId, agent, result: result.result?.slice(0, 500) },
+            } as const)
           : ({
-            type: 'subagent.failed' as const,
-            payload: { sessionId: childSessionId, agent, error: result.error || 'Unknown error' },
-          } as const);
+              type: 'subagent.failed' as const,
+              payload: { sessionId: childSessionId, agent, error: result.error || 'Unknown error' },
+            } as const);
 
       await processMessage(currentState, msg);
     }

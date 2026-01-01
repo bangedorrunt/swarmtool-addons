@@ -302,7 +302,10 @@ export const SwarmToolAddons: Plugin = async (input) => {
       // 0. Durable Stream Bridge (Event Sourcing)
       const stream = getDurableStream();
       if (stream.isInitialized()) {
-        await stream['handleSdkEvent'](event).catch(() => {});
+        const bridge = stream.createBridgeHooks();
+        if (bridge.event) {
+          await bridge.event(eventInput).catch(() => {});
+        }
       }
 
       // 1. Session Learning

@@ -9,9 +9,9 @@
 
 import { ActorState, ActorPhase, saveActorState, TrackedAssumption, SubAgentState } from './state';
 import { ActorMessage } from './messages';
-import { appendEvent } from '../../event-log';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
+import { getEventDrivenLedger } from '../event-driven-ledger';
 
 /**
  * Pure reducer - processes message and returns new state
@@ -181,7 +181,7 @@ export function receive(state: ActorState, message: ActorMessage): ActorState {
 /**
  * Process a message with full side effects
  *
- * 1. Append to durable event stream
+ * 1. Append to durable event stream via Ledger
  * 2. Apply pure reducer
  * 3. Persist state to file
  * 4. Update LEDGER.md
@@ -191,17 +191,21 @@ export async function processMessage(
   message: ActorMessage,
   projectPath: string = process.cwd()
 ): Promise<ActorState> {
+  const ledger = getEventDrivenLedger();
+
   // 1. Append to durable event stream
-  const event = await appendEvent(projectPath, {
-    type: `actor.${message.type}`,
+  const event = await ledger.emit(`actor.${message.type}` as any, {
     agent: 'chief-of-staff',
-    session_id: state.sessionId,
-    ...message.payload,
+    epicId: state.rootSessionId,
+    taskId: state.sessionId,
+    result: JSON.stringify(message.payload),
   });
 
   // 2. Apply pure reducer
   const newState = receive(state, message);
-  newState.eventOffset = event.offset;
+  if (event) {
+    newState.eventOffset = (event as any).offset || 0;
+  }
 
   // 3. Persist state to file
   await saveActorState(newState, projectPath);

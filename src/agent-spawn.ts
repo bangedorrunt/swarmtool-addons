@@ -25,12 +25,12 @@ import { getDurableStream } from './durable-stream';
  */
 export interface DialogueState {
   status:
-  | 'needs_input'
-  | 'needs_approval'
-  | 'needs_verification'
-  | 'approved'
-  | 'rejected'
-  | 'completed';
+    | 'needs_input'
+    | 'needs_approval'
+    | 'needs_verification'
+    | 'approved'
+    | 'rejected'
+    | 'completed';
   turn: number;
   message_to_user: string;
   pending_questions?: string[];
@@ -201,16 +201,16 @@ export function createAgentTools(client: any) {
             const orchestrator = getDurableStream();
 
             // Race Condition Check: Verify if completion occurred before subscription
-            const history = orchestrator.getEventHistory(undefined, 200);
+            const history = orchestrator.getEventHistory();
             const completedEvent = history.find(
-              (e) => e.type === 'agent.completed' && e.sessionId === syncSessionID
+              (e) => e.type === 'agent.completed' && (e.payload as any).intent_id === syncSessionID
             );
             if (completedEvent) {
               return (completedEvent.payload as any).result || '';
             }
 
             const failedEvent = history.find(
-              (e) => e.type === 'agent.failed' && e.sessionId === syncSessionID
+              (e) => e.type === 'agent.failed' && (e.payload as any).intent_id === syncSessionID
             );
             if (failedEvent) {
               throw new Error((failedEvent.payload as any).error || 'Agent execution failed');
@@ -227,19 +227,21 @@ export function createAgentTools(client: any) {
               };
 
               const unsubscribeComplete = orchestrator.subscribe('agent.completed', (event) => {
-                if ((event as any).sessionId === syncSessionID && !isResolved) {
+                const payload = event.payload as any;
+                if (payload.intent_id === syncSessionID && !isResolved) {
                   isResolved = true;
                   cleanup();
-                  const result = (event.payload as any).result || '';
+                  const result = payload.result || '';
                   resolve(result);
                 }
               });
 
               const unsubscribeFailed = orchestrator.subscribe('agent.failed', (event) => {
-                if ((event as any).sessionId === syncSessionID && !isResolved) {
+                const payload = event.payload as any;
+                if (payload.intent_id === syncSessionID && !isResolved) {
                   isResolved = true;
                   cleanup();
-                  reject(new Error((event.payload as any).error || 'Agent execution failed'));
+                  reject(new Error(payload.error || 'Agent execution failed'));
                 }
               });
 
@@ -267,9 +269,9 @@ export function createAgentTools(client: any) {
             dialogue_state:
               interaction_mode === 'dialogue'
                 ? {
-                  status: 'needs_input',
-                  message_to_user: 'Please check the main chat for the agent response.',
-                }
+                    status: 'needs_input',
+                    message_to_user: 'Please check the main chat for the agent response.',
+                  }
                 : undefined,
             metadata: {
               handoff: {
@@ -364,19 +366,19 @@ export function createAgentTools(client: any) {
             });
 
             // Event-Driven Wait (Deadlock Fix 001.1)
-            const orchestrator = getDurableStreamOrchestrator();
+            const orchestrator = getDurableStream();
 
             // Race Condition Check: Verify if completion occurred before subscription
-            const history = orchestrator.getEventHistory(undefined, 200);
+            const history = orchestrator.getEventHistory();
             const completedEvent = history.find(
-              (e) => e.type === 'agent.completed' && e.sessionId === syncSessionID
+              (e) => e.type === 'agent.completed' && (e.payload as any).intent_id === syncSessionID
             );
             if (completedEvent) {
               return (completedEvent.payload as any).result || '';
             }
 
             const failedEvent = history.find(
-              (e) => e.type === 'agent.failed' && e.sessionId === syncSessionID
+              (e) => e.type === 'agent.failed' && (e.payload as any).intent_id === syncSessionID
             );
             if (failedEvent) {
               throw new Error((failedEvent.payload as any).error || 'Agent execution failed');
@@ -393,19 +395,21 @@ export function createAgentTools(client: any) {
               };
 
               const unsubscribeComplete = orchestrator.subscribe('agent.completed', (event) => {
-                if (event.sessionId === syncSessionID && !isResolved) {
+                const payload = event.payload as any;
+                if (payload.intent_id === syncSessionID && !isResolved) {
                   isResolved = true;
                   cleanup();
-                  const result = (event.payload as any).result || '';
+                  const result = payload.result || '';
                   resolve(result);
                 }
               });
 
               const unsubscribeFailed = orchestrator.subscribe('agent.failed', (event) => {
-                if (event.sessionId === syncSessionID && !isResolved) {
+                const payload = event.payload as any;
+                if (payload.intent_id === syncSessionID && !isResolved) {
                   isResolved = true;
                   cleanup();
-                  reject(new Error((event.payload as any).error || 'Agent execution failed'));
+                  reject(new Error(payload.error || 'Agent execution failed'));
                 }
               });
 

@@ -355,10 +355,12 @@ export function createOpenCodeSessionLearningHook(
     // 3. Auto-update LEDGER.md progress for modified files
     if (modifiedFiles.length > 0) {
       // Auto-tracking: This ensures even built-in agents contribute to the project history.
+      // We link this to the current session as a background task.
       await ledger.emit('ledger.task.completed', {
-        taskId: 'auto-track-' + Date.now().toString().slice(-4),
-        taskTitle: `Modified files: ${modifiedFiles.join(', ')}`,
-        result: 'Captured via expanded auto-track hook',
+        epicId: 'auto-track-epic', // Generic epic for background work
+        taskId: `auto-track-${sessionID.slice(-4)}-${Date.now().toString().slice(-4)}`,
+        taskTitle: `Agent modified files: ${modifiedFiles.join(', ')}`,
+        result: `Successfully modified ${modifiedFiles.length} files during session ${sessionID}`,
       });
     }
 
