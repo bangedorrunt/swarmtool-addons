@@ -6,6 +6,8 @@
 
 import { tool } from '@opencode-ai/plugin';
 import { getEventDrivenLedger } from '../event-driven-ledger';
+import { readFile } from 'fs/promises';
+import { existsSync } from 'fs';
 
 export const ledger_emit_event = tool({
   description: 'Emit an event to the event ledger for tracking epic/task operations',
@@ -57,14 +59,20 @@ export const ledger_emit_event = tool({
 });
 
 export const ledger_get_history = tool({
-  description: 'Get the event history from the event ledger',
-  args: {},
-  async execute() {
+  description: 'Get the event history and activity logs from the event ledger',
+  args: {
+    include_activity: tool.schema
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('Whether to include real-time activity logs from activity.jsonl'),
+  },
+  async execute(args) {
     const ledger = getEventDrivenLedger();
     await ledger.initialize();
 
     const history = ledger.getEventHistory();
-    return JSON.stringify({
+    const result: any = {
       count: history.length,
       events: history.slice(-50).map((e: any) => ({
         id: e.id,
@@ -72,7 +80,22 @@ export const ledger_get_history = tool({
         timestamp: e.timestamp,
         actor: e.actor,
       })),
-    });
+    };
+
+    if (args.include_activity) {
+      try {
+        const activityPath = '.opencode/activity.jsonl';
+        if (existsSync(activityPath)) {
+          const content = await readFile(activityPath, 'utf-8');
+          const lines = content.trim().split('\n').filter(Boolean);
+          result.activity = lines.slice(-50).map((line) => JSON.parse(line));
+        }
+      } catch (e) {
+        result.activity_error = (e as Error).message;
+      }
+    }
+
+    return JSON.stringify(result);
   },
 });
 

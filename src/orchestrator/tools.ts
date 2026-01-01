@@ -8,7 +8,8 @@ import {
 import { loadActorState } from './actor/state';
 import { processMessage } from './actor/core';
 import { canCallAgent } from './access-control';
-import { loadLedger, saveLedger, updateTaskStatus, logActivity } from './ledger';
+import { loadLedger, saveLedger, updateTaskStatus } from './ledger';
+import { getActivityLogger } from './activity-log';
 import { getTaskRegistry } from './task-registry';
 import { WorkflowLoader, WorkflowProcessor } from './workflow-engine';
 

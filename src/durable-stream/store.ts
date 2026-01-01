@@ -17,6 +17,8 @@ export interface JsonlStoreConfig {
   path: string;
   /** Maximum file size in MB before rotation (default: 10) */
   maxSizeMb?: number;
+  /** Enable daily rotation (default: true) */
+  dailyRotation?: boolean;
   /** Enable file locking (default: true) */
   useLocking?: boolean;
 }
@@ -24,6 +26,7 @@ export interface JsonlStoreConfig {
 const DEFAULT_CONFIG: Required<JsonlStoreConfig> = {
   path: '.opencode/durable_stream.jsonl',
   maxSizeMb: 10,
+  dailyRotation: true,
   useLocking: true,
 };
 
@@ -32,6 +35,7 @@ export class JsonlStore implements IStreamStore {
   private eventCache: StreamEvent[] = [];
   private cacheLoaded = false;
   private offset = 0;
+  private lastDate: string = new Date().toISOString().split('T')[0];
 
   constructor(config?: Partial<JsonlStoreConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -95,16 +99,26 @@ export class JsonlStore implements IStreamStore {
 
       const release = await lock(this.config.path, { retries: 5 });
       try {
+        // Check for daily rotation
+        if (this.config.dailyRotation && this.shouldRotateDate()) {
+          await this.rotate('daily');
+        }
+
         await writeFile(this.config.path, line, { flag: 'a' });
 
-        // Check for rotation
-        if (await this.shouldRotate()) {
-          await this.rotate();
+        // Check for size rotation
+        if (await this.shouldRotateSize()) {
+          await this.rotate('size');
         }
       } finally {
         await release();
       }
     } else {
+      // Check for daily rotation (unlocked)
+      if (this.config.dailyRotation && this.shouldRotateDate()) {
+        await this.rotate('daily');
+      }
+
       await writeFile(this.config.path, line, { flag: 'a' });
     }
 
@@ -144,7 +158,7 @@ export class JsonlStore implements IStreamStore {
   /**
    * Check if file should be rotated based on size.
    */
-  private async shouldRotate(): Promise<boolean> {
+  private async shouldRotateSize(): Promise<boolean> {
     try {
       const stats = await stat(this.config.path);
       return stats.size > this.config.maxSizeMb * 1024 * 1024;
@@ -154,14 +168,27 @@ export class JsonlStore implements IStreamStore {
   }
 
   /**
+   * Check if file should be rotated based on date.
+   */
+  private shouldRotateDate(): boolean {
+    const currentDate = new Date().toISOString().split('T')[0];
+    return currentDate !== this.lastDate;
+  }
+
+  /**
    * Rotate the log file.
    */
-  private async rotate(): Promise<void> {
-    const timestamp = Date.now();
+  private async rotate(reason: 'size' | 'daily' = 'size'): Promise<void> {
+    const timestamp = reason === 'daily' ? this.lastDate : Date.now();
     const rotatedPath = this.config.path.replace('.jsonl', `_${timestamp}.jsonl`);
 
-    await rename(this.config.path, rotatedPath);
+    if (existsSync(this.config.path)) {
+      await rename(this.config.path, rotatedPath);
+    }
     await writeFile(this.config.path, '', 'utf-8');
+
+    // Update last date
+    this.lastDate = new Date().toISOString().split('T')[0];
 
     // Clear cache (new file starts fresh)
     this.eventCache = [];

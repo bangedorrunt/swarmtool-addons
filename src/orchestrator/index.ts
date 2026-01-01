@@ -93,7 +93,6 @@ export {
   getReadyTasks,
   canStartTask,
   surfaceLearnings,
-  logActivity,
   // Constants
   DEFAULT_LEDGER_PATH,
   MAX_TASKS_PER_EPIC,

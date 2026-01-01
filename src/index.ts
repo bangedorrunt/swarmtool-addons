@@ -21,8 +21,8 @@ import {
   getTaskRegistry,
   loadLedger,
   saveLedger,
-  logActivity,
 } from './orchestrator';
+import { getActivityLogger } from './orchestrator/activity-log';
 import { createOpenCodeSessionLearningHook } from './orchestrator/hooks';
 
 import { loadChiefOfStaffSkills } from './opencode/config/skill-loader';
@@ -323,9 +323,7 @@ export const SwarmToolAddons: Plugin = async (input) => {
         const message = props?.part?.content || props?.file || 'Activity detected';
 
         if (message && typeof message === 'string' && message.length > 5) {
-          const ledger = await loadLedger();
-          logActivity(ledger, agentName, message.slice(0, 100));
-          await saveLedger(ledger);
+          await getActivityLogger().log(agentName, message.slice(0, 100));
         }
       }
 
