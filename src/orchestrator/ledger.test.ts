@@ -31,6 +31,10 @@ function createTestLedger(): Ledger {
       lastUpdated: '2025-12-30T00:00:00.000Z',
       tasksCompleted: '0/0',
     },
+    governance: {
+      directives: [],
+      assumptions: [],
+    },
     epic: null,
     learnings: {
       patterns: [],

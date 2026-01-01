@@ -19,15 +19,41 @@ import { lock } from 'proper-lockfile';
 // Types
 // ============================================================================
 
-export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'timeout' | 'suspended';
+export type TaskStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'timeout'
+  | 'suspended'
+  | 'stale';
 export type TaskOutcome = 'SUCCEEDED' | 'PARTIAL' | 'FAILED' | '-';
-export type EpicStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
+export type EpicStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'paused';
 export type LedgerPhase =
   | 'CLARIFICATION'
   | 'DECOMPOSITION'
   | 'PLANNING'
   | 'EXECUTION'
   | 'COMPLETION';
+
+export interface Directive {
+  content: string;
+  source: 'user' | 'interviewer';
+  createdAt: number;
+}
+
+export interface Assumption {
+  content: string;
+  source: 'oracle' | 'executor' | 'planner' | 'chief-of-staff';
+  rationale: string;
+  status: 'pending_review' | 'approved' | 'rejected';
+  createdAt: number;
+}
+
+export interface Governance {
+  directives: Directive[];
+  assumptions: Assumption[];
+}
 
 export interface Task {
   id: string; // Format: abc123.1
@@ -100,6 +126,7 @@ export interface LedgerMeta {
 
 export interface Ledger {
   meta: LedgerMeta;
+  governance: Governance;
   epic: Epic | null;
   learnings: Learnings;
   handoff: Handoff | null;
@@ -153,6 +180,10 @@ function createDefaultLedger(): Ledger {
       lastUpdated: formatTimestamp(),
       tasksCompleted: '0/0',
     },
+    governance: {
+      directives: [],
+      assumptions: [],
+    },
     epic: null,
     learnings: {
       patterns: [],
@@ -182,6 +213,9 @@ function parseLedgerMarkdown(content: string): Ledger {
     // Section headers
     if (line.startsWith('## Meta')) {
       currentSection = 'meta';
+      continue;
+    } else if (line.startsWith('## Governance')) {
+      currentSection = 'governance';
       continue;
     } else if (line.startsWith('## Epic:')) {
       currentSection = 'epic';
@@ -232,6 +266,40 @@ function parseLedgerMarkdown(content: string): Ledger {
         ledger.meta.tasksCompleted = line.replace('tasks_completed:', '').trim();
       } else if (line.startsWith('current_task:')) {
         ledger.meta.currentTask = line.replace('current_task:', '').trim();
+      }
+    }
+
+    // Parse Governance section
+    if (currentSection === 'governance') {
+      if (line.startsWith('### Directives')) {
+        currentSubSection = 'directives';
+      } else if (line.startsWith('### Assumptions')) {
+        currentSubSection = 'assumptions';
+      } else if (line.startsWith('- ')) {
+        // Parse Directive: - [x] Content (Source, Date)
+        if (currentSubSection === 'directives') {
+          const contentMatch = line.match(/- \[x\] (.*) \((.*), (.*)\)/);
+          if (contentMatch) {
+            ledger.governance.directives.push({
+              content: contentMatch[1],
+              source: contentMatch[2] as Directive['source'],
+              createdAt: new Date(contentMatch[3]).getTime() || Date.now(),
+            });
+          }
+        }
+        // Parse Assumption: - [?] Content (Source: Rationale)
+        else if (currentSubSection === 'assumptions') {
+          const contentMatch = line.match(/- \[\?\] (.*) \((.*): (.*)\)/);
+          if (contentMatch) {
+            ledger.governance.assumptions.push({
+              content: contentMatch[1],
+              source: contentMatch[2] as Assumption['source'],
+              rationale: contentMatch[3],
+              status: 'pending_review',
+              createdAt: Date.now(), // Date usually not stored in markdown line for assumptions to keep it short
+            });
+          }
+        }
       }
     }
 
@@ -410,6 +478,32 @@ function renderLedgerMarkdown(ledger: Ledger): string {
   lines.push('---');
   lines.push('');
 
+  // Governance section
+  lines.push('## Governance');
+  lines.push('');
+  lines.push('### Directives (The Law)');
+  if (ledger.governance.directives.length > 0) {
+    for (const d of ledger.governance.directives) {
+      const dateStr = new Date(d.createdAt).toISOString().split('T')[0];
+      lines.push(`- [x] ${d.content} (${d.source}, ${dateStr})`);
+    }
+  } else {
+    lines.push('*No directives established*');
+  }
+  lines.push('');
+
+  lines.push('### Assumptions (The Debt)');
+  if (ledger.governance.assumptions.length > 0) {
+    for (const a of ledger.governance.assumptions) {
+      lines.push(`- [?] ${a.content} (${a.source}: ${a.rationale})`);
+    }
+  } else {
+    lines.push('*No pending assumptions*');
+  }
+  lines.push('');
+  lines.push('---');
+  lines.push('');
+
   // Epic section
   if (ledger.epic) {
     lines.push(`## Epic: ${ledger.epic.id}`);
@@ -433,7 +527,9 @@ function renderLedgerMarkdown(ledger: Ledger): string {
             ? '❌'
             : task.status === 'suspended'
               ? '⏸️'
-              : '⏳';
+              : task.status === 'stale'
+                ? '⚠️'
+                : '⏳';
       lines.push(
         `| ${task.id} | ${task.title} | ${task.agent} | ${statusIcon} ${task.status} | ${task.outcome} |`
       );
@@ -952,6 +1048,9 @@ export function canStartTask(ledger: Ledger, taskId: string): boolean {
 export function getReadyTasks(ledger: Ledger): Task[] {
   if (!ledger.epic) return [];
 
+  // If epic is paused, no tasks are ready
+  if (ledger.epic.status === 'paused') return [];
+
   return ledger.epic.tasks.filter((t) => t.status === 'pending' && canStartTask(ledger, t.id));
 }
 
@@ -976,6 +1075,70 @@ export function surfaceLearnings(
     antiPatterns: filterRecent(ledger.learnings.antiPatterns),
     decisions: filterRecent(ledger.learnings.decisions),
   };
+}
+
+/**
+ * Add a Directive (The Law)
+ */
+export function addDirective(ledger: Ledger, content: string, source: Directive['source']): void {
+  ledger.governance.directives.push({
+    content,
+    source,
+    createdAt: Date.now(),
+  });
+  console.log(`[Ledger] Added Directive: ${content}`);
+}
+
+/**
+ * Add an Assumption (The Debt)
+ */
+export function addAssumption(
+  ledger: Ledger,
+  content: string,
+  source: Assumption['source'],
+  rationale: string
+): void {
+  ledger.governance.assumptions.push({
+    content,
+    source,
+    rationale,
+    status: 'pending_review',
+    createdAt: Date.now(),
+  });
+  console.log(`[Ledger] Added Assumption: ${content}`);
+}
+
+/**
+ * Review an Assumption (approve/reject)
+ * If approved, optionally promotes to Directive
+ */
+export function reviewAssumption(
+  ledger: Ledger,
+  index: number,
+  status: 'approved' | 'rejected',
+  promoteToDirective: boolean = false
+): void {
+  const assumption = ledger.governance.assumptions[index];
+  if (!assumption) {
+    throw new Error(`Assumption at index ${index} not found`);
+  }
+
+  assumption.status = status;
+
+  if (status === 'approved' && promoteToDirective) {
+    addDirective(ledger, assumption.content, 'user');
+    ledger.governance.assumptions.splice(index, 1);
+    console.log(`[Ledger] Assumption promoted to Directive: ${assumption.content}`);
+  } else {
+    console.log(`[Ledger] Assumption ${status}: ${assumption.content}`);
+  }
+}
+
+/**
+ * Get assumptions pending user review
+ */
+export function getUnreviewedAssumptions(ledger: Ledger): Assumption[] {
+  return ledger.governance.assumptions.filter((a) => a.status === 'pending_review');
 }
 
 // ============================================================================
