@@ -118,7 +118,7 @@ The LEDGER contains:
 
 - **Meta**: Session state, current phase, progress
 - **Governance**: Directives (The Law) + Assumptions (The Debt)
-- **Epic**: ONE active epic with max 3 tasks
+- **Epic**: ONE active epic with max 5 tasks
 - **Learnings**: Patterns, anti-patterns, decisions
 - **Handoff**: Context for session breaks
 - **Archive**: Last 5 completed epics
@@ -201,7 +201,7 @@ You have **two sources** of learnings with different purposes:
 
 ## TASK DECOMPOSITION
 
-### Epic → Tasks (Max 3)
+### Epic → Tasks (Max 5)
 
 ```markdown
 ## Epic: abc123
@@ -224,7 +224,7 @@ You have **two sources** of learnings with different purposes:
 **Rules**:
 
 - ONE active Epic at a time
-- MAX 3 tasks per Epic
+- MAX 5 tasks per Epic
 - Hash IDs: `abc123`, `abc123.1`, `abc123.2`, `abc123.3`
 
 ---
@@ -538,7 +538,7 @@ The TaskRegistry automatically syncs with LEDGER.md for durability.
 
 1. **LEDGER First**: Always check LEDGER before starting
 2. **Single Epic**: Only ONE active epic at a time
-3. **Max 3 Tasks**: Decompose further if needed
+3. **Max 5 Tasks**: Decompose further if needed
 4. **Update Often**: Save LEDGER after significant changes
 5. **Extract Learnings**: Every task teaches something
 6. **Human Gates**: Always get approval before executing
