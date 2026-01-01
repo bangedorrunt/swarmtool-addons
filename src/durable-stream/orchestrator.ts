@@ -9,7 +9,6 @@
  * - State recovery (resume after crash)
  */
 
-import type { OpencodeClient } from '@opencode-ai/sdk';
 import type { Hooks } from '@opencode-ai/plugin';
 import { EventEmitter } from 'events';
 import type {

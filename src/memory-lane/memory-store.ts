@@ -14,7 +14,6 @@
 
 import { createClient, type Client } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
-import { sql } from 'drizzle-orm';
 import type { LibSQLDatabase } from 'drizzle-orm/libsql';
 import { getDatabasePath } from '../utils/database-path';
 import {
@@ -378,7 +377,9 @@ export class MemoryLaneStore {
           await new Promise((r) => setTimeout(r, 1000));
           if (await check()) return;
         }
-      } catch {}
+      } catch {
+        // Silently ignore - auto-start is a best-effort feature
+      }
     }
   }
 

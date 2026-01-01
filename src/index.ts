@@ -8,8 +8,9 @@
  * - Session learning hooks (self-learning across sessions)
  */
 
-import type { Plugin } from '@opencode-ai/plugin';
+import type { Plugin, PluginInput } from '@opencode-ai/plugin';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { memoryLaneTools } from './memory-lane';
 import { loadConfig, DEFAULT_MODELS } from './opencode';
 import { SignalBuffer } from './orchestrator/signal-buffer';
@@ -22,6 +23,8 @@ import { createEventLogTools } from './event-log';
 import { initializeDurableStream, getDurableStream } from './durable-stream';
 import { ledgerEventTools } from './orchestrator/tools/ledger-tools';
 import { checkpointTools } from './orchestrator/tools/checkpoint-tools';
+
+type OpenCodeClient = PluginInput['client'];
 
 interface SkillAgentArgs {
   skill_name?: string;
@@ -117,12 +120,9 @@ export const SwarmToolAddons: Plugin = async (input) => {
 
   const agents = [...localAgents, ...skillAgents];
 
-  // DATABASE PATH RESOLUTION - CRITICAL CONFIGURATION
-  const projectPath = process.cwd();
-
   // Create tools with client access
-  const skillAgentTools = createSkillAgentTools(input.client as any);
-  const agentTools = createAgentTools(input.client as any);
+  const skillAgentTools = createSkillAgentTools(input.client as OpenCodeClient);
+  const agentTools = createAgentTools(input.client as OpenCodeClient);
   const eventLogTools = createEventLogTools();
 
   // Start Task Observation (Resilient Orchestration)
@@ -183,10 +183,7 @@ export const SwarmToolAddons: Plugin = async (input) => {
     // 2. OpenCode Hooks (must be flat on this object)
 
     // Synchronous context injection
-    'tool.execute.before': async (
-      _tool: { tool: string; sessionID: string; callID: string },
-      _output: { args: any }
-    ) => {
+    'tool.execute.before': async () => {
       // Logic for context injection or logging before tool starts
     },
 

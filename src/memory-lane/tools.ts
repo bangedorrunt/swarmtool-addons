@@ -7,7 +7,6 @@
 
 import { tool } from '@opencode-ai/plugin';
 import { getMemoryLaneStore } from './memory-store';
-import { MemoryTypeSchema } from './taxonomy';
 import { EntityResolver } from './resolver';
 
 /**

@@ -22,7 +22,8 @@ export async function runGarbageCollection(
       }
     }
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+    const err = error as { code?: string };
+    if (err.code !== 'ENOENT') {
       console.error('[GC] Error running garbage collection:', error);
     }
   }

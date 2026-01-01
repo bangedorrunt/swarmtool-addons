@@ -1,6 +1,10 @@
 import { tool, type PluginInput } from '@opencode-ai/plugin';
 import { resolveAgent, listAllAgents } from './skill-agent-resolution';
-import { spawnChildAgent, waitForSessionCompletion, fetchSessionResult } from './session-coordination';
+import {
+  spawnChildAgent,
+  waitForSessionCompletion,
+  fetchSessionResult,
+} from './session-coordination';
 import { loadActorState } from './actor/state';
 import { processMessage } from './actor/core';
 import { canCallAgent } from './access-control';
@@ -309,8 +313,7 @@ export function createSkillAgentTools(client: PluginInput['client']) {
 
           let responseText = completionResult.result || '';
           let timedOut =
-            completionResult.status === 'failed' &&
-            completionResult.error?.includes('Timeout');
+            completionResult.status === 'failed' && completionResult.error?.includes('Timeout');
 
           if (timedOut) {
             // Fallback: Fetch whatever is there (Original Logic)

@@ -113,7 +113,9 @@ async function withFileLock<T>(
       // Force remove stale lock
       try {
         fs.unlinkSync(lockFile);
-      } catch {}
+      } catch {
+        // Ignore cleanup error - lock file may already be gone
+      }
       break;
     }
     await new Promise((r) => setTimeout(r, 50));

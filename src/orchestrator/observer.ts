@@ -103,18 +103,24 @@ export class TaskObserver {
 
     this.unsubscribeAgentSpawned = durableStream.subscribe('agent.spawned', (event) => {
       if (this.config.verbose) {
-        console.log(`[Observer] Agent spawned: ${(event.payload as any).agent} in session ${(event.payload as any).id}`);
+        console.log(
+          `[Observer] Agent spawned: ${(event.payload as any).agent} in session ${(event.payload as any).id}`
+        );
       }
     });
 
     this.unsubscribeAgentCompleted = durableStream.subscribe('agent.completed', (event) => {
       if (this.config.verbose) {
-        console.log(`[Observer] Agent completed: ${event.actor} in session ${(event.payload as any).intent_id}`);
+        console.log(
+          `[Observer] Agent completed: ${event.actor} in session ${(event.payload as any).intent_id}`
+        );
       }
     });
 
     this.unsubscribeAgentFailed = durableStream.subscribe('agent.failed', (event) => {
-      console.warn(`[Observer] Agent failed: ${event.actor} in session ${(event.payload as any).intent_id}`);
+      console.warn(
+        `[Observer] Agent failed: ${event.actor} in session ${(event.payload as any).intent_id}`
+      );
       if ((event.payload as any).error) {
         console.warn(`[Observer] Error: ${JSON.stringify((event.payload as any).error)}`);
       }

@@ -10,35 +10,35 @@
 
 // Types
 export type {
-    EventType,
-    StreamEvent,
-    StreamEventInput,
-    StreamFilter,
-    IStreamStore,
-    Checkpoint,
-    CheckpointOption,
-    Intent,
-    IntentSpec,
-    ResumeResult,
+  EventType,
+  StreamEvent,
+  StreamEventInput,
+  StreamFilter,
+  IStreamStore,
+  Checkpoint,
+  CheckpointOption,
+  Intent,
+  IntentSpec,
+  ResumeResult,
 } from './types';
 
 // Core (Pure Functions)
 export {
-    generateEventId,
-    generateCorrelationId,
-    createEvent,
-    filterByType,
-    filterByStream,
-    filterByActor,
-    filterByTimeRange,
-    applyFilter,
-    extractPendingCheckpoints,
-    extractActiveIntents,
-    isCheckpointExpired,
-    buildLineageTree,
-    getDescendants,
-    serializeEvent,
-    deserializeEvent,
+  generateEventId,
+  generateCorrelationId,
+  createEvent,
+  filterByType,
+  filterByStream,
+  filterByActor,
+  filterByTimeRange,
+  applyFilter,
+  extractPendingCheckpoints,
+  extractActiveIntents,
+  isCheckpointExpired,
+  buildLineageTree,
+  getDescendants,
+  serializeEvent,
+  deserializeEvent,
 } from './core';
 
 // Store
@@ -47,9 +47,9 @@ export type { JsonlStoreConfig } from './store';
 
 // Orchestrator (Class Façade)
 export {
-    DurableStream,
-    getDurableStream,
-    initializeDurableStream,
-    shutdownDurableStream,
+  DurableStream,
+  getDurableStream,
+  initializeDurableStream,
+  shutdownDurableStream,
 } from './orchestrator';
 export type { DurableStreamConfig } from './orchestrator';
