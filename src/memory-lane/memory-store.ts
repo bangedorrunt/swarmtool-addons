@@ -60,40 +60,61 @@ export class MemoryLaneStore {
   private readonly OLLAMA_URL = 'http://127.0.0.1:11434';
   private readonly db: MemoryDb;
   private readonly client: Client;
+  private schemaInitialized = false;
 
   constructor() {
     const dbPath = getDatabasePath();
     this.client = createClient({ url: dbPath });
     this.db = drizzle(this.client);
 
-    // Ensure table exists
-    this.initializeSchema().catch((err) => {
-      console.error('[MemoryLaneStore] Schema initialization error:', err);
-    });
+    console.log('[MemoryLaneStore] Initializing with database:', dbPath);
+
+    this.initializeSchema()
+      .then(() => {
+        this.schemaInitialized = true;
+        console.log('[MemoryLaneStore] Schema initialized successfully');
+      })
+      .catch((err) => {
+        console.error('[MemoryLaneStore] CRITICAL: Schema initialization failed:', err);
+        console.error('[MemoryLaneStore] Database path:', dbPath);
+      });
+  }
+
+  private async ensureSchema(): Promise<void> {
+    if (!this.schemaInitialized) {
+      await this.initializeSchema();
+      this.schemaInitialized = true;
+    }
   }
 
   /**
    * Initialize the memories table if it doesn't exist
    */
   private async initializeSchema(): Promise<void> {
-    await this.client.execute(`
-      CREATE TABLE IF NOT EXISTS memories (
-        id TEXT PRIMARY KEY,
-        content TEXT NOT NULL,
-        metadata TEXT,
-        collection TEXT DEFAULT 'memory-lane',
-        tags TEXT,
-        embedding BLOB,
-        decay_factor REAL DEFAULT 1.0,
-        valid_from TEXT,
-        valid_until TEXT,
-        superseded_by TEXT,
-        auto_tags TEXT,
-        keywords TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      )
-    `);
+    try {
+      await this.client.execute(`
+        CREATE TABLE IF NOT EXISTS memories (
+          id TEXT PRIMARY KEY,
+          content TEXT NOT NULL,
+          metadata TEXT,
+          collection TEXT DEFAULT 'memory-lane',
+          tags TEXT,
+          embedding BLOB,
+          decay_factor REAL DEFAULT 1.0,
+          valid_from TEXT,
+          valid_until TEXT,
+          superseded_by TEXT,
+          auto_tags TEXT,
+          keywords TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )
+      `);
+      console.log('[MemoryLaneStore] Schema creation/check completed');
+    } catch (err) {
+      console.error('[MemoryLaneStore] Failed to create schema:', err);
+      throw err;
+    }
   }
 
   /**
@@ -106,6 +127,8 @@ export class MemoryLaneStore {
     confidence_score?: number;
     tags?: string;
   }): Promise<{ id: string; message: string }> {
+    await this.ensureSchema();
+
     // Generate embedding
     const embedding = await this.generateEmbedding(args.information);
 
@@ -161,6 +184,8 @@ export class MemoryLaneStore {
    * Record feedback on a memory
    */
   async recordFeedback(id: string, signal: 'helpful' | 'harmful'): Promise<void> {
+    await this.ensureSchema();
+
     const result = await this.client.execute({
       sql: 'SELECT id, metadata FROM memories WHERE id = ?',
       args: [id],
@@ -201,6 +226,8 @@ export class MemoryLaneStore {
     results: MemorySearchResult[];
     count: number;
   }> {
+    await this.ensureSchema();
+
     const { query = '', limit = 10 } = args;
 
     // Detect intent boosting
