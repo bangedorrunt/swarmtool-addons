@@ -26,7 +26,7 @@
   ],
   "scripts": {
     "test": "vitest",
-    "eval": "vitest run src/evals/**/*.eval.ts",
+    "eval": "vitest run --config vitest.config.ts src/evals",
     "lint": "eslint ."
   },
   "dependencies": {
@@ -51,7 +51,7 @@
     "eslint": "^9.39.2",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
-    "evalite": "^0.1.0",
+    "evalite": "^0.1.3",
     "prettier": "^3.7.4",
     "typescript-eslint": "^8.51.0",
     "vitest": "^3.2.4"

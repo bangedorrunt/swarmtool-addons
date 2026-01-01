@@ -14,25 +14,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
         with:
-          node-version: '20'
-          cache: 'npm'
+          bun-version: 'latest'
+          cache: 'bun'
 
       - name: Install dependencies
-        run: npm install
+        run: bun install --frozen-lockfile
 
       # 1. Chạy Unit Tests trước (Nhanh và không tốn phí)
       - name: Run Unit Tests
-        run: npm test
+        run: bun test
 
       # 2. Khôi phục Cache của Evalite (Tiết kiệm token)
       - name: Restore Evalite Cache
         uses: actions/cache@v4
         with:
           path: .evalite/cache
-          key: ${{ runner.os }}-evalite-${{ hashFiles('src/orchestrator/chief-of-staff/agents/**/SKILL.md') }}
+          key: ${{ runner.os }}-evalite-${{ hashFiles('**/SKILL.md', 'bun.lock') }}
           restore-keys: |
             ${{ runner.os }}-evalite-
 
@@ -40,7 +40,7 @@ jobs:
       - name: Run AI Evaluations
         env:
           GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
-        run: npm run eval
+        run: bunx vitest run --config vitest.config.ts src/evals
         if: success()
 
       # 4. Tạo Báo cáo Tổng hợp (Step Summary)
