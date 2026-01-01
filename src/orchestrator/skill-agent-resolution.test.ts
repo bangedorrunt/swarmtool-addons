@@ -63,6 +63,18 @@ describe('Skill Agent Resolution Logic', () => {
     expect(result?.name).toBe('chief-of-staff/general');
   });
 
+  it('should prioritize skill_name over chief-of-staff default even if CoS matches', async () => {
+    (loadSkillAgents as any).mockResolvedValue([
+      { name: 'my-skill/oracle', config: {} },
+    ]);
+    (loadChiefOfStaffSkills as any).mockResolvedValue([
+      { name: 'chief-of-staff/oracle', config: {} },
+    ]);
+
+    const result = await resolveAgent({ skill_name: 'my-skill', agent_name: 'oracle' });
+    expect(result?.name).toBe('my-skill/oracle');
+  });
+
   it('should return null if no agent or fallback exists', async () => {
     (loadSkillAgents as any).mockResolvedValue([]);
     (loadChiefOfStaffSkills as any).mockResolvedValue([]);

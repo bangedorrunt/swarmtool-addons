@@ -13,27 +13,33 @@ export interface ResolvedAgent {
 export async function resolveAgent(params: {
   agent_name?: string;
   skill_name?: string;
-  agent?: string; // Alias cho agent_name
+  agent?: string; // Alias for agent_name
 }): Promise<ResolvedAgent | null> {
   const { agent_name: raw_name, skill_name, agent: alias } = params;
   const targetName = raw_name || alias;
 
   if (!targetName) return null;
 
-  // 1. Khởi tạo danh sách các tên cần tìm kiếm
-  const searchNames = [targetName];
+  // 1. Construct search candidates in PRIORITY ORDER
+  const candidates: string[] = [];
 
-  // Ưu tiên chief-of-staff/ prefix
-  if (!targetName.startsWith('chief-of-staff/')) {
-    searchNames.unshift(`chief-of-staff/${targetName}`);
-  }
-
+  // A. Explicit Skill (Highest Priority)
   if (skill_name) {
-    searchNames.push(`${skill_name}/${targetName}`);
-    searchNames.push(`${skill_name}-${targetName}`);
+    candidates.push(`${skill_name}/${targetName}`);
+    candidates.push(`${skill_name}-${targetName}`);
   }
 
-  // 2. Load tất cả agents khả dụng
+  // B. Exact Name match (e.g. if user passed "my-skill/oracle" directly)
+  candidates.push(targetName);
+
+  // C. Chief-of-Staff Namespace (Fallback for implicit names)
+  // Only add if it doesn't already look like a qualified name (has /)
+  // OR if we want to allow "oracle" to resolve to "chief-of-staff/oracle" even if "skill/oracle" exists (but we prioritized skill above)
+  if (!targetName.startsWith('chief-of-staff/')) {
+    candidates.push(`chief-of-staff/${targetName}`);
+  }
+
+  // 2. Load all available agents
   const [skillAgents, chiefOfStaffSkills] = await Promise.all([
     loadSkillAgents(),
     loadChiefOfStaffSkills(),
@@ -44,14 +50,21 @@ export async function resolveAgent(params: {
     ...chiefOfStaffSkills.map((s) => ({ name: s.name, config: s })),
   ];
 
-  // 3. Tìm kiếm agent phù hợp nhất
-  let found = allAgents.find((a: any) => searchNames.includes(a.name));
+  // 3. Find matched agent (Respecting candidate priority)
+  let found = null;
+  for (const candidate of candidates) {
+    found = allAgents.find((a: any) => a.name === candidate);
+    if (found) break;
+  }
 
-  // 4. Fallback logic nếu không tìm thấy
+  // 4. Fallback logic if not found
   if (!found) {
-    // Thử fallback sang Explore hoặc General của chief-of-staff
+    // Try fallback to Explore or General
     const fallbacks = ['chief-of-staff/explore', 'chief-of-staff/general'];
-    found = allAgents.find((a: any) => fallbacks.includes(a.name));
+    for (const fb of fallbacks) {
+      found = allAgents.find((a: any) => a.name === fb);
+      if (found) break;
+    }
   }
 
   return found ? { name: found.name, config: found.config } : null;
