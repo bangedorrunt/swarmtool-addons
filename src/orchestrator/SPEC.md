@@ -1,17 +1,18 @@
-# Orchestrator Module: Technical Specification (v4.0)
+# Orchestrator Module: Technical Specification (v4.1)
 
-The Orchestrator module is the governance engine of the skill-based subagent system. It implements a **Governance-First** architecture where the **Chief-of-Staff** acts as a Governor, managing the boundary between User Directives (The Law) and Agent Assumptions (The Debt).
+The Orchestrator module is the governance engine and lifecycle manager of the system. It implements a **Governance-First** architecture with **Event-Sourced Persistence**, enabling seamless collaboration between native OpenCode agents and custom subagents.
 
-## 1. Core Architecture: Governance-First
+## 1. Core Architecture: Governance-First (v4.1)
 
-v4.0 pivots from "Task-Driven Routing" to "Governance-First Orchestration".
+v4.1 extends the governance model with universal lifecycle hooks and durable state management.
 
 ### I. State Taxonomy
 
-| State Type | Location | Mutability | Source | Enforcement |
-|Types|Types|Types|Types|Types|
-| **Directives** | LEDGER → Governance | Immutable | User / Polls | **Must Obey** (The Law) |
-| **Assumptions** | LEDGER → Governance | Mutable | Agents | **Must Audit** (The Debt) |
+| State Type      | Location            | Mutability  | Source       | Enforcement               |
+| :-------------- | :------------------ | :---------- | :----------- | :------------------------ |
+| **Directives**  | LEDGER → Governance | Immutable   | User / Polls | **Must Obey** (The Law)   |
+| **Assumptions** | LEDGER → Governance | Mutable     | Agents       | **Must Audit** (The Debt) |
+| **Progress**    | LEDGER → Epic       | Append-only | All Agents   | **Auto-tracked**          |
 
 ### II. The 3-Phase Governance Loop
 
@@ -20,89 +21,71 @@ Every major workflow follows this cycle:
 1.  **PHASE 1: STATE CHECK**
     - Load Directives from LEDGER.
     - Check if critical Directives are missing for the request.
-    - If missing: Trigger **Strategic Poll** (User fills the gap).
-    - If present: Proceed.
+    - If missing: Trigger **Strategic Poll** (A/B/C options).
 
 2.  **PHASE 2: DELEGATION**
-    - Dispatch sub-agents (Oracle, Execution).
+    - Dispatch agents (Oracle, Execution, or Native).
     - **Constraint**: Pass Directives as hard constraints.
-    - **Capture**: Collect `assumptions_made` and `learnings` from results.
+    - **Auto-Track**: Hook `tool.execute.after` to log file changes to LEDGER.
 
-3.  **PHASE 3: AUDIT**
+3.  **PHASE 3: AUDIT & LEARN**
     - Merge new Assumptions into LEDGER.
-    - Report completion to user with an "Assumption Audit" request.
+    - Trigger `LearningExtractor` on session idle/exit.
+    - Emit `ledger.learning.extracted` to Durable Stream.
 
-## 2. Skill-Based Subagent Roster
+## 2. Universal Self-Learning System
 
-The system uses specialized workers coordinated by the Chief-of-Staff.
+The orchestrator implements a pervasive learning layer that works across all agent types.
 
-| Agent Name | Role | v4.0 Capability | Access |
-| :--- | :--- | :--- | :--- |
-| **Chief-of-Staff** | **Governor** | Governance Loop, Strategic Polling, Drift Detection | Public |
-| **Oracle** | **Tactical Architect** | Parallel Execution Strategy, Conflict Re-decomposition | Internal |
-| **Executor** | **Builder** | Parallel-Safe Execution, File Tracking, TDD | Internal |
-| **Interviewer** | **Strategist** | (Fallback) Deep ambiguity resolution via dialogue | Internal |
-| **Context-Loader** | **Librarian** | Hydrates context from Memory Lane + LEDGER | Internal |
-| **Planner** | **Blueprinter** | Detailed implementation planning | Internal |
-| **Validator** | **QA** | Verification | Internal |
-| **Spec-Writer** | **Scribe** | Creates/Updates Specifications | Internal |
-| **Spec-Reviewer** | **Gatekeeper** | Verifies logic against spec | Internal |
-| **Code-Reviewer** | **Gatekeeper** | Verifies code quality/standards | Internal |
-| **Debugger** | **Mechanic** | Systematic debugging on failure | Internal |
-| **Workflow-Arch** | **Meta-Designer** | Designs new workflows/agents | Internal |
+### I. Mechanism: The Learning Hook
 
-## 3. Human-in-the-Loop Patterns
+- **Injection**: On `message.created` (first user message), keywords are extracted and Memory Lane is queried. Relevant past insights are injected into the system prompt.
+- **Extraction**: On `session.idle` (2s delay) or `session.deleted`, the `LearningExtractor` analyzes the transcript.
+- **Refinement**: Uses `SUCCESS_PATTERNS` and `FAILURE_PATTERNS` to classify insights into corrections, decisions, and anti-patterns.
 
-### I. Strategic Polling (Primary)
+### II. Dual-Source Wisdom
 
-Replaces open-ended questioning for missing Directives.
-- **Trigger**: Chief-of-Staff detects missing Directive (e.g., "No DB selected").
-- **Mechanism**: Yields `HANDOFF_INTENT` with structured options (A/B/C).
-- **User Action**: Selects option.
-- **Result**: Immediate conversion to Directive.
+- **LEDGER.md**: Short-term, project-specific context (Current Epic).
+- **Memory Lane**: Long-term, cross-project semantic knowledge (Vector DB).
 
-### II. Assumption Audit (Post-Task)
+## 3. Autonomous Project Tracking
 
-Replaces silent drift.
-- **Trigger**: Task completion.
-- **Mechanism**: User reviews `## Assumptions` section in LEDGER.
-- **User Action**: Endorse (Implicit) or Reject (Explicit).
-- **Result**: Rejection triggers rework.
+Any agent (including native agents like `Code`) that modifies files is automatically tracked.
 
-### III. Dialogue (Fallback)
+- **Trigger**: `tool.execute.after` hook detects result payloads containing file paths.
+- **Action**: Emits `ledger.task.completed` event with the modified file list.
+- **Sync**: The `TaskRegistry` updates the `Progress Log` in `LEDGER.md` in real-time.
 
-Used only for deep ambiguity where Polling fails.
-- **Agent**: `interviewer`.
-- **Mechanism**: Multi-turn conversation.
+## 4. Subagent Roster (v4.1)
 
-## 4. Execution Patterns
-
-### I. Parallel Execution (Map-Reduce)
-- **Engine**: Oracle returns `execution_strategy: "parallel"`.
-- **Action**: Chief-of-Staff uses `skill_spawn_batch`.
-- **Safety**: Executors track `files_modified`.
-- **Conflict**: If file collision detected, CoS triggers Oracle `CONFLICT_REDECOMPOSE`.
-
-### II. Yield & Resume (Upward Instruction)
-- **Mechanism**: Sub-agents return `status: "HANDOFF_INTENT"`.
-- **Use Case**: "I need an API key" or "Ask user preference".
-- **Flow**: CoS catches Yield -> Executes Instruction -> Resumes Sub-agent.
+| Agent Name         | Role                   | Access   |
+| :----------------- | :--------------------- | :------- |
+| **Chief-of-Staff** | **Governor**           | Public   |
+| **Oracle**         | **Tactical Architect** | Internal |
+| **Executor**       | **Builder (TDD)**      | Internal |
+| **Planner**        | **Blueprinter**        | Internal |
+| **Interviewer**    | **Clarifier**          | Internal |
+| **Memory-Catcher** | **Deep Extractor**     | Internal |
+| **Debugger**       | **Root Cause Analyst** | Internal |
 
 ## 5. Resilience & Durability
 
-### I. LEDGER as Single Source of Truth
-- State is NOT in memory; it is in `.opencode/LEDGER.md`.
-- **Crash Recovery**: On startup, CoS reads LEDGER to resume active Epic.
+### I. Durable Stream (Event Sourcing)
 
-### II. Heartbeats & Observation
-- **TaskRegistry**: Tracks running tasks.
-- **Watchdog**: Kills/Retries tasks with stale heartbeats (>30s).
+- All significant lifecycle and governance actions are recorded as JSONL events in `.opencode/durable_stream.jsonl`.
+- **Crash Recovery**: `TaskRegistry.loadFromLedger()` reconstructs active state on startup.
+
+### II. Checkpoint System
+
+- Critical decisions (e.g., strategy selection) create durable checkpoints.
+- These require user approval via `checkpoint_approve` and are resilient to session restarts.
 
 ## 6. Access Control
 
-- **Public**: `chief-of-staff`
-- **Protected**: All others (Reply "Access Denied" if called directly).
-- **Enforcement**: Middleware checks `agent_name` against whitelist.
+- **Middleware**: Intercepts all subagent spawns.
+- **Whitelist**: Only `chief-of-staff` can spawn protected agents (Oracle, Executor, etc.).
+- **Fallback**: Native agents (Ask, Code) are always accessible but operate under auto-tracking governance.
 
 ---
-_Architecture Version: 4.0.0 (Governance-First)_
+
+_Architecture Version: 4.1.0 (Event-Sourced Governance)_

@@ -1,29 +1,28 @@
-# swarm-tool-addons
+# OpenCode Agent Addons
 
-This is an addon to leverage amazing swarm-tools features. It implements a robust, skill-based multi-agent orchestration system on top of OpenCode AI SDK.
+This is an extension module for OpenCode AI, providing advanced multi-agent orchestration, persistent memory, and autonomous governance features. It implements a robust, skill-based subagent system that works seamlessly with both native OpenCode agents and custom specialists.
 
 > An OpenCode plugin created from the [opencode-plugin-template](https://github.com/zenobi-us/opencode-plugin-template)
 
 ## 🌟 Key Features
 
-• 🏗️ **Skill-Based Subagent Architecture**: Package domain expertise into specialized, on-demand workers.
-• 🏛️ **Governance-First Orchestration (v4.0)**: Explicit Directives (The Law) + Tracked Assumptions (The Debt) for drift prevention.
-• 🔄 **Dual-Mode Orchestration**: Support for both Parallel (Async) interactive handoffs and Sequential (Sync) background delegation.
-• 🧠 **Self-Learning Memory System**: Automatic cross-session wisdom accumulation via Memory Lane (Vector DB) + LEDGER.md.
-• 📝 **Durable State Continuity**: `LEDGER.md` persists work across sessions with crash recovery built-in.
-• 🛡️ **Autonomous Supervision**: Background watchdog (TaskSupervisor) for task health monitoring and auto-retries.
-• 🔐 **Access Control**: Protected sub-agents only respond to chief-of-staff coordinator.
-• 🚀 **High Context Efficiency**: Partitioned contexts reduce token noise by up to 16x per task.
+• 🏗️ **Skill-Based Subagent Architecture**: Package domain expertise into specialized, on-demand workers coordinated by a Chief-of-Staff.
+• 🏛️ **Governance-First Orchestration (v4.1)**: Explicit Directives (The Law) + Tracked Assumptions (The Debt) + Durable Checkpoints for drift prevention.
+• 🔄 **Dual-Mode Orchestration**: Support for both Parallel (Async) interactive handoffs and Sequential (Sync) background delegation with result propagation.
+• 🧠 **Universal Self-Learning System**: Automatic cross-session wisdom accumulation for ALL agents (native & custom) via Memory Lane (Vector DB).
+• 📝 **Autonomous Project Tracking**: `LEDGER.md` automatically records file changes and task progress across any agent interaction.
+• 🛡️ **Resilient State Continuity**: Event-sourced persistence via Durable Stream with full crash recovery and audit logs built-in.
+• 🚀 **High Context Efficiency**: Partitioned sub-sessions reduce token noise by up to 16x, enabling focused reasoning on complex tasks.
 
 ## 🗺️ Documentation Map
 
 • **[ARCHITECTURE.md](ARCHITECTURE.md)**: Core design philosophies (Actor Model, Durable Stream, Hybrid Delegator).
 • **[ROADMAP.md](ROADMAP.md)**: Project vision and planned enhancements.
 • **Module Specifications**:
-  • [Orchestrator Spec](src/orchestrator/SPEC.md): Technical details of coordination and supervision.
-  • [Memory Lane Spec](src/memory-lane/SPEC.md): Semantic storage and learning extraction details.
-  • [OpenCode Integration](src/opencode/SPEC.md): Loader mechanism and runtime hooks.
-  • [Durable Stream](src/durable-stream/README.md): Event-sourced state persistence and orchestration.
+• [Orchestrator Spec](src/orchestrator/SPEC.md): Technical details of coordination and supervision.
+• [Memory Lane Spec](src/memory-lane/SPEC.md): Semantic storage and learning extraction details.
+• [OpenCode Integration](src/opencode/SPEC.md): Loader mechanism and runtime hooks.
+• [Durable Stream](src/durable-stream/README.md): Event-sourced state persistence and orchestration.
 
 ## 🚀 Quick Start
 

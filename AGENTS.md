@@ -4,7 +4,7 @@
 
 ### Skill-Based Agent Architecture with Durable Stream (v4.1)
 
-This plugin implements a **Skill-Based Subagent** architecture with **Governance-First Orchestration (v4.0)** enhanced by **Event-Sourced Persistence** via the Durable Stream API. Domain expertise is packaged into specialized, on-demand workers coordinated by a `chief-of-staff` Governor agent.
+This plugin implements a **Skill-Based Subagent** architecture with **Governance-First Orchestration (v4.1)** enhanced by **Event-Sourced Persistence** via the Durable Stream API. Domain expertise is packaged into specialized, on-demand workers coordinated by a `chief-of-staff` Governor agent.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -16,10 +16,10 @@ This plugin implements a **Skill-Based Subagent** architecture with **Governance
 │         │                              │                        │
 │         ▼                              ▼                        │
 │  ┌─────────────────┐           ┌──────────────────────┐         │
-│  │ swarmtool-addons│           │    Chief-of-Staff    │         │
+│  │  Agent Addons   │           │    Chief-of-Staff    │         │
 │  │  (This Plugin)  │           │    (Coordinator)     │         │
 │  │  ┌───────────┐  │           │  ┌───────────────┐   │         │
-│  │  │  Tools &  │◄─┴───────────┤  │  Sub-Agents   │   │         │
+│  │  │  Tools &  │◄─┴───────────┤  │  Subagents    │   │         │
 │  │  │   Hooks   │              │  │ (oracle, etc) │   │         │
 │  │  └───────────┘              │  └───────────────┘   │         │
 │  └─────────────────┬───────────┴──────────────────────┘         │
@@ -36,7 +36,7 @@ DURABLE STREAM LAYERS:
   1. Event Log     → Persistent JSONL storage with crash recovery
   2. Checkpoints   → Human-in-the-Loop approval workflows
   3. Intents       → Long-running workflow tracking
-  4. Learning      → Auto-extraction of patterns from events
+  4. Learning      → Auto-extraction of patterns from events (Universal)
 ```
 
 ---
@@ -126,7 +126,7 @@ Instead of asking open-ended questions like "What DB?", the `chief-of-staff` gen
 
 Agents report `assumptions_made` (e.g., "Assumed JWT for auth"). These are logged in the **Governance** section of `LEDGER.md`. Users implicitly endorse these by proceeding, or can explicitly reject them to trigger rework.
 
-### III. Checkpoint System (New v4.1)
+### III. Checkpoint System
 
 The Durable Stream provides built-in checkpoint support for critical decisions:
 
@@ -144,17 +144,33 @@ Tools available:
 - `checkpoint_pending` - List pending checkpoints
 - `checkpoint_templates` - Get pre-built templates
 
-### IV. Dialogue Mode (Fallback)
+---
 
-Used by `interviewer` and `planner` for complex approvals. The agent pauses execution (`needs_approval`) and waits for explicit user confirmation before finalizing a plan or spec.
+## 4. Universal Self-Learning (v4.1)
+
+The system now implements a **Universal Learning Hook** that works for both native OpenCode agents (Code, Ask) and custom subagents.
+
+### Mechanism
+
+1.  **Injection (Start)**: First user message triggers a semantic search in Memory Lane. Relevant past corrections and decisions are injected into the agent's system prompt.
+2.  **Tracking (Work)**: The system monitors file modifications across all tools and automatically updates `LEDGER.md` progress logs.
+3.  **Extraction (End)**: When a session goes idle (2s delay) or is deleted, the `LearningExtractor` analyzes the transcript for:
+    - **Corrections**: "No, use Vitest not Jest"
+    - **Decisions**: "We'll use SQLite for this prototype"
+    - **Success Patterns**: "That works perfectly"
+    - **Anti-patterns**: "Error: database connection failed"
+
+### Durable Stream Integration
+
+Extracted learnings are persisted in Memory Lane and emitted as `ledger.learning.extracted` events to the Durable Stream for auditability.
 
 ---
 
-## 4. Module Structure
+## 5. Module Structure
 
 ```
 src/
-  index.ts                    # Plugin bootstrap
+  index.ts                    # Plugin bootstrap (Removal of swarm triggers)
   agent-spawn.ts              # skill_agent tool
   event-log.ts                # Logging
 
@@ -176,13 +192,15 @@ src/
   orchestrator/               # Governance Engine
     index.ts
     ledger.ts                 # State Management
+    learning-extractor.ts     # Universal pattern extraction (v4.1)
     event-driven-ledger.ts    # Event emission for ledger ops (v4.1)
     checkpoint.ts             # Human-in-the-Loop workflows (v4.1)
     crash-recovery.ts         # State reconstruction (v4.1)
-    learning-extractor.ts     # Auto-learning pipeline (v4.1)
     tools/
       ledger-tools.ts         # Ledger tool definitions
       checkpoint-tools.ts     # Checkpoint tool definitions
+    hooks/
+      opencode-session-learning.ts # Universal hook implementation
     chief-of-staff/           # Agent Definitions (`SKILL.md`)
       agents/
         oracle/

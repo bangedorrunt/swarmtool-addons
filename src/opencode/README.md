@@ -1,6 +1,6 @@
 # OpenCode Module
 
-The OpenCode module provides agent loading, skill discovery, and command parsing functionality for the swarm-tool-addons plugin. It serves as the foundation for discovering and loading agents from various sources.
+The OpenCode module provides agent loading, skill discovery, and command parsing functionality for the `opencode-agent-addons` plugin. It serves as the foundation for discovering and loading agents from various sources.
 
 ## Overview
 
@@ -46,6 +46,7 @@ sdd "Build user authentication with OAuth"
 ```
 
 **What it does:**
+
 1. **Interview** (dialogue) - Clarifies requirements with multi-turn Q&A
 2. **Spec** - Creates structured specification document
 3. **Plan** - Generates implementation blueprint
@@ -53,6 +54,7 @@ sdd "Build user authentication with OAuth"
 5. **Execute** - Phased implementation with checkpoints
 
 **Key Features:**
+
 - Interactive approval loops (no assumptions without confirmation)
 - Checkpoints before each phase
 - Assumption tracking and verification
@@ -67,12 +69,14 @@ ama "Should I use PostgreSQL or MongoDB for analytics?"
 ```
 
 **What it does:**
+
 - One-shot consultation (fast, ~10-30 seconds)
 - Structured recommendation with trade-offs
 - Action plan and effort estimate
 - No implementation (advice only)
 
 **Use when:**
+
 - Need quick technical decision
 - Comparing technologies/libraries
 - Getting architecture advice
@@ -162,7 +166,7 @@ Type-safe configuration handling:
 ### Loading Local Agents
 
 ```typescript
-import { loadLocalAgents } from 'swarm-tool-addons/opencode';
+import { loadLocalAgents } from 'opencode-agent-addons/opencode';
 
 const agents = await loadLocalAgents('./my-agents');
 console.log(`Found ${agents.length} local agents`);
@@ -171,7 +175,7 @@ console.log(`Found ${agents.length} local agents`);
 ### Spawning a Skill-Based Subagent
 
 ```typescript
-import { createSkillAgentTools } from 'swarm-tool-addons/opencode';
+import { createSkillAgentTools } from 'opencode-agent-addons/opencode';
 
 const tools = createSkillAgentTools(client);
 
@@ -209,7 +213,7 @@ Then spawn it via the `skill_agent` tool.
 
 **Non-Invasive Sidecar:**
 
-- Module does not modify swarm-tools core behavior
+- Module does not modify OpenCode core behavior
 - Exports tools for other modules to use
 - Operates independently and degrades gracefully
 

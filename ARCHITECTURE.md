@@ -1,6 +1,6 @@
 # ARCHITECTURE & DESIGN PATTERNS
 
-This document outlines the core architectural principles, design patterns, and workflows implemented in the `swarm-tool-addons` plugin, following the **Hybrid Delegator Pattern**.
+This document outlines the core architectural principles, design patterns, and workflows implemented in the `opencode-agent-addons` plugin.
 
 ## 1. Design Philosophy: Skill-Based Subagents
 
@@ -11,9 +11,9 @@ Instead of a single monolithic agent, this system utilizes a **Skill-Based Subag
 ```ascii
 ┌─────────────────────────────────────────────────────────────────┐
 │                   MONOLITHIC VS SKILL-BASED                     │
-├─────────────────────────────────────────────────────────────────┤
+│─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  [ Monolithic Approach ]       [ Skill-Based Swarm ]            │
+│  [ Monolithic Approach ]       [ Skill-Based System ]           │
 │  ┌───────────────────┐         ┌───────────────────┐            │
 │  │   Single Agent    │         │  Chief-of-Staff   │            │
 │  │   (128k Context)  │         │  (Coordinator)    │            │
@@ -36,35 +36,33 @@ Instead of a single monolithic agent, this system utilizes a **Skill-Based Subag
 
 The system implements a two-layer design:
 
-1.  **Discovery Layer**: Dynamically scans `~/.config/opencode/skill/` for Markdown (`.md`) or TypeScript (`.ts`) agent definitions.
+1.  **Discovery Layer**: Dynamically scans `~/.config/opencode/skill/` for Markdown (`.md`) or TypeScript (`.ts`) subagent definitions.
 2.  **Spawning Layer**: Uses the `skill_agent` tool to invoke OpenCode's native `task` or `background_task` APIs, creating isolated Actor sessions.
 
 ## 2. Core Design Patterns
 
 ### I. Actor Model (Isolation)
 
-Treats each agent as a **Stateless Actor**. communication occurs via structured JSON results, and no chat history is passed between spawns to preserve context purity.
+Treats each agent as a **Stateless Actor**. Communication occurs via structured JSON results, and no chat history is passed between spawns to preserve context purity.
 
-### II. Durable Stream (Persistence via LEDGER.md)
+### II. Event-Sourced Persistence (Durable Stream)
 
-Ensures continuity across session clears. The `LEDGER.md` acts as a physical snapshot of the event stream, allowing the system to resume tasks after a context wipe.
+Ensures continuity and auditability. The `Durable Stream` acts as an append-only event log, while `LEDGER.md` serves as the primary project state view.
 
-### III. Agent-as-Tool Pattern
+### III. Universal Memory (Semantic Sidecar)
 
-Complex sub-agents are exposed as deep modules with simple interfaces.
-• **Surface**: A single tool call with 4 parameters.
-• **Hidden**: Discovery, YAML parsing, dynamic imports, and error handling.
+A standalone vector database (Memory Lane) that works with **all agents**. It automatically captures learnings when sessions go idle and injects relevant context at session start.
 
 ## 3. Workflow Patterns
 
-These patterns emphasize human-in-the-loop checkpoints for critical decisions.
+These patterns emphasize human-in-the-loop checkpoints and autonomous governance.
 
-### I. Pattern 1: Ask User Question (Interviewer-Led)
+### I. Pattern 1: Strategic Polling (Chief-Led)
 
-Used when a request is ambiguous or requires clarification.
-• **Handoff**: Interviewer takes control to ask targeted questions.
-• **Accumulation**: Requirements are gathered and summarized.
-• **Approval**: User must confirm requirements before downstream agents (Oracle/Planner) start.
+Used when a request is ambiguous or requires critical choices.
+• **Detection**: Chief-of-Staff identifies missing Directives.
+• **Polling**: Presents structured options (A/B/C) to the user.
+• **Enforcement**: Once selected, the option becomes an immutable Directive for all subagents.
 
 ### II. Pattern 2: Spec-Driven Development (SDD)
 
@@ -74,39 +72,18 @@ Phased execution for new features or complex tasks.
 • **Phase 3: Strategy**: (Oracle) Automated task decomposition.
 • **Phase 4: Planning**: (Planner) ⭐ needs_approval
 • **Phase 5: Execution**: (Executor) Supervised implementation.
-• **Phase 6: Aggregation**: Summary of all results.
+• **Phase 6: Validation**: (Validator) QA against specifications.
 
-### III. Decision Tree: Pattern Selection
+### III. Pattern 3: Autonomous Tracking (Auto-Ledger)
 
-```
- User Request
-      |
- Is request clear?
-      |
-      +--- NO ---> Ask User Question Pattern
-      |            (Interviewer -> Oracle -> Planner -> Execute)
-      |
-     YES
-      |
- Is it a new feature?
-      |
-      +--- YES ---> SDD Pattern
-      |             (Interviewer -> Spec-Writer -> Oracle -> Planner -> Execute)
-      |
-      +--- NO ----> Direct Execution
-                    (Oracle -> Planner -> Execute)
-```
-
-### IV. Chief-of-Staff Coordination
-
-Manages the "State Triangle":
-• **Explicit Direction**: High-level goals from the user.
-• **Tracked Assumptions**: Implicit choices made by workers.
-• **Decision Points**: Strategic pivots requiring user approval.
+Works with native OpenCode agents (Code, Build).
+• **Hook**: Listens for file modifications across any tool.
+• **Logging**: Automatically updates `LEDGER.md` progress logs.
+• **Continuity**: Ensures custom subagents can see what native agents have done.
 
 ## 4. LEDGER.md: Single Source of Truth
 
-The `.opencode/LEDGER.md` file persists agent state across sessions and context clears.
+The `.opencode/LEDGER.md` file persists project state across sessions and context clears.
 
 ### Structure
 
@@ -114,93 +91,43 @@ The `.opencode/LEDGER.md` file persists agent state across sessions and context 
 ┌─────────────────────────────────────────┐
 │            LEDGER.md Structure          │
 ├─────────────────────────────────────────┤
-│ ## Meta                                 │
-│   session_id, status, phase, progress   │
+│ ## Governance                           │
+│   Directives (Law) & Assumptions (Debt) │
 │                                         │
-│ ## Epic: [Current Task]                 │
+│ ## Epic: [Current Project]              │
 │   - Task 1: executor → completed ✓      │
-│   - Task 2: executor → running...       │
-│   - Task 3: validator → pending         │
+│   - Task 2: Code Agent → auto-tracked   │
 │                                         │
 │ ## Learnings                            │
-│   - Pattern: Use Stripe SDK for...      │
-│   - Decision: Chose PostgreSQL for...   │
+│   - Patterns and Anti-patterns          │
 │                                         │
-│ ## Handoff (if context limit)           │
-│   - What's done, What's next            │
-│                                         │
-│ ## Archive (last 5 epics)               │
+│ ## Progress Log                         │
+│   - Real-time audit of all actions      │
 └─────────────────────────────────────────┘
 ```
 
-### Crash Recovery
+## 5. SELF-LEARNING WORKFLOW (v4.1)
 
-On session start, `TaskRegistry.loadFromLedger()` restores state:
-
-```
-Session Start
-     │
-     ▼
-Load .opencode/LEDGER.md
-     │
-     ├─── Active Epic? ───YES──→ Resume incomplete tasks
-     │                          ├─ pending → re-queue
-     │                          └─ running → mark as stuck, retry
-     │
-     └─── Handoff? ───YES──→ Display context to user
-                              └─ "Resuming from: ..."
-```
-
-### Error Handling: User Rejection
-
-When user rejects at `needs_approval`:
-
-```
-User: "No, I want X instead"
-     │
-     ▼
-Status: 'rejected'
-     │
-     ├─── Interviewer? ──→ Re-gather requirements
-     │                     └─ Loop back to needs_input
-     │
-     ├─── Planner? ──→ Return to Oracle with feedback
-     │                 └─ Generate new plan
-     │
-     └─── Spec-Writer? ──→ Revise specification
-                           └─ Re-prompt for approval
-```
-
-## 5. SELF-LEARNING WORKFLOW
-
-The system builds a cross-session wisdom loop through two automatic hooks and dual-source learning:
+The system builds cross-session wisdom through autonomous hooks and event-driven extraction:
 
 ```ascii
 ┌─────────────────────────────────────────────────────────────────┐
-│              SELF-LEARNING FEEDBACK LOOP                        │
+│              UNIVERSAL SELF-LEARNING LOOP                       │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  (Start) Query Both Sources ────▶ (Work) Agent Execution        │
-│       ▲  ├─ LEDGER.md learnings                                 │
-│       │  └─ Memory Lane (semantic)        │                     │
-│       │                                   ▼                     │
-│  (Next) Repeat Success    ◀──── (End) Capture Learnings         │
-│         Avoid Mistakes            ├─ Save to LEDGER             │
-│                                   └─ Store in Memory Lane       │
-│                                         (Memory Catcher)        │
+│  (Start) Message Received ─────▶ (Work) Any Agent (Native/Custom)│
+│       ▲  ├─ Inject relevant memory      │ (Tool Usage)           │
+│       │  └─ Load Ledger state           ▼                        │
+│       │                                                          │
+│  (Next) Repeat Success    ◀──── (End) Session Idle/Exit          │
+│         Avoid Mistakes            ├─ Auto-Extract Learnings      │
+│                                   └─ Log to Durable Stream       │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Dual-Source Learning Retrieval
-
-| Source | Format | Purpose | Tool |
-|--------|--------|---------|------|
-| **LEDGER.md** | Markdown | Current session, fast local | `ledger_get_learnings` |
-| **Memory Lane** | Vector DB | Cross-session, semantic search | `memory-lane_find` |
-
-• **Injection**: Queries Memory Lane for relevant `corrections` or `preferences` at session start.
-• **Capture**: The `memory-catcher` agent distills the transcript into taxonomy entries.
+• **Extraction**: Uses `LearningExtractor` to analyze transcripts for corrections, decisions, and patterns.
+• **Persistence**: Stored in Memory Lane (Vector DB) and emitted as events to the Durable Stream.
 
 ## 6. DIRECTORY STRUCTURE & NAMING
 
@@ -214,9 +141,9 @@ Agents follow a standardized layout for discovery:
 • **[ROADMAP.md](ROADMAP.md)**: Vision and planned enhancements.
 • **[Agent Interaction Patterns](.gemini/antigravity/brain/.../agent_interaction_patterns.md)**: Detailed sequence diagrams.
 • **Module Specifications**:
-  • [Orchestrator Spec](src/orchestrator/SPEC.md): Technical details of coordination and supervision.
-  • [Memory Lane Spec](src/memory-lane/SPEC.md): Semantic storage and learning extraction.
-  • [OpenCode Integration](src/opencode/SPEC.md): Loader mechanism and runtime hooks.
+• [Orchestrator Spec](src/orchestrator/SPEC.md): Technical details of coordination and supervision.
+• [Memory Lane Spec](src/memory-lane/SPEC.md): Semantic storage and learning extraction.
+• [OpenCode Integration](src/opencode/SPEC.md): Loader mechanism and runtime hooks.
 
 ---
 
