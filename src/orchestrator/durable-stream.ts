@@ -8,7 +8,7 @@
  * 4. Session Lineage Tracking: Full trace of agent interactions
  */
 
-import { mkdir, unlink, readdir, appendFile } from 'node:fs/promises';
+import { mkdir, unlink, readdir, appendFile, readFile, writeFile, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -168,11 +168,10 @@ export class DurableStreamOrchestrator {
   }
 
   private async resumeFromLastOffset(): Promise<void> {
-    const file = Bun.file(this.config.streamPath);
-    if (!(await file.exists())) return;
+    if (!existsSync(this.config.streamPath)) return;
 
-    // Use Bun's optimized text reading
-    const content = await file.text();
+    // Use Node.js fs/promises for cross-runtime compatibility
+    const content = await readFile(this.config.streamPath, 'utf-8');
     const lines = content.trim().split('\n').filter(Boolean);
 
     for (const line of lines) {
@@ -208,10 +207,10 @@ export class DurableStreamOrchestrator {
       this.contextSnapshots.set(context.sessionId, context);
     } else if (event.payload.snapshotPath) {
       const path = event.payload.snapshotPath as string;
-      const snapFile = Bun.file(path);
-      if (await snapFile.exists()) {
+      if (existsSync(path)) {
         try {
-          const context = await snapFile.json();
+          const content = await readFile(path, 'utf-8');
+          const context = JSON.parse(content);
           this.contextSnapshots.set(context.sessionId, context);
         } catch {
           /* ignore bad snapshot */
@@ -266,19 +265,19 @@ export class DurableStreamOrchestrator {
   }
 
   private async shouldRotateStream(): Promise<boolean> {
-    const file = Bun.file(this.config.streamPath);
-    return (await file.exists()) && file.size > this.config.maxStreamSizeMb * 1024 * 1024;
+    if (!existsSync(this.config.streamPath)) return false;
+    const fileStat = await stat(this.config.streamPath);
+    return fileStat.size > this.config.maxStreamSizeMb * 1024 * 1024;
   }
 
   private async rotateStream(): Promise<void> {
     const timestamp = Date.now();
     const rotatedPath = this.config.streamPath.replace('.jsonl', `_${timestamp}.jsonl`);
-    const file = Bun.file(this.config.streamPath);
 
-    if (await file.exists()) {
-      const content = await file.text();
-      await Bun.write(rotatedPath, content); // Archive current stream
-      await Bun.write(this.config.streamPath, ''); // Reset stream
+    if (existsSync(this.config.streamPath)) {
+      const content = await readFile(this.config.streamPath, 'utf-8');
+      await writeFile(rotatedPath, content, 'utf-8'); // Archive current stream
+      await writeFile(this.config.streamPath, '', 'utf-8'); // Reset stream
       this.currentOffset = 0;
       console.log(`[DurableStream] Rotated stream to ${rotatedPath}`);
     }
@@ -340,7 +339,7 @@ export class DurableStreamOrchestrator {
     const snapshotId = `${sessionId}_${Date.now()}`;
     const snapshotPath = join(this.config.snapshotPath, `${snapshotId}.json`);
 
-    await Bun.write(snapshotPath, JSON.stringify(context, null, 2));
+    await writeFile(snapshotPath, JSON.stringify(context, null, 2), 'utf-8');
     this.contextSnapshots.set(sessionId, context);
 
     return this.append({
