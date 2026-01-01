@@ -1,6 +1,6 @@
 import { tool, type PluginInput } from '@opencode-ai/plugin';
 import { resolveAgent, listAllAgents } from './skill-agent-resolution';
-import { spawnChildAgent } from './session-coordination';
+import { spawnChildAgent, waitForSessionCompletion, fetchSessionResult } from './session-coordination';
 import { loadActorState } from './actor/state';
 import { processMessage } from './actor/core';
 import { canCallAgent } from './access-control';
@@ -298,42 +298,33 @@ export function createSkillAgentTools(client: PluginInput['client']) {
             }
           }
 
-          // Wait for completion with timeout detection
-          const startTime = Date.now();
-          let pollInterval = 500;
-          const maxPollInterval = 3000;
-          let timedOut = false;
+          // Wait for completion using robust Event-Driven Logic (Fixes deadlock)
+          const completionResult = await waitForSessionCompletion(
+            client,
+            targetSessionId,
+            targetAgentName,
+            timeout_ms,
+            () => registry.heartbeat(taskId)
+          );
 
-          while (Date.now() - startTime < timeout_ms) {
-            const statusResult = await client.session.status();
-            const sessionStatus = statusResult.data?.[targetSessionId as string];
+          let responseText = completionResult.result || '';
+          let timedOut =
+            completionResult.status === 'failed' &&
+            completionResult.error?.includes('Timeout');
 
-            if (!sessionStatus || sessionStatus.type === 'idle') {
-              break;
-            }
-
-            registry.heartbeat(taskId);
-            await new Promise((r) => setTimeout(r, pollInterval));
-            pollInterval = Math.min(pollInterval * 1.5, maxPollInterval);
+          if (timedOut) {
+            // Fallback: Fetch whatever is there (Original Logic)
+            const fetchRes = await fetchSessionResult(client, targetSessionId, targetAgentName);
+            responseText = fetchRes.result || '';
+          } else if (completionResult.status === 'failed') {
+            registry.updateStatus(taskId, 'failed', undefined, completionResult.error);
+            return JSON.stringify({
+              success: false,
+              error: 'AGENT_EXECUTION_FAILED',
+              message: completionResult.error,
+              session_id: targetSessionId,
+            });
           }
-
-          // Check if we timed out
-          timedOut = Date.now() - startTime >= timeout_ms;
-
-          // Fetch the result
-          const msgResult = await client.session.messages({ path: { id: targetSessionId } });
-          const messages = msgResult.data || [];
-          const lastAssistantMsg = messages
-            .filter((m: any) => m.info?.role === 'assistant')
-            .sort(
-              (a: any, b: any) => (b.info?.time?.created || 0) - (a.info?.time?.created || 0)
-            )[0];
-
-          const responseText =
-            lastAssistantMsg?.parts
-              ?.filter((p: any) => p.type === 'text')
-              .map((p: any) => p.text)
-              .join('\n') || '';
 
           // Extract dialogue_state using robust multi-strategy parser
           const dialogueState = extractDialogueState(responseText);

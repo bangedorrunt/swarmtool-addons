@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { waitForSessionCompletion } from './session-coordination';
 import { getDurableStream } from '../durable-stream';
 import { mkdir, rm } from 'node:fs/promises';
@@ -93,5 +93,45 @@ describe('Session Coordination - waitForSessionCompletion', () => {
     expect(result.success).toBe(false);
     expect(result.status).toBe('failed');
     expect(result.error).toContain('Timeout');
+  });
+
+  it('should resolve on lifecycle.session.idle and fetch result', async () => {
+    const sessionId = 'session-idle-test';
+    const agent = 'idle-agent';
+    const expectedResult = 'Result from idle session';
+
+    const mockClient = {
+      session: {
+        messages: vi.fn().mockResolvedValue({
+          data: [
+            {
+              info: { role: 'assistant', time: { created: 100 } },
+              parts: [{ type: 'text', text: expectedResult }],
+            },
+          ],
+        }),
+      },
+    };
+
+    // Start waiting
+    const waitPromise = waitForSessionCompletion(mockClient, sessionId, agent, 1000);
+
+    // Emit idle event
+    setTimeout(async () => {
+      await stream.append({
+        type: 'lifecycle.session.idle',
+        stream_id: sessionId,
+        correlation_id: 'corr-1',
+        actor: 'system',
+        payload: {},
+      });
+    }, 50);
+
+    const result = await waitPromise;
+
+    expect(result.success).toBe(true);
+    expect(result.status).toBe('completed');
+    expect(result.result).toBe(expectedResult);
+    expect(mockClient.session.messages).toHaveBeenCalledWith({ path: { id: sessionId } });
   });
 });

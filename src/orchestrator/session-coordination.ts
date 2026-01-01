@@ -300,9 +300,16 @@ export async function waitForSessionCompletion(
   const history = durableStream.getEventHistory();
 
   // Find the LAST relevant event for this session
-  const previousEvent = history.find(
-    (e) => (e.payload as any).intent_id === sessionId && (e.type === 'agent.completed' || e.type === 'agent.failed')
-  );
+  const previousEvent = history.find((e) => {
+    const p = e.payload as any;
+    const targetId = p.stream_id || p.intent_id || e.stream_id;
+    return (
+      targetId === sessionId &&
+      (e.type === 'agent.completed' ||
+        e.type === 'agent.failed' ||
+        e.type === 'lifecycle.session.idle')
+    );
+  });
 
   if (previousEvent) {
     if (previousEvent.type === 'agent.completed') {
@@ -314,7 +321,7 @@ export async function waitForSessionCompletion(
         result: (previousEvent.payload as any).result as string,
         completionEventId: previousEvent.id,
       };
-    } else {
+    } else if (previousEvent.type === 'agent.failed') {
       return {
         success: false,
         sessionId,
@@ -323,6 +330,9 @@ export async function waitForSessionCompletion(
         error: (previousEvent.payload as any).error as string,
         completionEventId: previousEvent.id,
       };
+    } else if (previousEvent.type === 'lifecycle.session.idle') {
+      // If idle, fetch result manually
+      return await fetchSessionResult(client, sessionId, agent);
     }
   }
 
@@ -330,8 +340,12 @@ export async function waitForSessionCompletion(
   let cleanup: (() => void) | undefined;
 
   const eventPromise = new Promise<SpawnResult>((resolve) => {
-    const handler = (event: StreamEvent) => {
-      if ((event.payload as any).intent_id !== sessionId) return;
+    const handler = async (event: StreamEvent) => {
+      // Check stream_id (mapped from sessionID in orchestrator.ts) or intent_id
+      const payload = event.payload as any;
+      const targetId = payload.stream_id || payload.intent_id || (event as any).stream_id;
+
+      if (targetId !== sessionId) return;
 
       if (event.type === 'agent.completed') {
         resolve({
@@ -339,7 +353,7 @@ export async function waitForSessionCompletion(
           sessionId,
           agent,
           status: 'completed',
-          result: (event.payload as any).result as string,
+          result: payload.result as string,
           completionEventId: event.id,
         });
       } else if (event.type === 'agent.failed') {
@@ -348,18 +362,25 @@ export async function waitForSessionCompletion(
           sessionId,
           agent,
           status: 'failed',
-          error: (event.payload as any).error as string,
+          error: payload.error as string,
           completionEventId: event.id,
         });
+      } else if (event.type === 'lifecycle.session.idle') {
+        const result = await fetchSessionResult(client, sessionId, agent);
+        // Attach the event ID of the idle state as completion proof
+        result.completionEventId = event.id;
+        resolve(result);
       }
     };
 
     const unsubCompleted = durableStream.subscribe('agent.completed', handler);
     const unsubFailed = durableStream.subscribe('agent.failed', handler);
+    const unsubIdle = durableStream.subscribe('lifecycle.session.idle', handler);
 
     cleanup = () => {
       unsubCompleted();
       unsubFailed();
+      unsubIdle();
     };
   });
 
@@ -384,7 +405,7 @@ export async function waitForSessionCompletion(
   }
 }
 
-async function fetchSessionResult(
+export async function fetchSessionResult(
   client: any,
   sessionId: string,
   agent: string
