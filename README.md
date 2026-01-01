@@ -23,6 +23,7 @@ This is an addon to leverage amazing swarm-tools features. It implements a robus
   • [Orchestrator Spec](src/orchestrator/SPEC.md): Technical details of coordination and supervision.
   • [Memory Lane Spec](src/memory-lane/SPEC.md): Semantic storage and learning extraction details.
   • [OpenCode Integration](src/opencode/SPEC.md): Loader mechanism and runtime hooks.
+  • [Durable Stream](src/durable-stream/README.md): Event-sourced state persistence and orchestration.
 
 ## 🚀 Quick Start
 
