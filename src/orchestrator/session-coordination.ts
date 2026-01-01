@@ -17,6 +17,7 @@ import { processMessage } from './actor/core';
 import { queryLearnings } from './hooks/opencode-session-learning';
 import { getDurableStream, StreamEvent } from '../durable-stream';
 import { getEventDrivenLedger } from './event-driven-ledger';
+import { loadLedger } from './ledger';
 
 /**
  * Result of spawning a child agent
@@ -136,7 +137,21 @@ export async function spawnChildAgent(
   let spawnEventId: string | undefined;
   let completionEventId: string | undefined;
 
+  // 0. Governance: Inject Directives (The Law)
+  try {
+    const ledger = await loadLedger();
+    if (ledger.governance.directives.length > 0) {
+      const directivesContext = ledger.governance.directives
+        .map((d: { content: string }) => `- ${d.content}`)
+        .join('\n');
+      finalPrompt = `## 🏛️ Directives (Mandatory)\n${directivesContext}\n\n---\n\n${finalPrompt}`;
+    }
+  } catch {
+    // Ignore ledger load failures
+  }
+
   // 1. Query and inject learnings if enabled
+
   if (injectLearnings) {
     try {
       const keywords = extractKeywords(prompt);

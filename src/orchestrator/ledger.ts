@@ -123,6 +123,12 @@ export interface ArchiveEntry {
   date: string;
 }
 
+export interface RealTimeActivity {
+  timestamp: string;
+  agent: string;
+  message: string;
+}
+
 export interface LedgerMeta {
   sessionId: string;
   status: 'active' | 'paused' | 'handoff';
@@ -137,6 +143,7 @@ export interface Ledger {
   meta: LedgerMeta;
   governance: Governance;
   epic: Epic | null;
+  activity: RealTimeActivity[];
   learnings: Learnings;
   handoff: Handoff | null;
   archive: ArchiveEntry[];
@@ -149,6 +156,7 @@ export interface Ledger {
 const DEFAULT_LEDGER_PATH = '.opencode/LEDGER.md';
 const MAX_TASKS_PER_EPIC = 3;
 const MAX_ARCHIVE_ENTRIES = 5;
+const MAX_ACTIVITY_LOGS = 10;
 
 // ============================================================================
 // Helper Functions
@@ -194,6 +202,7 @@ function createDefaultLedger(): Ledger {
       assumptions: [],
     },
     epic: null,
+    activity: [],
     learnings: {
       patterns: [],
       antiPatterns: [],
@@ -239,6 +248,9 @@ function parseLedgerMarkdown(content: string): Ledger {
         context: [],
         progressLog: [],
       };
+      continue;
+    } else if (line.startsWith('## Real-time Activity')) {
+      currentSection = 'activity';
       continue;
     } else if (line.startsWith('## Learnings')) {
       currentSection = 'learnings';
@@ -371,6 +383,18 @@ function parseLedgerMarkdown(content: string): Ledger {
       // Parse progress log
       if (currentSubSection === 'progressLog' && line.startsWith('- ')) {
         ledger.epic.progressLog.push(line.replace('- ', ''));
+      }
+    }
+
+    // Parse Activity section
+    if (currentSection === 'activity' && line.startsWith('- ')) {
+      const match = line.match(/- \[(.*)\] \*\*(.*)\*\*: (.*)/);
+      if (match) {
+        ledger.activity.push({
+          timestamp: match[1],
+          agent: match[2],
+          message: match[3],
+        });
       }
     }
 
@@ -580,6 +604,18 @@ function renderLedgerMarkdown(ledger: Ledger): string {
     lines.push('*No active epic*');
     lines.push('');
   }
+
+  // Activity section
+  lines.push('## Real-time Activity');
+  lines.push('');
+  if (ledger.activity.length > 0) {
+    for (const act of ledger.activity) {
+      lines.push(`- [${act.timestamp}] **${act.agent}**: ${act.message}`);
+    }
+  } else {
+    lines.push('*No recent activity*');
+  }
+  lines.push('');
 
   lines.push('---');
   lines.push('');
@@ -913,6 +949,21 @@ export function addContext(ledger: Ledger, context: string): void {
 
   ledger.epic.context.push(context);
   console.log(`[Ledger] Added context: ${context}`);
+}
+
+/**
+ * Log real-time activity (rotates at MAX_ACTIVITY_LOGS)
+ */
+export function logActivity(ledger: Ledger, agent: string, message: string): void {
+  ledger.activity.push({
+    timestamp: new Date().toLocaleTimeString(),
+    agent,
+    message,
+  });
+
+  if (ledger.activity.length > MAX_ACTIVITY_LOGS) {
+    ledger.activity = ledger.activity.slice(-MAX_ACTIVITY_LOGS);
+  }
 }
 
 /**

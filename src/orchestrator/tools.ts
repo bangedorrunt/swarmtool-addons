@@ -8,8 +8,9 @@ import {
 import { loadActorState } from './actor/state';
 import { processMessage } from './actor/core';
 import { canCallAgent } from './access-control';
-import { loadLedger, saveLedger, updateTaskStatus } from './ledger';
+import { loadLedger, saveLedger, updateTaskStatus, logActivity } from './ledger';
 import { getTaskRegistry } from './task-registry';
+import { WorkflowLoader, WorkflowProcessor } from './workflow-engine';
 
 interface AgentConfig {
   name: string;
@@ -598,6 +599,38 @@ export function createSkillAgentTools(client: PluginInput['client']) {
           null,
           2
         );
+      },
+    }),
+
+    execute_workflow: tool({
+      description: 'Execute a predefined multi-agent workflow from a markdown file.',
+      args: {
+        workflow_name: tool.schema.string().describe('Name of the workflow (e.g. "sdd-workflow")'),
+        initial_task: tool.schema.string().describe('The primary task to execute'),
+      },
+      async execute(args, execContext) {
+        const { workflow_name, initial_task } = args;
+        const parentSessionId = execContext?.sessionID;
+
+        if (!parentSessionId) {
+          return 'Error: No session context available.';
+        }
+
+        const loader = new WorkflowLoader();
+        const workflows = await loader.loadAll();
+        const workflow = workflows.find((w) => w.name === workflow_name);
+
+        if (!workflow) {
+          return `Error: Workflow "${workflow_name}" not found. Available: ${workflows.map((w) => w.name).join(', ')}`;
+        }
+
+        const processor = new WorkflowProcessor(client, workflow);
+
+        // Start execution in background (or foreground depends on wait)
+        // For simplicity we'll wait here, but in a real app we might background it.
+        await processor.execute(parentSessionId, initial_task);
+
+        return `Workflow "${workflow_name}" started. Check LEDGER.md for real-time progress.`;
       },
     }),
   };

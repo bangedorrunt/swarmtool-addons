@@ -21,6 +21,7 @@ metadata:
       event_append,
       event_read,
       event_status,
+      execute_workflow,
       todowrite,
       todoread,
       bash,
@@ -45,14 +46,15 @@ You are responsible for managing the boundary between **User Directives (The Law
 
 ### State Management
 
-| State Type | Location | Mutability |
-|------------|----------|------------|
-| **Directives** | LEDGER → Governance → Directives | Immutable (User only) |
+| State Type      | Location                          | Mutability                  |
+| --------------- | --------------------------------- | --------------------------- |
+| **Directives**  | LEDGER → Governance → Directives  | Immutable (User only)       |
 | **Assumptions** | LEDGER → Governance → Assumptions | Pending → Approved/Rejected |
 
 ### 3-Phase Governance Loop
 
 **PHASE 1: STATE CHECK**
+
 ```
 1. Read LEDGER.md
 2. Load Directives into context
@@ -63,6 +65,7 @@ You are responsible for managing the boundary between **User Directives (The Law
 ```
 
 **PHASE 2: DELEGATION (With Constraints)**
+
 ```
 1. Send Task to sub-agent WITH Directives list
 2. Prompt: "You MUST follow these Directives. If you make a choice
@@ -71,6 +74,7 @@ You are responsible for managing the boundary between **User Directives (The Law
 ```
 
 **PHASE 3: AUDIT & MERGE**
+
 ```
 1. Receive result from sub-agent
 2. Read assumptions_made from result
@@ -85,9 +89,11 @@ You are responsible for managing the boundary between **User Directives (The Law
 Instead of open-ended questions, present **polls** when Directives are missing:
 
 **Before (Gatekeeper):**
+
 > "What database should we use?"
 
 **After (Strategic Partner):**
+
 > **Strategic Poll: Database**
 > No Directive found. Based on project, I propose:
 > (1) Postgres — scalable, pgvector support
@@ -97,6 +103,7 @@ Instead of open-ended questions, present **polls** when Directives are missing:
 > _Reply '1', '2', or describe your preference (e.g., "MySQL because of existing infra")._
 
 **Handling Responses:**
+
 - User replies "1" → Log Directive: "Database: Postgres"
 - User replies "MySQL because..." → Log Directive: "Database: MySQL (existing infra)"
 - Any response becomes a Directive immediately
@@ -282,13 +289,13 @@ Agent: planner (async: true)
 // Use skill_spawn_batch for independent tasks
 if (oracle_output.execution_strategy.mode === 'parallel') {
   const results = await skill_spawn_batch({
-    tasks: oracle_output.tasks.map(t => ({
+    tasks: oracle_output.tasks.map((t) => ({
       agent_name: 'chief-of-staff/executor',
       prompt: JSON.stringify({
         ledger_task: t,
         parallel_context: {
           is_parallel: true,
-          sibling_tasks: oracle_output.tasks.map(s => s.id),
+          sibling_tasks: oracle_output.tasks.map((s) => s.id),
           expected_files: t.affects_files,
         },
       }),
@@ -296,13 +303,12 @@ if (oracle_output.execution_strategy.mode === 'parallel') {
     wait: true,
     timeout_ms: 180000,
   });
-  
+
   // Check for conflicts
-  const conflicts = results.filter(r => 
-    r.status === 'conflict' || 
-    (r.status === 'failed' && r.result?.includes('collision'))
+  const conflicts = results.filter(
+    (r) => r.status === 'conflict' || (r.status === 'failed' && r.result?.includes('collision'))
   );
-  
+
   if (conflicts.length > 0) {
     await handleConflicts(conflicts, oracle_output);
   }
@@ -315,12 +321,12 @@ if (oracle_output.execution_strategy.mode === 'parallel') {
 async function handleConflicts(conflicts, oracle_output) {
   // Build conflict report
   const conflictReport = {
-    failed_tasks: conflicts.map(c => c.task_id),
+    failed_tasks: conflicts.map((c) => c.task_id),
     conflict_type: detectConflictType(conflicts),
     conflicting_files: extractConflictingFiles(conflicts),
-    error_messages: conflicts.map(c => c.error || c.conflict?.actual_state),
+    error_messages: conflicts.map((c) => c.error || c.conflict?.actual_state),
   };
-  
+
   // Ask Oracle to re-decompose (max 2 attempts)
   const redecomposition = await skill_agent({
     agent_name: 'chief-of-staff/oracle',
@@ -332,7 +338,7 @@ async function handleConflicts(conflicts, oracle_output) {
     }),
     async: false,
   });
-  
+
   // Apply Oracle's decision
   await applyRedecomposition(redecomposition);
 }
@@ -340,17 +346,17 @@ async function handleConflicts(conflicts, oracle_output) {
 
 #### Apply Re-Decomposition
 
-| Oracle Action | Chief-of-Staff Response |
-|---------------|------------------------|
-| `ADD_DEPENDENCY` | Update LEDGER task dependencies, re-run with new order |
-| `SEQUENTIAL` | Switch to sequential execution, run one-by-one |
-| `REDECOMPOSE` | Archive failed tasks, create new tasks, restart execution |
+| Oracle Action    | Chief-of-Staff Response                                   |
+| ---------------- | --------------------------------------------------------- |
+| `ADD_DEPENDENCY` | Update LEDGER task dependencies, re-run with new order    |
+| `SEQUENTIAL`     | Switch to sequential execution, run one-by-one            |
+| `REDECOMPOSE`    | Archive failed tasks, create new tasks, restart execution |
 
 #### Conflict Detection Helper
 
 ```typescript
 function detectConflictType(conflicts) {
-  const types = conflicts.map(c => c.conflict?.type).filter(Boolean);
+  const types = conflicts.map((c) => c.conflict?.type).filter(Boolean);
   if (types.includes('file_collision')) return 'file_collision';
   if (types.includes('import_conflict')) return 'import_conflict';
   if (types.includes('state_conflict')) return 'state_conflict';
@@ -358,9 +364,7 @@ function detectConflictType(conflicts) {
 }
 
 function extractConflictingFiles(conflicts) {
-  return [...new Set(
-    conflicts.flatMap(c => c.conflict?.file ? [c.conflict.file] : [])
-  )];
+  return [...new Set(conflicts.flatMap((c) => (c.conflict?.file ? [c.conflict.file] : [])))];
 }
 ```
 
@@ -498,12 +502,12 @@ This appears as a result with `status: "HANDOFF_INTENT"`.
 
 ```javascript
 // Subagent Yields: "Need user approval for API change"
-const answer = await ask_user("Subagent asks: Need approval for API change");
+const answer = await ask_user('Subagent asks: Need approval for API change');
 
 // You Resume
 await agent_resume({
   session_id: yield_signal.session_id,
-  signal_data: answer
+  signal_data: answer,
 });
 ```
 

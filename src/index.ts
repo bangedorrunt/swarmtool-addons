@@ -15,8 +15,16 @@ import { memoryLaneTools } from './memory-lane';
 import { loadConfig, DEFAULT_MODELS } from './opencode';
 import { SignalBuffer } from './orchestrator/signal-buffer';
 import { loadLocalAgents, loadSkillAgents, loadCommands } from './opencode';
-import { createSkillAgentTools, startTaskObservation, getTaskRegistry } from './orchestrator';
+import {
+  createSkillAgentTools,
+  startTaskObservation,
+  getTaskRegistry,
+  loadLedger,
+  saveLedger,
+  logActivity,
+} from './orchestrator';
 import { createOpenCodeSessionLearningHook } from './orchestrator/hooks';
+
 import { loadChiefOfStaffSkills } from './opencode/config/skill-loader';
 import { createAgentTools } from './agent-spawn';
 import { createEventLogTools } from './event-log';
@@ -307,6 +315,19 @@ export const SwarmToolAddons: Plugin = async (input) => {
 
       // 1. Session Learning
       await sessionLearningHook(eventInput);
+
+      // 1.1 Durable Progress Streaming (Activity Logging)
+      if (event.type === 'message.part.updated' || event.type === 'file.edited') {
+        const props = event.properties as any;
+        const agentName = props?.part?.agent || props?.agent || 'system';
+        const message = props?.part?.content || props?.file || 'Activity detected';
+
+        if (message && typeof message === 'string' && message.length > 5) {
+          const ledger = await loadLedger();
+          logActivity(ledger, agentName, message.slice(0, 100));
+          await saveLedger(ledger);
+        }
+      }
 
       // 2. SignalBuffer Auto-Flush (Parent Busy Resolution)
       if (event.type === 'session.status') {

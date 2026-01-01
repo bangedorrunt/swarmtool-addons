@@ -36,6 +36,7 @@ function createTestLedger(): Ledger {
       assumptions: [],
     },
     epic: null,
+    activity: [],
     learnings: {
       patterns: [],
       antiPatterns: [],
