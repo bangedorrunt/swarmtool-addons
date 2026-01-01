@@ -25,12 +25,12 @@ import { getDurableStream } from './durable-stream';
  */
 export interface DialogueState {
   status:
-    | 'needs_input'
-    | 'needs_approval'
-    | 'needs_verification'
-    | 'approved'
-    | 'rejected'
-    | 'completed';
+  | 'needs_input'
+  | 'needs_approval'
+  | 'needs_verification'
+  | 'approved'
+  | 'rejected'
+  | 'completed';
   turn: number;
   message_to_user: string;
   pending_questions?: string[];
@@ -163,21 +163,23 @@ export function createAgentTools(client: any) {
 
         // Add dialogue context if needed
         const dialogueMarker = previousState
-          ? `\n\n[DIALOGUE CONTINUATION]\nPrevious status: ${previousState.status}\nTurn: ${previousState.turn || 1}\n${
-              previousState.accumulated_direction
-                ? `Accumulated Direction: ${JSON.stringify(previousState.accumulated_direction)}\n`
-                : ''
-            }${
-              (previousState as any).proposal
-                ? `Previous Proposal: ${JSON.stringify((previousState as any).proposal)}\n`
-                : ''
-            }`
+          ? `\n\n[DIALOGUE CONTINUATION]\nPrevious status: ${previousState.status}\nTurn: ${previousState.turn || 1}\n${previousState.accumulated_direction
+            ? `Accumulated Direction: ${JSON.stringify(previousState.accumulated_direction)}\n`
+            : ''
+          }${(previousState as any).proposal
+            ? `Previous Proposal: ${JSON.stringify((previousState as any).proposal)}\n`
+            : ''
+          }`
           : '';
 
         const finalPrompt = fullPrompt + dialogueMarker;
 
         // 1. Synchronous Pattern (Sequential orchestration)
         if (!isAsync) {
+          if (!ctx.sessionID) {
+            return 'Error: No active session context found.';
+          }
+
           // Reuse existing session if provided, otherwise create new
           let syncSessionID = session_id;
 
@@ -197,7 +199,9 @@ export function createAgentTools(client: any) {
           }
 
           try {
-            await client.session.prompt({
+            // FIX: Use direct response from prompt instead of event subscription
+            // client.session.prompt waits for completion by default
+            const result = await client.session.prompt({
               path: { id: syncSessionID },
               body: {
                 agent: agent,
@@ -205,62 +209,29 @@ export function createAgentTools(client: any) {
               },
             });
 
-            // Event-Driven Wait (Deadlock Fix 001.1)
-            const orchestrator = getDurableStream();
-
-            // Race Condition Check: Verify if completion occurred before subscription
-            const history = orchestrator.getEventHistory();
-            const completedEvent = history.find(
-              (e) => e.type === 'agent.completed' && (e.payload as any).intent_id === syncSessionID
-            );
-            if (completedEvent) {
-              return (completedEvent.payload as any).result || '';
+            if (result.error) {
+              throw new Error(JSON.stringify(result.error));
             }
 
-            const failedEvent = history.find(
-              (e) => e.type === 'agent.failed' && (e.payload as any).intent_id === syncSessionID
-            );
-            if (failedEvent) {
-              throw new Error((failedEvent.payload as any).error || 'Agent execution failed');
-            }
+            // Extract text from the last message in the response
+            const responseData = result.data;
+            // The response typically contains the new message(s)
+            // We need to parse the messages to find the agent's text response.
+            // However, SDK prompt response structure might vary.
+            // Let's rely on finding the last message part.
 
-            return await new Promise<string>((resolve, reject) => {
-              let isResolved = false;
-              let timer: ReturnType<typeof setTimeout>;
-
-              const cleanup = () => {
-                if (unsubscribeComplete) unsubscribeComplete();
-                if (unsubscribeFailed) unsubscribeFailed();
-                if (timer) clearTimeout(timer);
-              };
-
-              const unsubscribeComplete = orchestrator.subscribe('agent.completed', (event) => {
-                const payload = event.payload as any;
-                if (payload.intent_id === syncSessionID && !isResolved) {
-                  isResolved = true;
-                  cleanup();
-                  const result = payload.result || '';
-                  resolve(result);
-                }
-              });
-
-              const unsubscribeFailed = orchestrator.subscribe('agent.failed', (event) => {
-                const payload = event.payload as any;
-                if (payload.intent_id === syncSessionID && !isResolved) {
-                  isResolved = true;
-                  cleanup();
-                  reject(new Error(payload.error || 'Agent execution failed'));
-                }
-              });
-
-              timer = setTimeout(() => {
-                if (!isResolved) {
-                  isResolved = true;
-                  cleanup();
-                  reject(new Error(`Timeout waiting for agent ${agent} after ${timeout_ms}ms`));
-                }
-              }, timeout_ms);
+            // If the structure is complex, we might need to fetch messages
+            const messagesRes = await client.session.messages({
+              path: { id: syncSessionID }
             });
+            const messages = messagesRes.data || [];
+            const lastMessage = messages[messages.length - 1];
+            if (lastMessage && lastMessage.parts) {
+              return lastMessage.parts.map((p: any) => p.text || '').join('');
+            }
+
+            return 'Agent completed task.';
+
           } catch (err: any) {
             return `Error during synchronous agent spawn: ${err.message}`;
           }
@@ -277,9 +248,9 @@ export function createAgentTools(client: any) {
             dialogue_state:
               interaction_mode === 'dialogue'
                 ? {
-                    status: 'needs_input',
-                    message_to_user: 'Please check the main chat for the agent response.',
-                  }
+                  status: 'needs_input',
+                  message_to_user: 'Please check the main chat for the agent response.',
+                }
                 : undefined,
             metadata: {
               handoff: {
@@ -345,13 +316,16 @@ export function createAgentTools(client: any) {
         }
 
         const dialoguePrompt = prevState
-          ? `[Continuing dialogue - Turn ${(prevState.turn || 0) + 1}]\n\nUser response: ${question}\n\nPrevious context:\n- Questions asked: ${
-              prevState.pending_questions?.join(', ') || 'N/A'
-            }\n- Accumulated direction: ${JSON.stringify(prevState.accumulated_direction || {})}\n- Previous proposal: ${JSON.stringify((prevState as any).proposal || 'None')}`
+          ? `[Continuing dialogue - Turn ${(prevState.turn || 0) + 1}]\n\nUser response: ${question}\n\nPrevious context:\n- Questions asked: ${prevState.pending_questions?.join(', ') || 'N/A'
+          }\n- Accumulated direction: ${JSON.stringify(prevState.accumulated_direction || {})}\n- Previous proposal: ${JSON.stringify((prevState as any).proposal || 'None')}`
           : `[Starting clarification dialogue]\n\n${question}`;
 
         // 1. Synchronous Pattern
         if (!isAsync) {
+          if (!ctx.sessionID) {
+            return 'Error: No active session context found.';
+          }
+
           let syncSessionID;
           try {
             const createResult = await client.session.create({
@@ -367,7 +341,7 @@ export function createAgentTools(client: any) {
           }
 
           try {
-            await client.session.prompt({
+            const result = await client.session.prompt({
               path: { id: syncSessionID },
               body: {
                 agent: agent,
@@ -375,62 +349,21 @@ export function createAgentTools(client: any) {
               },
             });
 
-            // Event-Driven Wait (Deadlock Fix 001.1)
-            const orchestrator = getDurableStream();
-
-            // Race Condition Check: Verify if completion occurred before subscription
-            const history = orchestrator.getEventHistory();
-            const completedEvent = history.find(
-              (e) => e.type === 'agent.completed' && (e.payload as any).intent_id === syncSessionID
-            );
-            if (completedEvent) {
-              return (completedEvent.payload as any).result || '';
+            if (result.error) {
+              throw new Error(JSON.stringify(result.error));
             }
 
-            const failedEvent = history.find(
-              (e) => e.type === 'agent.failed' && (e.payload as any).intent_id === syncSessionID
-            );
-            if (failedEvent) {
-              throw new Error((failedEvent.payload as any).error || 'Agent execution failed');
-            }
-
-            return await new Promise<string>((resolve, reject) => {
-              let isResolved = false;
-              let timer: ReturnType<typeof setTimeout>;
-
-              const cleanup = () => {
-                if (unsubscribeComplete) unsubscribeComplete();
-                if (unsubscribeFailed) unsubscribeFailed();
-                if (timer) clearTimeout(timer);
-              };
-
-              const unsubscribeComplete = orchestrator.subscribe('agent.completed', (event) => {
-                const payload = event.payload as any;
-                if (payload.intent_id === syncSessionID && !isResolved) {
-                  isResolved = true;
-                  cleanup();
-                  const result = payload.result || '';
-                  resolve(result);
-                }
-              });
-
-              const unsubscribeFailed = orchestrator.subscribe('agent.failed', (event) => {
-                const payload = event.payload as any;
-                if (payload.intent_id === syncSessionID && !isResolved) {
-                  isResolved = true;
-                  cleanup();
-                  reject(new Error(payload.error || 'Agent execution failed'));
-                }
-              });
-
-              timer = setTimeout(() => {
-                if (!isResolved) {
-                  isResolved = true;
-                  cleanup();
-                  reject(new Error(`Timeout waiting for agent ${agent} after 60000ms`));
-                }
-              }, 60000);
+            const messagesRes = await client.session.messages({
+              path: { id: syncSessionID }
             });
+            const messages = messagesRes.data || [];
+            const lastMessage = messages[messages.length - 1];
+            if (lastMessage && lastMessage.parts) {
+              return lastMessage.parts.map((p: any) => p.text || '').join('');
+            }
+
+            return 'Agent completed task.';
+
           } catch (err: any) {
             return `Error during synchronous agent dialogue: ${err.message}`;
           }

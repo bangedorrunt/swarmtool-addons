@@ -167,7 +167,7 @@ export const SwarmToolAddons: Plugin = async (input) => {
           session_id: skillArgs.session_id,
           context: skillArgs.context,
         },
-        { sessionID: '', messageID: '', agent: '', abort: () => {} } as any
+        { sessionID: '', messageID: '', agent: '', abort: () => { } } as any
       );
       try {
         return JSON.parse(result as string);
@@ -212,6 +212,12 @@ export const SwarmToolAddons: Plugin = async (input) => {
         // 2. Fallback to parsing text for legacy or dynamic handoffs
         try {
           const parsed = JSON.parse(hookOutput.output);
+
+          // FIX: Set localized title for agent tools (Investigate subagent name)
+          if ((hookInput.tool === 'skill_agent' || hookInput.tool === 'agent_spawn') && parsed.agent) {
+            hookOutput.title = parsed.agent;
+          }
+
           if (parsed.metadata?.handoff) {
             handoffData = parsed.metadata.handoff;
             isHandoffIntent = parsed.status === 'HANDOFF_INTENT';
@@ -309,7 +315,7 @@ export const SwarmToolAddons: Plugin = async (input) => {
       if (stream.isInitialized()) {
         const bridge = stream.createBridgeHooks();
         if (bridge.event) {
-          await bridge.event(eventInput).catch(() => {});
+          await bridge.event(eventInput).catch(() => { });
         }
       }
 
