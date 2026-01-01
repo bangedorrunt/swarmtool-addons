@@ -102,10 +102,14 @@ describe('Ledger Core Operations', () => {
       const task1 = createTask(ledger, 'Task 1', 'executor');
       const task2 = createTask(ledger, 'Task 2', 'executor');
       const task3 = createTask(ledger, 'Task 3', 'executor');
+      const task4 = createTask(ledger, 'Task 4', 'executor');
+      const task5 = createTask(ledger, 'Task 5', 'executor');
 
       expect(task1).toMatch(/\.1$/);
       expect(task2).toMatch(/\.2$/);
       expect(task3).toMatch(/\.3$/);
+      expect(task4).toMatch(/\.4$/);
+      expect(task5).toMatch(/\.5$/);
     });
 
     it('should throw if no active epic', () => {
@@ -120,9 +124,11 @@ describe('Ledger Core Operations', () => {
       createTask(ledger, 'Task 1', 'executor');
       createTask(ledger, 'Task 2', 'executor');
       createTask(ledger, 'Task 3', 'executor');
+      createTask(ledger, 'Task 4', 'executor');
+      createTask(ledger, 'Task 5', 'executor');
 
       expect(() => {
-        createTask(ledger, 'Task 4', 'executor');
+        createTask(ledger, 'Task 6', 'executor');
       }).toThrow('Cannot create task');
     });
 

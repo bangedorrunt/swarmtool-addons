@@ -3,7 +3,7 @@
  *
  * This module provides utilities to manage the LEDGER.md file which tracks:
  * - Meta: Session state, current phase, progress
- * - Epic: ONE active epic with max 3 tasks
+ * - Epic: ONE active epic with max 5 tasks
  * - Learnings: Patterns, anti-patterns, decisions
  * - Handoff: Context for session breaks
  * - Archive: Last 5 completed epics
@@ -148,7 +148,7 @@ export interface Ledger {
 // ============================================================================
 
 const DEFAULT_LEDGER_PATH = '.opencode/LEDGER.md';
-const MAX_TASKS_PER_EPIC = 3;
+const MAX_TASKS_PER_EPIC = 5;
 const MAX_ARCHIVE_ENTRIES = 5;
 
 // ============================================================================
