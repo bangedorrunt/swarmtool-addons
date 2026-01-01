@@ -1,102 +1,121 @@
-# Durable Stream: Architecture & API Specification
+# Durable Stream: Architecture & API Specification (v2)
+
+> **Status**: Living Document | **Last Reviewed**: 2026-01-01
 
 ## 1. Architectural Vision
 
-The **Durable Stream** serves as the "hippocampus" (long-term episodic memory) and "brainstem" (autonomic orchestration) for OpenCode agents.
+The **Durable Stream** serves as the "hippocampus" (long-term episodic memory) and "brainstem" (autonomic orchestration) for OpenCode agents. It is designed as a **thin, non-invasive layer** on top of the native OpenCode SDK, not a replacement.
 
-### The Problem (`Gap Analysis`)
-The native OpenCode SDK is designed for **synchronous, ephemeral, request-response** interactions.
-*   **State Amnesia**: If the host process (IDE/Server) restarts, all in-progress orchestration loops are lost.
-*   **Opaque Lineage**: Debugging a multi-agent swarm requires grepping through transient logs.
-*   **Rigid Orchestration**: "Fire-and-forget" is easy, but "Fire, Wait for Signal, Resume" is hard.
+### 1.1 The Problem (`Gap Analysis`)
 
-### The Solution (`Durable Stream`)
-We implement an **Event Sourced** architecture where:
-1.  **Truth is the Log**: The current state of any agent swarm is derived exclusively by replaying the event log.
-2.  **Async by Default**: All significant actions are asynchronous message passing, bridging the gap between "Tool Calls" (synchronous) and "Workflows" (asynchronous).
-3.  **Projection-Based State**: We project linear event streams into "State Snapshots" for fast access.
+The native OpenCode SDK provides excellent **real-time, event-driven primitives**. However, it lacks:
+| Gap | Native SDK State | Durable Stream Solution |
+| :--- | :--- | :--- |
+| **State Amnesia** | Process state is ephemeral. | Persist events to `.jsonl`. Replay on startup. |
+| **HITL Workflow** | No native "pause and wait for approval". | `checkpoint.requested` / `checkpoint.approved` events. |
+| **Multi-session Lineage** | `session.children` exists but querying is limited. | Unified `stream_id` (Trace ID) across all sub-sessions. |
+
+### 1.2 Design Principles
+
+1.  **Leverage, Don't Replace**: The SDK's `session.todo`, `session.diff`, `StepPart` are native. The Durable Stream *observes* them, not replicates.
+2.  **Event Sourcing**: The log is the single source of truth. State is derived.
+3.  **Pluggable Storage**: Start with `jsonl`, graduate to SQLite or libSQL.
 
 ---
 
-## 2. Core API Design
+## 2. SDK Primitives We Leverage
 
-The module `src/durable-stream` exposes a singleton `Orchestrator` that wraps the file-system stream.
+The latest `@opencode-ai/sdk` has powerful, underutilized primitives. Our Durable Stream strategy is to **observe and extend them**, not bypass them.
 
-### 2.1 The Event Envelope (`StreamEvent`)
+### 2.1 Session Management
+| SDK API | Purpose | Durable Stream Usage |
+| :--- | :--- | :--- |
+| `session.create({ parentID })` | Lineage | Map to `stream_id` (Trace) and `causation_id` (Parent). |
+| `session.children()` | List child sessions | Query children; map to our "Span" concept. |
+| `session.abort()` | Cancel sub-agent | Emit `agent.aborted` event upon interception. |
+| `session.summarize()` | Native summary | Use for context compaction before handoff. |
+| `session.diff()` | Get file changes | Log `files.changed` event with delta payload. |
+| `session.todo()` | Native task list | **Critical**: Replace our custom task tracking with this! |
 
-We standardize on a rigorous event envelope to ensure forward compatibility.
+### 2.2 Message Parts (Granular Steps)
+The SDK exposes `StepStartPart` and `StepFinishPart` within message parts. This is the **native "execution step" primitive**.
+| Part Type | Payload | Durable Stream Event Mapping |
+| :--- | :--- | :--- |
+| `step-start` | `{ snapshot? }` | `execution.step_start` |
+| `step-finish` | `{ reason, cost, tokens }` | `execution.step_finish` |
+| `tool` | `{ state: ToolState }` | `execution.tool_use` |
+| `compaction` | `{ auto }` | `lifecycle.compacted` |
+| `patch` | `{ hash, files }` | `files.patched` |
+
+### 2.3 Plugin Hooks
+The `@opencode-ai/plugin` Hooks interface is our primary ingestion point.
+| Hook | Trigger | Durable Stream Action |
+| :--- | :--- | :--- |
+| `event` (global) | All SDK events | **The Bridge**: Forward relevant events to `IStreamStore.append()`. |
+| `chat.message` | New user message | Log `user.input` for learning/replay. |
+| `tool.execute.after` | Tool completes | Log `execution.tool_result`. |
+| `permission.ask` | Permission requested | Log `checkpoint.requested` (HITL). |
+
+---
+
+## 3. Core API Design (Revised)
+
+### 3.1 The Event Envelope (`StreamEvent`)
 
 ```typescript
-type EventType = 
-  | 'lifecycle.session.created'    // Native OpenCode map
-  | 'lifecycle.session.ended'
-  | 'agent.spawned'                // Orchestrator intent
-  | 'agent.handoff'                // Control flow
-  | 'agent.correction'             // Learning signal
-  | 'execution.step'               // Granular thought
-  | 'workflow.checkpoint';         // HITL
+type EventType =
+  // Lifecycle (Maps to SDK events)
+  | 'lifecycle.session.created'
+  | 'lifecycle.session.idle'
+  | 'lifecycle.session.compacted'
+  // Execution (Maps to SDK StepPart / ToolPart)
+  | 'execution.step_start'
+  | 'execution.step_finish'
+  | 'execution.tool_use'
+  // Agent (Our orchestration layer)
+  | 'agent.spawned'
+  | 'agent.completed'
+  | 'agent.aborted'
+  | 'agent.handoff'
+  // HITL (Human-in-the-Loop)
+  | 'checkpoint.requested'
+  | 'checkpoint.approved'
+  | 'checkpoint.rejected'
+  // Files
+  | 'files.changed'
+  | 'files.patched';
 
 interface StreamEvent<T = unknown> {
-  id: string;             // ULID (Timestamp + Random) for sortability
+  id: string;             // ULID
   type: EventType;
-  stream_id: string;      // Usually the root SessionID (Trace ID)
-  causation_id: string;   // The event that caused this one (Parent ID)
-  correlation_id: string; // The specific workflow invocation flow
-  actor: string;          // "chief-of-staff/oracle" or "user"
+  stream_id: string;      // Root SessionID = Trace ID
+  causation_id?: string;  // Parent Event ID
+  correlation_id: string; // Workflow Run ID
+  actor: string;          // "user" | agent name
   timestamp: number;
   payload: T;
   metadata?: Record<string, unknown>;
 }
 ```
 
-### 2.2 The Store API (`IStreamStore`)
-
-Abstracting the storage allows us to move from `jsonl` (v1) to `sqlite` (v2) seamlessly.
-
-```typescript
-interface IStreamStore {
-  // Append a new event to the durable log
-  append(event: StreamEvent): Promise<void>;
-  
-  // Replay events for a specific stream (Trace)
-  // Used to hydrate state after crash
-  readStream(streamId: string, fromOffset?: number): AsyncIterable<StreamEvent>;
-  
-  // Query across streams (e.g. "Find all errors today")
-  query(filter: StreamFilter): Promise<StreamEvent[]>;
-}
-```
-
-### 2.3 The Orchestrator API (`DurableStream`)
-
-This is the public developer-facing API.
+### 3.2 The Orchestrator API (`DurableStream`)
 
 ```typescript
 class DurableStream {
-  /**
-   * Observe: Listens to OpenCode native events and projects them onto the Stream.
-   * "The Bridge"
-   */
-  observe(client: OpencodeClient): void;
+  // Called at plugin startup. Wires SDK hooks to the stream.
+  observe(client: OpencodeClient, hooks: Hooks): void;
 
-  /**
-   * Intent: Register a high-level intent that survives crashes.
-   * e.g., "I want to refactor this file, call me back when done."
-   */
-  async registerIntent(intent: Intent): Promise<string> {
-    // 1. Log 'intent.created'
-    // 2. Return intent_id
-  }
+  // Create an Intent (survives crashes)
+  async createIntent(spec: IntentSpec): Promise<string>;
 
-  /**
-   * Resume: Rebuilds the in-memory orchestration state from disk.
-   * Call this on plugin startup.
-   */
-  async resume(): Promise<void> {
-    // 1. Read all 'active' streams
-    // 2. Reconstruct pending Promises/Callbacks
-    // 3. Emit 'resume' signal to agents
-  }
+  // Request HITL approval
+  async requestCheckpoint(decision: string, options: CheckpointOption[]): Promise<string>;
+
+  // Resume state from disk (on plugin restart)
+  async resume(): Promise<ResumeResult>;
+
+  // Query the stream (for debugging, analytics)
+  async query(filter: StreamFilter): Promise<StreamEvent[]>;
 }
 ```
 

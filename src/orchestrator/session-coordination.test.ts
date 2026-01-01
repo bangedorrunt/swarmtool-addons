@@ -1,24 +1,22 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { waitForSessionCompletion } from './session-coordination';
-import { getDurableStreamOrchestrator, StreamEvent } from './durable-stream';
+import { getDurableStream } from '../durable-stream';
 import { mkdir, rm } from 'node:fs/promises';
 
 describe('Session Coordination - waitForSessionCompletion', () => {
   const TEST_DIR = '.opencode-test-session-coord';
-  let orchestrator: any;
+  let stream: any;
 
   beforeEach(async () => {
     await mkdir(TEST_DIR, { recursive: true });
-    orchestrator = getDurableStreamOrchestrator({
-      streamPath: `${TEST_DIR}/stream.jsonl`,
-      checkpointPath: `${TEST_DIR}/checkpoints`,
-      snapshotPath: `${TEST_DIR}/snapshots`,
+    stream = getDurableStream({
+      storePath: `${TEST_DIR}/stream.jsonl`,
     });
+    await stream.initialize();
 
     // Clear state
-    orchestrator.eventStream.clear();
-    orchestrator.eventHistory = [];
-    orchestrator.subscribers.clear();
+    if (stream.eventHistory) stream.eventHistory = [];
+    if (stream.removeAllListeners) stream.removeAllListeners();
   });
 
   afterEach(async () => {
@@ -30,7 +28,7 @@ describe('Session Coordination - waitForSessionCompletion', () => {
     const agent = 'test-agent';
 
     // Simulate event happening BEFORE waiting
-    await orchestrator.completeAgent(sessionId, agent, 'Result from history', 100);
+    await stream.completeAgent(sessionId, agent, 'Result from history', 100);
 
     const result = await waitForSessionCompletion(
       {} as any, // Mock client not needed for history check
@@ -53,7 +51,7 @@ describe('Session Coordination - waitForSessionCompletion', () => {
 
     // Emit event AFTER waiting started (simulate async process)
     setTimeout(async () => {
-      await orchestrator.completeAgent(sessionId, agent, 'Async Result', 200);
+      await stream.completeAgent(sessionId, agent, 'Async Result', 200);
     }, 50);
 
     const result = await waitPromise;
@@ -70,7 +68,7 @@ describe('Session Coordination - waitForSessionCompletion', () => {
     const waitPromise = waitForSessionCompletion({} as any, sessionId, agent, 1000);
 
     setTimeout(async () => {
-      await orchestrator.failAgent(sessionId, agent, 'Something went wrong');
+      await stream.failAgent(sessionId, agent, 'Something went wrong');
     }, 50);
 
     const result = await waitPromise;

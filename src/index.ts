@@ -20,6 +20,7 @@ import { loadChiefOfStaffSkills } from './opencode/config/skill-loader';
 import { createAgentTools } from './agent-spawn';
 import { createEventLogTools } from './event-log';
 import { HANDOFF_SETTLE_DELAY_MS } from './memory-lane/hooks';
+import { initializeDurableStream, getDurableStream } from './durable-stream';
 
 interface SkillAgentArgs {
   skill_name?: string;
@@ -128,6 +129,15 @@ export const SwarmToolAddons: Plugin = async (input) => {
   await registry.loadFromLedger(); // Crash Recovery
   startTaskObservation(input.client as any, { verbose: !!userConfig.debug });
 
+  // Initialize Durable Stream (Event Sourcing Layer)
+  const durableStream = await initializeDurableStream({
+    storePath: '.opencode/durable_stream.jsonl',
+  });
+  const resumeResult = await durableStream.resume();
+  if (resumeResult.pending_checkpoints.length > 0) {
+    console.log(`[DurableStream] Resumed with ${resumeResult.pending_checkpoints.length} pending checkpoints`);
+  }
+
   // Create session learning hook with skill_agent integration
   const sessionLearningHook = createOpenCodeSessionLearningHook(input, {
     maxMemories: 10,
@@ -146,7 +156,7 @@ export const SwarmToolAddons: Plugin = async (input) => {
           session_id: skillArgs.session_id,
           context: skillArgs.context,
         },
-        { sessionID: '', messageID: '', agent: '', abort: () => {} } as any
+        { sessionID: '', messageID: '', agent: '', abort: () => { } } as any
       );
       try {
         return JSON.parse(result as string);
@@ -301,6 +311,12 @@ export const SwarmToolAddons: Plugin = async (input) => {
     // Session learning hook (unified event handler)
     event: async (eventInput: { event: any }) => {
       const { event } = eventInput;
+
+      // 0. Durable Stream Bridge (Event Sourcing)
+      const stream = getDurableStream();
+      if (stream.isInitialized()) {
+        await stream['handleSdkEvent'](event).catch(() => { });
+      }
 
       // 1. Session Learning
       await sessionLearningHook(eventInput);

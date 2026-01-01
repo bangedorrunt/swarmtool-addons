@@ -18,19 +18,19 @@
  */
 
 import { tool, type ToolContext } from '@opencode-ai/plugin';
-import { getDurableStreamOrchestrator } from './orchestrator/durable-stream.ts';
+import { getDurableStream } from './durable-stream';
 
 /**
  * Dialogue state for multi-turn interactions
  */
 export interface DialogueState {
   status:
-    | 'needs_input'
-    | 'needs_approval'
-    | 'needs_verification'
-    | 'approved'
-    | 'rejected'
-    | 'completed';
+  | 'needs_input'
+  | 'needs_approval'
+  | 'needs_verification'
+  | 'approved'
+  | 'rejected'
+  | 'completed';
   turn: number;
   message_to_user: string;
   pending_questions?: string[];
@@ -198,7 +198,7 @@ export function createAgentTools(client: any) {
             });
 
             // Event-Driven Wait (Deadlock Fix 001.1)
-            const orchestrator = getDurableStreamOrchestrator();
+            const orchestrator = getDurableStream();
 
             // Race Condition Check: Verify if completion occurred before subscription
             const history = orchestrator.getEventHistory(undefined, 200);
@@ -227,7 +227,7 @@ export function createAgentTools(client: any) {
               };
 
               const unsubscribeComplete = orchestrator.subscribe('agent.completed', (event) => {
-                if (event.sessionId === syncSessionID && !isResolved) {
+                if ((event as any).sessionId === syncSessionID && !isResolved) {
                   isResolved = true;
                   cleanup();
                   const result = (event.payload as any).result || '';
@@ -236,7 +236,7 @@ export function createAgentTools(client: any) {
               });
 
               const unsubscribeFailed = orchestrator.subscribe('agent.failed', (event) => {
-                if (event.sessionId === syncSessionID && !isResolved) {
+                if ((event as any).sessionId === syncSessionID && !isResolved) {
                   isResolved = true;
                   cleanup();
                   reject(new Error((event.payload as any).error || 'Agent execution failed'));
@@ -267,9 +267,9 @@ export function createAgentTools(client: any) {
             dialogue_state:
               interaction_mode === 'dialogue'
                 ? {
-                    status: 'needs_input',
-                    message_to_user: 'Please check the main chat for the agent response.',
-                  }
+                  status: 'needs_input',
+                  message_to_user: 'Please check the main chat for the agent response.',
+                }
                 : undefined,
             metadata: {
               handoff: {

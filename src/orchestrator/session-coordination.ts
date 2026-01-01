@@ -15,7 +15,7 @@
 import { loadActorState } from './actor/state';
 import { processMessage } from './actor/core';
 import { queryLearnings } from './hooks/opencode-session-learning';
-import { getDurableStreamOrchestrator, StreamEvent } from './durable-stream';
+import { getDurableStream, StreamEvent } from '../durable-stream';
 
 /**
  * Result of spawning a child agent
@@ -171,7 +171,7 @@ export async function spawnChildAgent(
     childSessionId = createResult.data.id;
     onStatusChange?.('created');
 
-    const durableStream = getDurableStreamOrchestrator();
+    const durableStream = getDurableStream();
     const spawnEvent = await durableStream.spawnAgent(
       childSessionId,
       parentSessionId,
@@ -249,7 +249,7 @@ export async function spawnChildAgent(
   completionEventId = result.completionEventId;
 
   // 7. Track completion/failure in actor state AND durable stream
-  const durableStream = getDurableStreamOrchestrator();
+  const durableStream = getDurableStream();
   if (result.status === 'completed') {
     await durableStream.completeAgent(
       childSessionId,
@@ -267,13 +267,13 @@ export async function spawnChildAgent(
       const msg =
         result.status === 'completed'
           ? ({
-              type: 'subagent.complete' as const,
-              payload: { sessionId: childSessionId, agent, result: result.result?.slice(0, 500) },
-            } as const)
+            type: 'subagent.complete' as const,
+            payload: { sessionId: childSessionId, agent, result: result.result?.slice(0, 500) },
+          } as const)
           : ({
-              type: 'subagent.failed' as const,
-              payload: { sessionId: childSessionId, agent, error: result.error || 'Unknown error' },
-            } as const);
+            type: 'subagent.failed' as const,
+            payload: { sessionId: childSessionId, agent, error: result.error || 'Unknown error' },
+          } as const);
 
       await processMessage(currentState, msg);
     }
@@ -296,12 +296,12 @@ export async function waitForSessionCompletion(
 ): Promise<SpawnResult> {
   // 1. Check history for missed events (Race condition handling)
   // Check DurableStream history first to avoid deadlocks if event fired before subscription
-  const durableStream = getDurableStreamOrchestrator();
+  const durableStream = getDurableStream();
   const history = durableStream.getEventHistory();
 
   // Find the LAST relevant event for this session
   const previousEvent = history.find(
-    (e) => e.sessionId === sessionId && (e.type === 'agent.completed' || e.type === 'agent.failed')
+    (e) => (e.payload as any).intent_id === sessionId && (e.type === 'agent.completed' || e.type === 'agent.failed')
   );
 
   if (previousEvent) {
@@ -311,7 +311,7 @@ export async function waitForSessionCompletion(
         sessionId,
         agent,
         status: 'completed',
-        result: previousEvent.payload.result as string,
+        result: (previousEvent.payload as any).result as string,
         completionEventId: previousEvent.id,
       };
     } else {
@@ -320,7 +320,7 @@ export async function waitForSessionCompletion(
         sessionId,
         agent,
         status: 'failed',
-        error: previousEvent.payload.error as string,
+        error: (previousEvent.payload as any).error as string,
         completionEventId: previousEvent.id,
       };
     }
@@ -331,7 +331,7 @@ export async function waitForSessionCompletion(
 
   const eventPromise = new Promise<SpawnResult>((resolve) => {
     const handler = (event: StreamEvent) => {
-      if (event.sessionId !== sessionId) return;
+      if ((event.payload as any).intent_id !== sessionId) return;
 
       if (event.type === 'agent.completed') {
         resolve({
@@ -339,7 +339,7 @@ export async function waitForSessionCompletion(
           sessionId,
           agent,
           status: 'completed',
-          result: event.payload.result as string,
+          result: (event.payload as any).result as string,
           completionEventId: event.id,
         });
       } else if (event.type === 'agent.failed') {
@@ -348,7 +348,7 @@ export async function waitForSessionCompletion(
           sessionId,
           agent,
           status: 'failed',
-          error: event.payload.error as string,
+          error: (event.payload as any).error as string,
           completionEventId: event.id,
         });
       }

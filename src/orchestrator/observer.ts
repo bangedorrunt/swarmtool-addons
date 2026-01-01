@@ -12,7 +12,7 @@
 
 import { TaskRegistry, RegistryTask, getTaskRegistry } from './task-registry';
 import { loadLedger, saveLedger, addLearning } from './ledger';
-import { getDurableStreamOrchestrator } from './durable-stream';
+import { getDurableStream } from '../durable-stream';
 
 // ============================================================================
 // Types
@@ -99,24 +99,24 @@ export class TaskObserver {
    * Setup event subscriptions for durable stream
    */
   private setupEventSubscriptions(): void {
-    const durableStream = getDurableStreamOrchestrator();
+    const durableStream = getDurableStream();
 
     this.unsubscribeAgentSpawned = durableStream.subscribe('agent.spawned', (event) => {
       if (this.config.verbose) {
-        console.log(`[Observer] Agent spawned: ${event.agent} in session ${event.sessionId}`);
+        console.log(`[Observer] Agent spawned: ${(event.payload as any).agent} in session ${(event.payload as any).id}`);
       }
     });
 
     this.unsubscribeAgentCompleted = durableStream.subscribe('agent.completed', (event) => {
       if (this.config.verbose) {
-        console.log(`[Observer] Agent completed: ${event.agent} in session ${event.sessionId}`);
+        console.log(`[Observer] Agent completed: ${event.actor} in session ${(event.payload as any).intent_id}`);
       }
     });
 
     this.unsubscribeAgentFailed = durableStream.subscribe('agent.failed', (event) => {
-      console.warn(`[Observer] Agent failed: ${event.agent} in session ${event.sessionId}`);
-      if (event.payload.error) {
-        console.warn(`[Observer] Error: ${JSON.stringify(event.payload.error)}`);
+      console.warn(`[Observer] Agent failed: ${event.actor} in session ${(event.payload as any).intent_id}`);
+      if ((event.payload as any).error) {
+        console.warn(`[Observer] Error: ${JSON.stringify((event.payload as any).error)}`);
       }
     });
   }
@@ -323,11 +323,12 @@ export class TaskObserver {
 
     // 3. Emit human intervention event
     try {
-      const stream = getDurableStreamOrchestrator();
+      const stream = getDurableStream();
       await stream.append({
-        type: 'human.intervention',
-        sessionId: task.sessionId,
-        agent: task.agentName,
+        type: 'checkpoint.requested', // Map legacy human.intervention to checkpoint.requested? Or add custom type
+        stream_id: task.sessionId,
+        correlation_id: stream.getCorrelationId(),
+        actor: 'observer',
         payload: {
           taskId: task.id,
           reason: 'heartbeat_timeout',

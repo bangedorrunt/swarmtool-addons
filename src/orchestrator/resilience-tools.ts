@@ -11,7 +11,7 @@
 import { tool } from '@opencode-ai/plugin';
 import { getTaskRegistry, RegistryTask, RegistryTaskStatus } from './task-registry';
 import { getTaskObserver, startTaskObservation, stopTaskObservation } from './observer';
-import { getDurableStreamOrchestrator } from './durable-stream';
+import { getDurableStream } from '../durable-stream';
 
 // ============================================================================
 // Tool Definitions
@@ -142,7 +142,7 @@ export function createResilienceTools(client: any) {
         registry.heartbeat(args.task_id);
 
         // 2. Publish to Durable Stream (progress tracking)
-        const durableStream = getDurableStreamOrchestrator();
+        const durableStream = getDurableStream();
         await durableStream.progressTask(args.task_id, args.message, args.status || 'running');
 
         return JSON.stringify({
@@ -257,8 +257,8 @@ export function createResilienceTools(client: any) {
           return JSON.stringify({ error: 'Task not found' });
         }
 
-        const { getDurableStreamOrchestrator } = await import('./durable-stream');
-        const durableStream = getDurableStreamOrchestrator();
+        const { getDurableStream } = await import('../durable-stream');
+        const durableStream = getDurableStream();
         const snapshot = durableStream.getContextSnapshot(task.sessionId);
 
         if (!snapshot) {
