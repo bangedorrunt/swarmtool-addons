@@ -53,22 +53,38 @@ evalite('SDD Workflow: Oracle Decomposition', {
     },
   ],
   task: async (input: string) => {
-    return mockOracleAgent(input);
+    const result = mockOracleAgent(input);
+    return JSON.stringify(result);
   },
   scorers: [
     // 1. Verify Strategy Mode
     // @ts-ignore
-    (result, { expected }) => {
-      return result.execution_strategy.mode === expected ? 1 : 0;
+    (result, ctx) => {
+      if (!ctx) return 0;
+      const expected = (ctx as any)?.expected;
+      if (!expected) return 0;
+      // @ts-ignore
+      try {
+        const parsed = JSON.parse(result as unknown as string);
+        return parsed.execution_strategy.mode === expected ? 1 : 0;
+      } catch {
+        return 0;
+      }
     },
     // 2. Verify Task Structure
     // @ts-ignore
     (result) => {
       // Must have tasks and execution_strategy
-      if (!result || typeof result !== 'object') return 0;
-      if (!result.tasks || !Array.isArray(result.tasks)) return 0;
-      if (!result.execution_strategy) return 0;
-      return 1;
+      // @ts-ignore
+      try {
+        const parsed = JSON.parse(result as unknown as string);
+        if (!parsed || typeof parsed !== 'object') return 0;
+        if (!parsed.tasks || !Array.isArray(parsed.tasks)) return 0;
+        if (!parsed.execution_strategy) return 0;
+        return 1;
+      } catch {
+        return 0;
+      }
     },
   ],
 });

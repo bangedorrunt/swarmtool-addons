@@ -1,46 +1,56 @@
 import { evalite } from 'evalite';
 import { CHECKPOINT_TEMPLATES, type CheckpointDefinition } from '../orchestrator/checkpoint';
 
-// Wrap templates for testing
 const generateTemplate = (type: string, args: any[]): CheckpointDefinition | null => {
-    if (type === 'codeReview') {
-        return CHECKPOINT_TEMPLATES.codeReview(args[0]);
-    }
-    if (type === 'dangerousOperation') {
-        return CHECKPOINT_TEMPLATES.dangerousOperation(args[0], args[1]);
-    }
-    return null;
+  if (type === 'codeReview') {
+    return CHECKPOINT_TEMPLATES.codeReview(args[0]);
+  }
+  if (type === 'dangerousOperation') {
+    return CHECKPOINT_TEMPLATES.dangerousOperation(args[0], args[1]);
+  }
+  return null;
 };
 
 evalite('Checkpoint Templates', {
-    data: [
-        {
-            type: "codeReview",
-            args: [["src/index.ts", "package.json"]],
-            expectedOptions: ["approve", "request_changes", "reject"]
-        },
-        {
-            type: "dangerousOperation",
-            args: ["DELETE * FROM prod", "Data loss"],
-            expectedOptions: ["confirm", "cancel"]
-        }
-    ],
-    task: async (input) => {
-        return generateTemplate(input.type, input.args);
+  // @ts-ignore
+  data: () => [
+    // @ts-ignore
+    {
+      input: {
+        type: 'codeReview' as any,
+        args: [['src/index.ts', 'package.json']] as any,
+      },
+      // @ts-ignore
+      expectedOptions: ['approve', 'request_changes', 'reject'],
     },
-    scorers: [
-        // Verify Output is not null
-        // @ts-ignore
-        (result) => {
-            return result ? 1 : 0;
-        },
-        // Verify Option IDs
-        // @ts-ignore
-        (result, { expectedOptions }) => {
-            if (!result) return 0;
-            const ids = result.options.map(o => o.id);
-            const allFound = expectedOptions.every(opt => ids.includes(opt));
-            return allFound ? 1 : 0;
-        }
-    ]
+    // @ts-ignore
+    {
+      input: {
+        type: 'dangerousOperation' as any,
+        args: ['DELETE * FROM prod', 'Data loss'] as any,
+      },
+      // @ts-ignore
+      expectedOptions: ['confirm', 'cancel'],
+    },
+  ],
+  task: async (input) => {
+    return generateTemplate((input as any).type, (input as any).args);
+  },
+  scorers: [
+    // Verify Output is not null
+    // @ts-ignore
+    (result) => {
+      return result ? 1 : 0;
+    },
+    // Verify Option IDs
+    // @ts-ignore
+    (result, ctx) => {
+      if (!result) return 0;
+      const expectedOptions = (ctx as any)?.expectedOptions;
+      if (!expectedOptions) return 0;
+      const ids = result.options.map((o: any) => o.id);
+      const allFound = expectedOptions.every((opt: string) => ids.includes(opt));
+      return allFound ? 1 : 0;
+    },
+  ],
 });

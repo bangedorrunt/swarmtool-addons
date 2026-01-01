@@ -1,0 +1,96 @@
+{
+  "raw": "```json\n{\n  \"epic\": {\n    \"title\": \"Implement Login with Google Auth and User Profile\",\n    \"request\": \"Add a login page with Google Auth and a user profile settings page\",\n    \"rationale\": \"Decomposing the request into foundational backend authentication, distinct frontend components, and a separate user profile feature to allow for efficient, partially parallel development.\"\n  },\n  \"tasks\": [\n    {\n      \"title\": \"Implement Core Authentication Backend\",\n      \"agent\": \"executor\",\n      \"dependencies\": [],\n      \"affects_files\": [\n        \"src/models/User.ts\",\n        \"src/routes/auth.ts\",\n        \"src/controllers/authController.ts\",\n        \"src/config/passport.ts\",\n        \"src/server.ts\"\n      ],\n      \"complexity\": \"high\",\n      \"description\": \"Set up the backend infrastructure for user authentication. This includes defining the User database schema, integrating Google OAuth strategy, creating authentication routes (login initiation, callback, logout), and handling session management.\",\n      \"durable_intent\": \"auth-backend-core\"\n    },\n    {\n      \"title\": \"Develop Login Page Frontend\",\n      \"agent\": \"executor\",\n      \"dependencies\": [\n        \"Implement Core Authentication Backend\"\n      ],\n      \"affects_files\": [\n        \"src/views/LoginPage.tsx\",\n        \"src/components/GoogleSignInButton.tsx\",\n        \"src/styles/auth.css\",\n        \"src/App.tsx\"\n      ],\n      \"complexity\": \"medium\",\n      \"description\": \"Create the user interface for the login page. This involves designing the layout, integrating a Google Sign-In button, and implementing the client-side handling of the authentication flow, including redirects upon successful login.\",\n      \"durable_intent\": \"login-page-frontend\"\n    },\n    {\n      \"title\": \"Implement User Profile Backend API\",\n      \"agent\": \"executor\",\n      \"dependencies\": [\n        \"Implement Core Authentication Backend\"\n      ],\n      \"affects_files\": [\n        \"src/models/User.ts\",\n        \"src/routes/profile.ts\",\n        \"src/controllers/profileController.ts\",\n        \"src/server.ts\"\n      ],\n      \"complexity\": \"medium\",\n      \"description\": \"Extend the User model with necessary profile fields. Create secure API endpoints for fetching and updating user profile data, ensuring proper authentication and authorization for all profile-related operations.\",\n      \"durable_intent\": \"profile-backend-api\"\n    },\n    {\n      \"title\": \"Develop User Profile Settings Page Frontend\",\n      \"agent\": \"executor\",\n      \"dependencies\": [\n        \"Implement User Profile Backend API\"\n      ],\n      \"affects_files\": [\n        \"src/views/ProfileSettingsPage.tsx\",\n        \"src/components/ProfileForm.tsx\",\n        \"src/styles/profile.css\",\n        \"src/App.tsx\"\n      ],\n      \"complexity\": \"medium\",\n      \"description\": \"Build the user interface for the profile settings page. This includes displaying the user's current profile information, providing forms for editing, and integrating with the backend profile API to fetch and update data.\",\n      \"durable_intent\": \"profile-page-frontend\"\n    }\n  ],\n  \"execution_strategy\": {\n    \"mode\": \"mixed\",\n    \"rationale\": \"The initial backend authentication (Task 1) is a foundational prerequisite. Once completed, the frontend login page (Task 2) and the backend profile API (Task 3) can be developed in parallel as they primarily operate on distinct parts of the codebase. The frontend profile page (Task 4) must then follow the completion of its corresponding backend API (Task 3).\",\n    \"risk_assessment\": \"MEDIUM\"\n  },\n  \"assumptions_made\": [\n    {\n      \"choice\": \"Using Express.js for backend and React.js for frontend\",\n      \"rationale\": \"Common stack for web applications, simplifies decomposition examples for typical file structures.\"\n    },\n    {\n      \"choice\": \"Using Passport.js for Google OAuth integration\",\n      \"rationale\": \"Standard and robust library for authentication in Node.js applications.\"\n    },\n    {\n      \"choice\": \"A database (e.g., MongoDB, PostgreSQL) is already set up and accessible.\",\n      \"rationale\": \"Focuses on feature implementation rather than infrastructure setup.\"\n    }\n  ]\n}\n```",
+  "parsed": {
+    "epic": {
+      "title": "Implement Login with Google Auth and User Profile",
+      "request": "Add a login page with Google Auth and a user profile settings page",
+      "rationale": "Decomposing the request into foundational backend authentication, distinct frontend components, and a separate user profile feature to allow for efficient, partially parallel development."
+    },
+    "tasks": [
+      {
+        "title": "Implement Core Authentication Backend",
+        "agent": "executor",
+        "dependencies": [],
+        "affects_files": [
+          "src/models/User.ts",
+          "src/routes/auth.ts",
+          "src/controllers/authController.ts",
+          "src/config/passport.ts",
+          "src/server.ts"
+        ],
+        "complexity": "high",
+        "description": "Set up the backend infrastructure for user authentication. This includes defining the User database schema, integrating Google OAuth strategy, creating authentication routes (login initiation, callback, logout), and handling session management.",
+        "durable_intent": "auth-backend-core"
+      },
+      {
+        "title": "Develop Login Page Frontend",
+        "agent": "executor",
+        "dependencies": [
+          "Implement Core Authentication Backend"
+        ],
+        "affects_files": [
+          "src/views/LoginPage.tsx",
+          "src/components/GoogleSignInButton.tsx",
+          "src/styles/auth.css",
+          "src/App.tsx"
+        ],
+        "complexity": "medium",
+        "description": "Create the user interface for the login page. This involves designing the layout, integrating a Google Sign-In button, and implementing the client-side handling of the authentication flow, including redirects upon successful login.",
+        "durable_intent": "login-page-frontend"
+      },
+      {
+        "title": "Implement User Profile Backend API",
+        "agent": "executor",
+        "dependencies": [
+          "Implement Core Authentication Backend"
+        ],
+        "affects_files": [
+          "src/models/User.ts",
+          "src/routes/profile.ts",
+          "src/controllers/profileController.ts",
+          "src/server.ts"
+        ],
+        "complexity": "medium",
+        "description": "Extend the User model with necessary profile fields. Create secure API endpoints for fetching and updating user profile data, ensuring proper authentication and authorization for all profile-related operations.",
+        "durable_intent": "profile-backend-api"
+      },
+      {
+        "title": "Develop User Profile Settings Page Frontend",
+        "agent": "executor",
+        "dependencies": [
+          "Implement User Profile Backend API"
+        ],
+        "affects_files": [
+          "src/views/ProfileSettingsPage.tsx",
+          "src/components/ProfileForm.tsx",
+          "src/styles/profile.css",
+          "src/App.tsx"
+        ],
+        "complexity": "medium",
+        "description": "Build the user interface for the profile settings page. This includes displaying the user's current profile information, providing forms for editing, and integrating with the backend profile API to fetch and update data.",
+        "durable_intent": "profile-page-frontend"
+      }
+    ],
+    "execution_strategy": {
+      "mode": "mixed",
+      "rationale": "The initial backend authentication (Task 1) is a foundational prerequisite. Once completed, the frontend login page (Task 2) and the backend profile API (Task 3) can be developed in parallel as they primarily operate on distinct parts of the codebase. The frontend profile page (Task 4) must then follow the completion of its corresponding backend API (Task 3).",
+      "risk_assessment": "MEDIUM"
+    },
+    "assumptions_made": [
+      {
+        "choice": "Using Express.js for backend and React.js for frontend",
+        "rationale": "Common stack for web applications, simplifies decomposition examples for typical file structures."
+      },
+      {
+        "choice": "Using Passport.js for Google OAuth integration",
+        "rationale": "Standard and robust library for authentication in Node.js applications."
+      },
+      {
+        "choice": "A database (e.g., MongoDB, PostgreSQL) is already set up and accessible.",
+        "rationale": "Focuses on feature implementation rather than infrastructure setup."
+      }
+    ]
+  },
+  "model": "gemini-2.5-flash",
+  "timestamp": "2026-01-01T09:12:33.158Z"
+}

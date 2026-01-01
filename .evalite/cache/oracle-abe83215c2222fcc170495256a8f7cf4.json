@@ -1,0 +1,95 @@
+{
+  "raw": "```json\n{\n  \"epic\": {\n    \"title\": \"Refactor Orders Database Schema and Queries\",\n    \"request\": \"Refactor the database schema for orders and update all existing queries to match\",\n    \"rationale\": \"This request involves fundamental changes to the data model for orders and subsequent updates across the codebase to ensure functionality and data integrity. Decomposing ensures a systematic approach, starting with schema changes, then identifying and updating dependent code, and finally validating the changes.\"\n  },\n  \"tasks\": [\n    {\n      \"title\": \"Define and Apply New Order Schema\",\n      \"agent\": \"executor\",\n      \"dependencies\": [],\n      \"affects_files\": [\n        \"db/migrations/*.sql\",\n        \"src/models/order.ts\",\n        \"src/schema/order.graphql\"\n      ],\n      \"complexity\": \"high\",\n      \"description\": \"Analyze the current 'orders' database schema, design and propose the new schema, create the necessary database migration script(s) (e.g., SQL DDL or ORM migration files), and apply them to the development database. This task must ensure backward compatibility considerations if required, or plan for a data migration strategy.\",\n      \"durable_intent\": \"db-schema-refactor-orders\"\n    },\n    {\n      \"title\": \"Identify Affected Queries and ORM Models\",\n      \"agent\": \"executor\",\n      \"dependencies\": [\"Define and Apply New Order Schema\"],\n      \"affects_files\": [\n        \"src/**/*.ts\",\n        \"src/**/*.js\",\n        \"services/**/*.ts\",\n        \"services/**/*.js\",\n        \"controllers/**/*.ts\",\n        \"controllers/**/*.js\"\n      ],\n      \"complexity\": \"medium\",\n      \"description\": \"Scan the entire codebase to identify all queries, ORM calls, and data models that interact with the 'orders' table or any of its associated fields that will be affected by the schema refactor. Document these locations for subsequent refactoring.\",\n      \"durable_intent\": \"code-scan-identify-order-queries\"\n    },\n    {\n      \"title\": \"Refactor Identified Queries and ORM Mappings\",\n      \"agent\": \"executor\",\n      \"dependencies\": [\"Identify Affected Queries and ORM Models\"],\n      \"affects_files\": [\n        \"src/services/orderService.ts\",\n        \"src/routes/orderRoutes.ts\",\n        \"src/repositories/orderRepository.ts\",\n        \"src/models/order.ts\"\n      ],\n      \"complexity\": \"high\",\n      \"description\": \"Update all identified queries, ORM model definitions, and data access logic to align with the new 'orders' database schema. This includes changing column names, table joins, data types, and any other schema-dependent logic across the application layer.\",\n      \"durable_intent\": \"code-refactor-order-queries\"\n    },\n    {\n      \"title\": \"Implement and Run Integration Tests\",\n      \"agent\": \"executor\",\n      \"dependencies\": [\"Refactor Identified Queries and ORM Mappings\"],\n      \"affects_files\": [\n        \"tests/integration/order.test.ts\",\n        \"tests/unit/order-service.test.ts\",\n        \"package.json\"\n      ],\n      \"complexity\": \"medium\",\n      \"description\": \"Develop new integration tests or update existing ones to thoroughly validate the functionality of the new 'orders' schema and the refactored queries. Ensure all CRUD operations related to orders work correctly and that data integrity is maintained post-refactor. Run all relevant test suites.\",\n      \"durable_intent\": \"tests-integration-orders\"\n    }\n  ],\n  \"execution_strategy\": {\n    \"mode\": \"sequential\",\n    \"rationale\": \"The tasks have direct dependencies. Schema changes (Task 1) must precede query updates (Task 3) which rely on identifying affected code (Task 2, conceptually dependent on new schema being defined). Testing (Task 4) depends on all previous steps being completed successfully. Parallel execution would lead to significant conflicts due to interdependent file changes and runtime data model mismatches.\",\n    \"risk_assessment\": \"NONE\"\n  },\n  \"assumptions_made\": [\n    {\n      \"choice\": \"An ORM (e.g., TypeORM, Sequelize, Prisma) or direct SQL queries are used for database interactions.\",\n      \"rationale\": \"This influences the type of files affected and the refactoring approach.\"\n    },\n    {\n      \"choice\": \"Standard project structure with dedicated folders for models, services, routes, and database migrations.\",\n      \"rationale\": \"Simplifies identifying relevant files for each task.\"\n    },\n    {\n      \"choice\": \"A robust testing framework is in place to allow for integration tests.\",\n      \"rationale\": \"Essential for validating schema and query changes.\"\n    }\n  ]\n}\n```",
+  "parsed": {
+    "epic": {
+      "title": "Refactor Orders Database Schema and Queries",
+      "request": "Refactor the database schema for orders and update all existing queries to match",
+      "rationale": "This request involves fundamental changes to the data model for orders and subsequent updates across the codebase to ensure functionality and data integrity. Decomposing ensures a systematic approach, starting with schema changes, then identifying and updating dependent code, and finally validating the changes."
+    },
+    "tasks": [
+      {
+        "title": "Define and Apply New Order Schema",
+        "agent": "executor",
+        "dependencies": [],
+        "affects_files": [
+          "db/migrations/*.sql",
+          "src/models/order.ts",
+          "src/schema/order.graphql"
+        ],
+        "complexity": "high",
+        "description": "Analyze the current 'orders' database schema, design and propose the new schema, create the necessary database migration script(s) (e.g., SQL DDL or ORM migration files), and apply them to the development database. This task must ensure backward compatibility considerations if required, or plan for a data migration strategy.",
+        "durable_intent": "db-schema-refactor-orders"
+      },
+      {
+        "title": "Identify Affected Queries and ORM Models",
+        "agent": "executor",
+        "dependencies": [
+          "Define and Apply New Order Schema"
+        ],
+        "affects_files": [
+          "src/**/*.ts",
+          "src/**/*.js",
+          "services/**/*.ts",
+          "services/**/*.js",
+          "controllers/**/*.ts",
+          "controllers/**/*.js"
+        ],
+        "complexity": "medium",
+        "description": "Scan the entire codebase to identify all queries, ORM calls, and data models that interact with the 'orders' table or any of its associated fields that will be affected by the schema refactor. Document these locations for subsequent refactoring.",
+        "durable_intent": "code-scan-identify-order-queries"
+      },
+      {
+        "title": "Refactor Identified Queries and ORM Mappings",
+        "agent": "executor",
+        "dependencies": [
+          "Identify Affected Queries and ORM Models"
+        ],
+        "affects_files": [
+          "src/services/orderService.ts",
+          "src/routes/orderRoutes.ts",
+          "src/repositories/orderRepository.ts",
+          "src/models/order.ts"
+        ],
+        "complexity": "high",
+        "description": "Update all identified queries, ORM model definitions, and data access logic to align with the new 'orders' database schema. This includes changing column names, table joins, data types, and any other schema-dependent logic across the application layer.",
+        "durable_intent": "code-refactor-order-queries"
+      },
+      {
+        "title": "Implement and Run Integration Tests",
+        "agent": "executor",
+        "dependencies": [
+          "Refactor Identified Queries and ORM Mappings"
+        ],
+        "affects_files": [
+          "tests/integration/order.test.ts",
+          "tests/unit/order-service.test.ts",
+          "package.json"
+        ],
+        "complexity": "medium",
+        "description": "Develop new integration tests or update existing ones to thoroughly validate the functionality of the new 'orders' schema and the refactored queries. Ensure all CRUD operations related to orders work correctly and that data integrity is maintained post-refactor. Run all relevant test suites.",
+        "durable_intent": "tests-integration-orders"
+      }
+    ],
+    "execution_strategy": {
+      "mode": "sequential",
+      "rationale": "The tasks have direct dependencies. Schema changes (Task 1) must precede query updates (Task 3) which rely on identifying affected code (Task 2, conceptually dependent on new schema being defined). Testing (Task 4) depends on all previous steps being completed successfully. Parallel execution would lead to significant conflicts due to interdependent file changes and runtime data model mismatches.",
+      "risk_assessment": "NONE"
+    },
+    "assumptions_made": [
+      {
+        "choice": "An ORM (e.g., TypeORM, Sequelize, Prisma) or direct SQL queries are used for database interactions.",
+        "rationale": "This influences the type of files affected and the refactoring approach."
+      },
+      {
+        "choice": "Standard project structure with dedicated folders for models, services, routes, and database migrations.",
+        "rationale": "Simplifies identifying relevant files for each task."
+      },
+      {
+        "choice": "A robust testing framework is in place to allow for integration tests.",
+        "rationale": "Essential for validating schema and query changes."
+      }
+    ]
+  },
+  "model": "gemini-2.5-flash",
+  "timestamp": "2026-01-01T09:12:25.193Z"
+}

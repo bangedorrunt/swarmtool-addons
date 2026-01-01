@@ -14,59 +14,63 @@ import {
   formatSessionContext,
 } from './ledger-hooks';
 
+// Import ledger module to create mock
+import * as ledgerModule from './ledger';
+
 // Mock the ledger module
-vi.mock('./ledger', async () => {
-  const actual = await vi.importActual('./ledger');
-  return {
-    ...actual,
-    loadLedger: vi.fn().mockImplementation(() =>
-      Promise.resolve({
-        meta: {
-          sessionId: 'sess_test123',
-          status: 'active',
-          phase: 'EXECUTION',
-          lastUpdated: '2025-12-30T00:00:00.000Z',
-          tasksCompleted: '1/2',
-        },
-        epic: {
-          id: 'abc123',
-          title: 'Test Epic',
-          request: 'Test request',
-          status: 'active',
-          createdAt: Date.now(),
-          tasks: [
-            {
-              id: 'abc123.1',
-              title: 'Task 1',
-              agent: 'executor',
-              status: 'completed',
-              outcome: 'SUCCEEDED',
-              dependencies: [],
-            },
-            {
-              id: 'abc123.2',
-              title: 'Task 2',
-              agent: 'executor',
-              status: 'pending',
-              outcome: '-',
-              dependencies: [],
-            },
-          ],
-          context: [],
-          progressLog: [],
-        },
-        learnings: {
-          patterns: [{ content: 'Use TypeScript', createdAt: Date.now() }],
-          antiPatterns: [{ content: 'Avoid any', createdAt: Date.now() }],
-          decisions: [{ content: 'Chose Zod', createdAt: Date.now() }],
-          preferences: [],
-        },
-        handoff: null,
-        archive: [],
-      })
-    ),
-    saveLedger: vi.fn().mockResolvedValue(undefined),
-  };
+vi.mock('./ledger', () => ({
+  ...ledgerModule,
+  loadLedger: vi.fn().mockImplementation(() =>
+    Promise.resolve({
+      meta: {
+        sessionId: 'sess_test123',
+        status: 'active',
+        phase: 'EXECUTION',
+        lastUpdated: '2025-12-30T00:00:00.000Z',
+        tasksCompleted: '1/2',
+      },
+      epic: {
+        id: 'abc123',
+        title: 'Test Epic',
+        request: 'Test request',
+        status: 'active',
+        createdAt: Date.now(),
+        tasks: [
+          {
+            id: 'abc123.1',
+            title: 'Task 1',
+            agent: 'executor',
+            status: 'completed',
+            outcome: 'SUCCEEDED',
+            dependencies: [],
+          },
+          {
+            id: 'abc123.2',
+            title: 'Task 2',
+            agent: 'executor',
+            status: 'pending',
+            outcome: '-',
+            dependencies: [],
+          },
+        ],
+        context: [],
+        progressLog: [],
+      },
+      learnings: {
+        patterns: [{ content: 'Use TypeScript', createdAt: Date.now() }],
+        antiPatterns: [{ content: 'Avoid any', createdAt: Date.now() }],
+        decisions: [{ content: 'Chose Zod', createdAt: Date.now() }],
+        preferences: [],
+      },
+      handoff: null,
+      archive: [],
+    })
+  ),
+  saveLedger: vi.fn().mockResolvedValue(undefined),
+}));
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('Learning Extraction', () => {

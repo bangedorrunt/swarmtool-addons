@@ -1,0 +1,51 @@
+{
+  "raw": "```json\n{\n  \"dialogue_state\": {\n    \"status\": \"approved\",\n    \"turn\": 3,\n    \"message_to_user\": \"Understood. Proceeding with Stripe for payment integration.\",\n    \"pending_questions\": [],\n    \"accumulated_direction\": {\n      \"goals\": [\n        \"Integrate payment functionality\"\n      ],\n      \"constraints\": [],\n      \"preferences\": [\n        \"Payment provider: Stripe\"\n      ],\n      \"decisions\": [\n        \"Payment provider: Stripe\"\n      ]\n    }\n  },\n  \"output\": {\n    \"clarifications_resolved\": true,\n    \"explicit_direction\": {\n      \"goals\": [\n        \"Integrate payment functionality\"\n      ],\n      \"constraints\": [],\n      \"preferences\": [\n        \"Payment provider: Stripe\"\n      ],\n      \"decisions\": [\n        \"Payment provider: Stripe\"\n      ]\n    },\n    \"assumptions_avoided\": [\n      \"Assuming a default payment provider without user confirmation\"\n    ]\n  },\n  \"tools\": [\n    {\n      \"tool_code\": \"await ledger_add_context({\\n  context: \\\"Payment provider: Stripe\\\"\\n});\"\n    },\n    {\n      \"tool_code\": \"await ledger_add_learning({\\n  type: \\\"preference\\\",\\n  content: \\\"User prefers Stripe for payment integration\\\"\\n});\"\n    }\n  ]\n}\n```",
+  "parsed": {
+    "dialogue_state": {
+      "status": "approved",
+      "turn": 3,
+      "message_to_user": "Understood. Proceeding with Stripe for payment integration.",
+      "pending_questions": [],
+      "accumulated_direction": {
+        "goals": [
+          "Integrate payment functionality"
+        ],
+        "constraints": [],
+        "preferences": [
+          "Payment provider: Stripe"
+        ],
+        "decisions": [
+          "Payment provider: Stripe"
+        ]
+      }
+    },
+    "output": {
+      "clarifications_resolved": true,
+      "explicit_direction": {
+        "goals": [
+          "Integrate payment functionality"
+        ],
+        "constraints": [],
+        "preferences": [
+          "Payment provider: Stripe"
+        ],
+        "decisions": [
+          "Payment provider: Stripe"
+        ]
+      },
+      "assumptions_avoided": [
+        "Assuming a default payment provider without user confirmation"
+      ]
+    },
+    "tools": [
+      {
+        "tool_code": "await ledger_add_context({\n  context: \"Payment provider: Stripe\"\n});"
+      },
+      {
+        "tool_code": "await ledger_add_learning({\n  type: \"preference\",\n  content: \"User prefers Stripe for payment integration\"\n});"
+      }
+    ]
+  },
+  "model": "gemini-2.5-flash",
+  "timestamp": "2026-01-01T09:12:18.134Z"
+}

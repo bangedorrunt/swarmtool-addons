@@ -1,0 +1,25 @@
+{
+  "raw": "```json\n{\n  \"dialogue_state\": {\n    \"status\": \"needs_input\",\n    \"turn\": 1,\n    \"message_to_user\": \"To effectively integrate a payment system, I need to clarify a few key aspects. Based on common requirements, I propose the following options:\",\n    \"pending_questions\": [\n      \"**Strategic Poll: Payment Gateway**\\nWhich payment gateway would you prefer to integrate?\\n(1) Stripe — Robust, developer-friendly, broad feature set\\n(2) PayPal — Widely recognized, established user base\\n(3) Square — Popular for in-person and online sales, integrated hardware options\\n(4) Or type your own choice (e.g., 'Braintree', 'Adyen')\",\n      \"**Strategic Poll: Payment Type**\\nWhat type of payments do you primarily want to handle?\\n(1) One-time payments — Simple, single transactions\\n(2) Subscriptions — Recurring payments, membership models\\n(3) Both one-time and subscriptions\\n(4) Or describe your specific payment flow (e.g., 'donations', 'in-app purchases')\"\n    ],\n    \"accumulated_direction\": {\n      \"goals\": [\n        \"Integrate a payment system\"\n      ],\n      \"constraints\": [],\n      \"preferences\": [],\n      \"decisions\": []\n    }\n  },\n  \"output\": null\n}\n```",
+  "parsed": {
+    "dialogue_state": {
+      "status": "needs_input",
+      "turn": 1,
+      "message_to_user": "To effectively integrate a payment system, I need to clarify a few key aspects. Based on common requirements, I propose the following options:",
+      "pending_questions": [
+        "**Strategic Poll: Payment Gateway**\nWhich payment gateway would you prefer to integrate?\n(1) Stripe — Robust, developer-friendly, broad feature set\n(2) PayPal — Widely recognized, established user base\n(3) Square — Popular for in-person and online sales, integrated hardware options\n(4) Or type your own choice (e.g., 'Braintree', 'Adyen')",
+        "**Strategic Poll: Payment Type**\nWhat type of payments do you primarily want to handle?\n(1) One-time payments — Simple, single transactions\n(2) Subscriptions — Recurring payments, membership models\n(3) Both one-time and subscriptions\n(4) Or describe your specific payment flow (e.g., 'donations', 'in-app purchases')"
+      ],
+      "accumulated_direction": {
+        "goals": [
+          "Integrate a payment system"
+        ],
+        "constraints": [],
+        "preferences": [],
+        "decisions": []
+      }
+    },
+    "output": null
+  },
+  "model": "gemini-2.5-flash",
+  "timestamp": "2026-01-01T09:12:18.319Z"
+}
