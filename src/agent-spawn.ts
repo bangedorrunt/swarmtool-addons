@@ -18,19 +18,19 @@
  */
 
 import { tool, type ToolContext } from '@opencode-ai/plugin';
-import { getDurableStream } from './durable-stream';
+import { resolveAgent } from './orchestrator/skill-agent-resolution';
 
 /**
  * Dialogue state for multi-turn interactions
  */
 export interface DialogueState {
   status:
-  | 'needs_input'
-  | 'needs_approval'
-  | 'needs_verification'
-  | 'approved'
-  | 'rejected'
-  | 'completed';
+    | 'needs_input'
+    | 'needs_approval'
+    | 'needs_verification'
+    | 'approved'
+    | 'rejected'
+    | 'completed';
   turn: number;
   message_to_user: string;
   pending_questions?: string[];
@@ -103,7 +103,9 @@ export function createAgentTools(client: any) {
       args: {
         agent: tool.schema
           .string()
-          .describe('Agent name (e.g., "chief-of-staff/oracle", "chief-of-staff/interviewer")'),
+          .describe(
+            'Agent name or FQN (e.g., "chief-of-staff/oracle", "chief-of-staff/interviewer")'
+          ),
         prompt: tool.schema.string().describe('Task or question for the agent'),
         context: tool.schema
           .string()
@@ -138,15 +140,18 @@ export function createAgentTools(client: any) {
       },
       async execute(args, ctx: ToolContext) {
         const {
-          agent,
+          agent: raw_agent,
           prompt,
           context,
           interaction_mode = 'one_shot',
           dialogue_state,
           session_id,
-          timeout_ms = 60000,
           async: isAsync = true,
         } = args;
+
+        // Resolve FQN to ensure consistency
+        const resolved = await resolveAgent({ agent: raw_agent });
+        const agent = resolved ? resolved.name : raw_agent;
 
         // Parse previous dialogue state
         let previousState: DialogueState | null = null;
@@ -163,13 +168,15 @@ export function createAgentTools(client: any) {
 
         // Add dialogue context if needed
         const dialogueMarker = previousState
-          ? `\n\n[DIALOGUE CONTINUATION]\nPrevious status: ${previousState.status}\nTurn: ${previousState.turn || 1}\n${previousState.accumulated_direction
-            ? `Accumulated Direction: ${JSON.stringify(previousState.accumulated_direction)}\n`
-            : ''
-          }${(previousState as any).proposal
-            ? `Previous Proposal: ${JSON.stringify((previousState as any).proposal)}\n`
-            : ''
-          }`
+          ? `\n\n[DIALOGUE CONTINUATION]\nPrevious status: ${previousState.status}\nTurn: ${previousState.turn || 1}\n${
+              previousState.accumulated_direction
+                ? `Accumulated Direction: ${JSON.stringify(previousState.accumulated_direction)}\n`
+                : ''
+            }${
+              (previousState as any).proposal
+                ? `Previous Proposal: ${JSON.stringify((previousState as any).proposal)}\n`
+                : ''
+            }`
           : '';
 
         const finalPrompt = fullPrompt + dialogueMarker;
@@ -199,7 +206,6 @@ export function createAgentTools(client: any) {
           }
 
           try {
-            // FIX: Use direct response from prompt instead of event subscription
             // client.session.prompt waits for completion by default
             const result = await client.session.prompt({
               path: { id: syncSessionID },
@@ -213,31 +219,36 @@ export function createAgentTools(client: any) {
               throw new Error(JSON.stringify(result.error));
             }
 
-            // Extract text from the last message in the response
-            const responseData = result.data;
-            // The response typically contains the new message(s)
-            // We need to parse the messages to find the agent's text response.
-            // However, SDK prompt response structure might vary.
-            // Let's rely on finding the last message part.
-
-            // If the structure is complex, we might need to fetch messages
+            // Extract text from messages
             const messagesRes = await client.session.messages({
-              path: { id: syncSessionID }
+              path: { id: syncSessionID },
             });
             const messages = messagesRes.data || [];
             const lastMessage = messages[messages.length - 1];
+
             if (lastMessage && lastMessage.parts) {
-              return lastMessage.parts.map((p: any) => p.text || '').join('');
+              const text = lastMessage.parts.map((p: any) => p.text || '').join('');
+
+              // Return JSON to ensure title hook works in src/index.ts
+              return JSON.stringify({
+                success: true,
+                agent: agent,
+                result: text,
+              });
             }
 
-            return 'Agent completed task.';
-
+            return JSON.stringify({
+              success: true,
+              agent: agent,
+              result: 'Agent completed task.',
+            });
           } catch (err: any) {
             return `Error during synchronous agent spawn: ${err.message}`;
           }
         }
 
         // 2. Asynchronous Pattern (Interactive Handoff)
+        // NOTE: We do not call prompt here, hook in src/index.ts handles it
         try {
           return JSON.stringify({
             success: true,
@@ -248,9 +259,9 @@ export function createAgentTools(client: any) {
             dialogue_state:
               interaction_mode === 'dialogue'
                 ? {
-                  status: 'needs_input',
-                  message_to_user: 'Please check the main chat for the agent response.',
-                }
+                    status: 'needs_input',
+                    message_to_user: 'Please check the main chat for the agent response.',
+                  }
                 : undefined,
             metadata: {
               handoff: {
@@ -316,8 +327,9 @@ export function createAgentTools(client: any) {
         }
 
         const dialoguePrompt = prevState
-          ? `[Continuing dialogue - Turn ${(prevState.turn || 0) + 1}]\n\nUser response: ${question}\n\nPrevious context:\n- Questions asked: ${prevState.pending_questions?.join(', ') || 'N/A'
-          }\n- Accumulated direction: ${JSON.stringify(prevState.accumulated_direction || {})}\n- Previous proposal: ${JSON.stringify((prevState as any).proposal || 'None')}`
+          ? `[Continuing dialogue - Turn ${(prevState.turn || 0) + 1}]\n\nUser response: ${question}\n\nPrevious context:\n- Questions asked: ${
+              prevState.pending_questions?.join(', ') || 'N/A'
+            }\n- Accumulated direction: ${JSON.stringify(prevState.accumulated_direction || {})}\n- Previous proposal: ${JSON.stringify((prevState as any).proposal || 'None')}`
           : `[Starting clarification dialogue]\n\n${question}`;
 
         // 1. Synchronous Pattern
@@ -354,7 +366,7 @@ export function createAgentTools(client: any) {
             }
 
             const messagesRes = await client.session.messages({
-              path: { id: syncSessionID }
+              path: { id: syncSessionID },
             });
             const messages = messagesRes.data || [];
             const lastMessage = messages[messages.length - 1];
@@ -363,7 +375,6 @@ export function createAgentTools(client: any) {
             }
 
             return 'Agent completed task.';
-
           } catch (err: any) {
             return `Error during synchronous agent dialogue: ${err.message}`;
           }

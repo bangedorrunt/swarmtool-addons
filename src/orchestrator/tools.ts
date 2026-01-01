@@ -178,13 +178,13 @@ export function createSkillAgentTools(client: PluginInput['client']) {
       description:
         'Spawn a specialized subagent. Use async:false for sequential orchestration (waits for result).',
       args: {
-        skill_name: tool.schema
+        agent: tool.schema
           .string()
           .optional()
-          .describe('Name of the skill (e.g., "chief-of-staff")'),
-        agent_name: tool.schema.string().optional().describe('Name of the agent (e.g., "oracle")'),
-        agent: tool.schema.string().optional().describe('Alias for agent_name'),
+          .describe('Target agent name or FQN (e.g. "chief-of-staff/oracle")'),
         prompt: tool.schema.string().describe('Task or message for the agent'),
+        skill_name: tool.schema.string().optional().describe('Legacy: Name of the skill namespace'),
+        agent_name: tool.schema.string().optional().describe('Legacy: Name of the agent'),
         session_id: tool.schema.string().optional().describe('Existing sub-session ID to continue'),
         context: tool.schema.any().optional().describe('Metadata context for the agent'),
         async: tool.schema
@@ -205,9 +205,9 @@ export function createSkillAgentTools(client: PluginInput['client']) {
       },
       async execute(args, execContext) {
         const {
+          agent: agent_param,
           skill_name,
           agent_name: raw_agent_name,
-          agent: agent_alias,
           prompt,
           session_id,
           context,
@@ -216,13 +216,13 @@ export function createSkillAgentTools(client: PluginInput['client']) {
           complexity = 'medium',
         } = args;
 
-        const agent_name = raw_agent_name || agent_alias;
+        const agent_id = agent_param || raw_agent_name;
 
-        if (!agent_name) {
+        if (!agent_id) {
           return JSON.stringify({
             success: false,
             error: 'MISSING_ARGUMENT',
-            message: "Missing 'agent_name' or 'agent' parameter.",
+            message: "Missing 'agent' or 'agent_name' parameter.",
           });
         }
 
@@ -231,22 +231,21 @@ export function createSkillAgentTools(client: PluginInput['client']) {
           ? `Context: ${typeof context === 'string' ? context : JSON.stringify(context, null, 2)}\n\nTask: ${prompt}`
           : prompt;
 
-        // 1. Resolve agent
-        const agent = await resolveAgent({
+        // 1. Resolve agent FQN
+        const resolved = await resolveAgent({
           skill_name,
-          agent_name: raw_agent_name,
-          agent: agent_alias,
+          agent_name: agent_id,
         });
 
-        if (!agent) {
+        if (!resolved) {
           return JSON.stringify({
             success: false,
             error: 'AGENT_NOT_FOUND',
-            message: `Agent not found: ${raw_agent_name || agent_alias}`,
+            message: `Agent not found: ${agent_id}${skill_name ? ` in skill ${skill_name}` : ''}`,
           });
         }
 
-        const targetAgentName = agent.name;
+        const targetAgentName = resolved.name;
 
         // 1.5 Load Actor State for Trace Propagation & Loop Detection
         const actorState = await loadActorState();
@@ -283,7 +282,7 @@ export function createSkillAgentTools(client: PluginInput['client']) {
               const createResult = await client.session.create({
                 body: {
                   parentID: execContext?.sessionID,
-                  title: `Sync: ${skill_name || 'skill'} - ${agent_name}`,
+                  title: `Sync: ${targetAgentName}`,
                 },
               });
               if (createResult.error) throw new Error(JSON.stringify(createResult.error));
@@ -380,6 +379,8 @@ export function createSkillAgentTools(client: PluginInput['client']) {
         }
 
         // 3. Asynchronous Pattern - Handoff intent
+        // NOTE: We DO NOT call prompt here, we let the hook in src/index.ts handle it
+        // This avoids double prompts and ensures proper lateral handoff in the UI.
         let activeSessionID = session_id || execContext?.sessionID;
 
         if (!activeSessionID) {
@@ -387,7 +388,7 @@ export function createSkillAgentTools(client: PluginInput['client']) {
             const createResult = await client.session.create({
               body: {
                 parentID: execContext?.sessionID,
-                title: `Skill: ${skill_name || 'Generic'} - ${agent_name}`,
+                title: `Skill: ${targetAgentName}`,
               },
             });
             if (createResult.error) throw new Error(JSON.stringify(createResult.error));
@@ -403,38 +404,18 @@ export function createSkillAgentTools(client: PluginInput['client']) {
           }
         }
 
-        // 4. Send prompt to child (this triggers execution)
-        try {
-          await client.session.prompt({
-            path: { id: activeSessionID! },
-            body: {
-              agent: targetAgentName,
-              parts: [{ type: 'text', text: finalPrompt }],
-            },
-          });
-        } catch (err: any) {
-          // OpenCode quirk: unexpected EOF is actually a success
-          if (!err.message.includes('Unexpected EOF')) {
-            return JSON.stringify({
-              success: false,
-              error: 'PROMPT_FAILED',
-              message: err.message,
-              session_id: activeSessionID,
-            });
-          }
-        }
-
-        // Return HANDOOF_INTENT
+        // Return HANDOFF_INTENT
         return JSON.stringify({
           success: true,
           status: 'HANDOFF_INTENT',
-          message: `Spawned ${targetAgentName} asynchronously`,
+          message: `Delegating to ${targetAgentName} asynchronously`,
           agent: targetAgentName,
           session_id: activeSessionID,
           metadata: {
             handoff: {
               type: 'DELEGATION',
               target_agent: targetAgentName,
+              prompt: finalPrompt, // Pass prompt for hook to use
               session_id: activeSessionID,
             },
           },

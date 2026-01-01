@@ -64,9 +64,7 @@ describe('Skill Agent Resolution Logic', () => {
   });
 
   it('should prioritize skill_name over chief-of-staff default even if CoS matches', async () => {
-    (loadSkillAgents as any).mockResolvedValue([
-      { name: 'my-skill/oracle', config: {} },
-    ]);
+    (loadSkillAgents as any).mockResolvedValue([{ name: 'my-skill/oracle', config: {} }]);
     (loadChiefOfStaffSkills as any).mockResolvedValue([
       { name: 'chief-of-staff/oracle', config: {} },
     ]);

@@ -1,0 +1,23 @@
+{
+  "raw": "```json\n{\n  \"dialogue_state\": {\n    \"status\": \"needs_input\",\n    \"turn\": 1,\n    \"message_to_user\": \"I can certainly help with integrating a payment system. To ensure I build exactly what you need, please clarify the following aspects using the strategic polls below:\",\n    \"pending_questions\": [\n      \"**Strategic Poll: Payment Gateway**\\nWhich payment gateway would you prefer to integrate?\\n(1) Stripe: Popular, developer-friendly, good for various payment types.\\n(2) PayPal: Widely recognized, good for standard online payments.\\n(3) Braintree: Flexible, offers diverse payment methods (cards, PayPal, Venmo).\\n(4) Or specify another payment gateway (e.g., 'Square', 'Adyen', 'Custom').\\n\\n**Strategic Poll: Payment Types**\\nWhat kind of payments do you need to handle?\\n(1) One-time payments: For single purchases.\\n(2) Subscriptions: For recurring billing.\\n(3) Both one-time and subscriptions.\\n(4) Or specify other payment types (e.g., 'in-app purchases', 'donations', 'invoice payments').\",\n      \"Please reply with your choices, e.g., 'Gateway: 1, Type: 3' or 'Stripe for one-time payments'.\"\n    ],\n    \"accumulated_direction\": {\n      \"goals\": [],\n      \"constraints\": [],\n      \"preferences\": [],\n      \"decisions\": []\n    }\n  },\n  \"output\": null\n}\n```",
+  "parsed": {
+    "dialogue_state": {
+      "status": "needs_input",
+      "turn": 1,
+      "message_to_user": "I can certainly help with integrating a payment system. To ensure I build exactly what you need, please clarify the following aspects using the strategic polls below:",
+      "pending_questions": [
+        "**Strategic Poll: Payment Gateway**\nWhich payment gateway would you prefer to integrate?\n(1) Stripe: Popular, developer-friendly, good for various payment types.\n(2) PayPal: Widely recognized, good for standard online payments.\n(3) Braintree: Flexible, offers diverse payment methods (cards, PayPal, Venmo).\n(4) Or specify another payment gateway (e.g., 'Square', 'Adyen', 'Custom').\n\n**Strategic Poll: Payment Types**\nWhat kind of payments do you need to handle?\n(1) One-time payments: For single purchases.\n(2) Subscriptions: For recurring billing.\n(3) Both one-time and subscriptions.\n(4) Or specify other payment types (e.g., 'in-app purchases', 'donations', 'invoice payments').",
+        "Please reply with your choices, e.g., 'Gateway: 1, Type: 3' or 'Stripe for one-time payments'."
+      ],
+      "accumulated_direction": {
+        "goals": [],
+        "constraints": [],
+        "preferences": [],
+        "decisions": []
+      }
+    },
+    "output": null
+  },
+  "model": "gemini-2.5-flash",
+  "timestamp": "2026-01-01T12:40:36.267Z"
+}

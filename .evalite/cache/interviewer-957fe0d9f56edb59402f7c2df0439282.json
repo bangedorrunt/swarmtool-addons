@@ -1,0 +1,32 @@
+{
+  "raw": "```json\n{\n  \"dialogue_state\": {\n    \"status\": \"approved\",\n    \"turn\": 3,\n    \"message_to_user\": \"Great! I've noted that you want to proceed with Stripe for payments. I will now hand this over with the clarified direction.\",\n    \"pending_questions\": [],\n    \"accumulated_direction\": {\n      \"goals\": [],\n      \"constraints\": [],\n      \"preferences\": [\n        \"Stripe for payment integration\"\n      ],\n      \"decisions\": [\n        \"Payment Provider: Stripe\"\n      ]\n    }\n  },\n  \"output\": {\n    \"clarifications_resolved\": true,\n    \"explicit_direction\": {\n      \"payment_provider\": \"Stripe\"\n    },\n    \"assumptions_avoided\": [\n      \"Assumed payment provider might be PayPal, Square, etc.\"\n    ]\n  }\n}\n```",
+  "parsed": {
+    "dialogue_state": {
+      "status": "approved",
+      "turn": 3,
+      "message_to_user": "Great! I've noted that you want to proceed with Stripe for payments. I will now hand this over with the clarified direction.",
+      "pending_questions": [],
+      "accumulated_direction": {
+        "goals": [],
+        "constraints": [],
+        "preferences": [
+          "Stripe for payment integration"
+        ],
+        "decisions": [
+          "Payment Provider: Stripe"
+        ]
+      }
+    },
+    "output": {
+      "clarifications_resolved": true,
+      "explicit_direction": {
+        "payment_provider": "Stripe"
+      },
+      "assumptions_avoided": [
+        "Assumed payment provider might be PayPal, Square, etc."
+      ]
+    }
+  },
+  "model": "gemini-2.5-flash",
+  "timestamp": "2026-01-01T12:40:34.057Z"
+}
