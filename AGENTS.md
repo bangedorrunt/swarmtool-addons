@@ -2,9 +2,9 @@
 
 ## Module Implementation Guide
 
-### Skill-Based Agent Architecture
+### Skill-Based Agent Architecture with Durable Stream (v4.1)
 
-This plugin implements a **Skill-Based Subagent** architecture with **Governance-First Orchestration (v4.0)** where domain expertise is packaged into specialized, on-demand workers coordinated by a `chief-of-staff` Governor agent.
+This plugin implements a **Skill-Based Subagent** architecture with **Governance-First Orchestration (v4.0)** enhanced by **Event-Sourced Persistence** via the Durable Stream API. Domain expertise is packaged into specialized, on-demand workers coordinated by a `chief-of-staff` Governor agent.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -24,230 +24,322 @@ This plugin implements a **Skill-Based Subagent** architecture with **Governance
 │  │  └───────────┘              │  └───────────────┘   │         │
 │  └─────────────────┬───────────┴──────────────────────┘         │
 │                    │                                            │
-│           ┌────────┴────────┐                                   │
-│           ▼                 ▼                                   │
-│   ┌──────────────┐  ┌──────────────┐                            │
-│   │  LEDGER.md   │  │  Memory Lane │                            │
-│   │ (Persistence)│  │  (Vector DB) │                            │
-│   └──────────────┘  └──────────────┘                            │
+│    ┌───────────────┼─────────────────────┐                      │
+│    ▼               ▼                     ▼                      │
+│ ┌──────────┐ ┌──────────────┐ ┌─────────────────────┐          │
+│ │LEDGER.md │ │Durable Stream│ │    Memory Lane      │          │
+│ │(State)   │ │(Event Source)│ │    (Vector DB)      │          │
+│ └──────────┘ └──────────────┘ └─────────────────────┘          │
 └─────────────────────────────────────────────────────────────────┘
+
+DURABLE STREAM LAYERS:
+  1. Event Log     → Persistent JSONL storage with crash recovery
+  2. Checkpoints   → Human-in-the-Loop approval workflows
+  3. Intents       → Long-running workflow tracking
+  4. Learning      → Auto-extraction of patterns from events
 ```
-
-**Key Integration Points:**
-
-1. **Tool Hooks** (`src/index.ts`):
-   - Module exports tools that agents can call directly
-   - Example: `skill_agent`, `skill_list`, `memory-lane_store`
-   - Tools should be idempotent and handle errors gracefully
-
-2. **Tool Execution Hooks** (`src/index.ts`):
-   - Uses `tool.execute.after` to intercept tool completions
-   - Processes events for session learning and state persistence
-   - Captures learnings from agent interactions
-
-3. **Storage**:
-   - `Durable Stream` (`.opencode/durable_stream.jsonl`) for event-sourced recovery
-   - `LEDGER.md` for human-readable state tracking
-   - SQLite/libSQL for Memory Lane semantic storage
-   - Agent definitions in `~/.config/opencode/skill/`
-
-4. **Access Control**:
-   - Protected sub-agents (`oracle`, `executor`, `planner`, etc.) only respond to `chief-of-staff`
-   - Hierarchical naming: `chief-of-staff/oracle`, `chief-of-staff/planner`
-
-5. **External Skills**:
-   - Integration with `~/.claude/skills/` via `use skill <name>`
-   - Supports 27+ external protocols (TDD, debugging, etc.)
-   - Dynamic skill routing via Chief-of-Staff
 
 ---
 
-### Module Structure
+## 2. Skill-Based Agent Roster
+
+The following agents are implemented as specialized skills within the system.
+
+### Core Orchestrator
+
+- **`chief-of-staff` (The Governor)**
+  - **Role**: Technical coordinator and governance engine.
+  - **Responsibilities**: Manages the Governance Loop (State Check -> Delegation -> Audit), Strategic Polling, and Parallel Orchestration using `LEDGER.md` as the single source of truth.
+  - **Access**: Public (The only agent users interact with directly).
+
+### Strategic & Planning Agents
+
+- **`chief-of-staff/oracle` (Tactical Architect)**
+  - **Role**: Technical advisor for task decomposition.
+  - **Responsibilities**: Analyzes requests, breaks them down into Epics/Tasks (max 3), determines **Execution Strategy** (Parallel/Sequential), and handles re-decomposition on conflict.
+  - **Access**: Internal (called by CoS).
+  - **Special**: Can yield `CONFLICT_REDECOMPOSE` signals.
+
+- **`chief-of-staff/planner` (Strategic Architect)**
+  - **Role**: Implementation blueprinter.
+  - **Responsibilities**: Creates detailed, file-level implementation plans for LEDGER tasks. Reports `assumptions_made` for governance tracking.
+  - **Access**: Internal.
+
+- **`chief-of-staff/workflow-architect` (Meta-Designer)**
+  - **Role**: Workflow and system designer.
+  - **Responsibilities**: Designs new agent workflows and patterns that integrate with the LEDGER.md infrastructure.
+  - **Access**: Internal.
+
+- **`chief-of-staff/interviewer` (Strategist)**
+  - **Role**: Deep ambiguity resolver (Fallback).
+  - **Responsibilities**: Used only when Strategic Polling fails. Conducts multi-turn dialogue to clarify deep ambiguity.
+  - **Access**: Internal.
+
+### Execution & Specialized Workers
+
+- **`chief-of-staff/executor` (The Builder)**
+  - **Role**: TDD-driven code implementer.
+  - **Responsibilities**: Implements tasks using Red/Green/Refactor. **Parallel-Safe**: Tracks `files_modified` and detects collision/race conditions.
+  - **Access**: Internal.
+
+- **`chief-of-staff/context-loader` (The Librarian)**
+  - **Role**: Context hydration utility.
+  - **Responsibilities**: Retrieves and synthesizes relevant context (files, memory lane patterns, ledger history) for a task _before_ execution starts.
+  - **Access**: Internal.
+
+- **`chief-of-staff/debugger` (The Mechanic)**
+  - **Role**: Systematic root cause analyst.
+  - **Responsibilities**: Enforces "No Fix Without Root Cause". Uses 4-phase debugging protocol to isolate issues before patching.
+  - **Access**: Internal.
+
+### Quality & Review Agents
+
+- **`chief-of-staff/spec-writer` (The Scribe)**
+  - **Role**: Requirements extractor.
+  - **Responsibilities**: Creates structured specifications (Functional/Non-Functional requirements, MoSCoW priorities) from user requests.
+  - **Access**: Internal.
+
+- **`chief-of-staff/spec-reviewer` (Gatekeeper Stage 1)**
+  - **Role**: Compliance auditor.
+  - **Responsibilities**: Verifies that implementation matches the spec _exactly_ (nothing missing, nothing extra) before code quality review.
+  - **Access**: Internal.
+
+- **`chief-of-staff/code-quality-reviewer` (Gatekeeper Stage 2)**
+  - **Role**: Code standard auditor.
+  - **Responsibilities**: Reviews code for maintainability, security, and best practices _after_ spec compliance is proven.
+  - **Access**: Internal.
+
+- **`chief-of-staff/validator` (The QA)**
+  - **Role**: Acceptance criteria verifier.
+  - **Responsibilities**: validaties that the work meets the definition of done. Checks `directive_compliance` and reports `assumptions_made`.
+  - **Access**: Internal.
+
+---
+
+## 3. Human-in-the-Loop Interaction Patterns
+
+### I. Strategic Polling (Primary)
+
+Instead of asking open-ended questions like "What DB?", the `chief-of-staff` generates a structured **Poll** (e.g., "A: Postgres, B: SQLite") and yields to the user. User selection immediately becomes a **Directive**.
+
+### II. Assumption Audit (Post-Task)
+
+Agents report `assumptions_made` (e.g., "Assumed JWT for auth"). These are logged in the **Governance** section of `LEDGER.md`. Users implicitly endorse these by proceeding, or can explicitly reject them to trigger rework.
+
+### III. Checkpoint System (New v4.1)
+
+The Durable Stream provides built-in checkpoint support for critical decisions:
+
+- **Strategy Validation**: Choose between implementation approaches
+- **Code Review Approval**: Approve proposed changes before execution
+- **Dangerous Operations**: Confirm destructive actions
+- **Design Decisions**: Ratify architectural choices
+- **Epic Completion**: Archive completed work
+
+Tools available:
+
+- `checkpoint_request` - Request human approval
+- `checkpoint_approve` - Approve with optional selection
+- `checkpoint_reject` - Reject with reason
+- `checkpoint_pending` - List pending checkpoints
+- `checkpoint_templates` - Get pre-built templates
+
+### IV. Dialogue Mode (Fallback)
+
+Used by `interviewer` and `planner` for complex approvals. The agent pauses execution (`needs_approval`) and waits for explicit user confirmation before finalizing a plan or spec.
+
+---
+
+## 4. Module Structure
 
 ```
 src/
-  index.ts                    # Plugin bootstrap, registers all modules
-  agent-spawn.ts              # skill_agent tool implementation
-  event-log.ts                # Event logging utilities
+  index.ts                    # Plugin bootstrap
+  agent-spawn.ts              # skill_agent tool
+  event-log.ts                # Logging
 
-  memory-lane/
-    index.ts                  # Memory Lane entry, exports tools
-    hooks.ts                  # Session learning hooks
-    adapter.ts                # External service adapters
-    memory-store.ts           # SQLite storage implementation
-    resolver.ts               # Semantic query logic
-    taxonomy.ts               # Type definitions
+  memory-lane/                # Vector DB Module
+    index.ts
+    memory-store.ts
 
-  opencode/
-    index.ts                  # OpenCode integration entry
-    loader.ts                 # Agent discovery & loading
-    skill/                    # Built-in skill definitions
-    config/                   # Configuration management
+  durable-stream/             # Event-Sourced Persistence (v4.1)
+    core.ts                   # Pure functions for event manipulation
+    orchestrator.ts           # Class facade for developers
+    store.ts                  # JSONL storage implementation
+    types.ts                  # Event type definitions
 
-  orchestrator/
-    index.ts                  # Orchestrator entry
-    ledger.ts                 # LEDGER.md persistence
-    session-coordination.ts   # Session state management
-    hooks/                    # Orchestration event hooks
-    chief-of-staff/           # Chief-of-Staff agent definition
+  opencode/                   # Runtime Integration
+    index.ts
+    loader.ts
+    skill/                    # Built-in definitions
+
+  orchestrator/               # Governance Engine
+    index.ts
+    ledger.ts                 # State Management
+    event-driven-ledger.ts    # Event emission for ledger ops (v4.1)
+    checkpoint.ts             # Human-in-the-Loop workflows (v4.1)
+    crash-recovery.ts         # State reconstruction (v4.1)
+    learning-extractor.ts     # Auto-learning pipeline (v4.1)
+    tools/
+      ledger-tools.ts         # Ledger tool definitions
+      checkpoint-tools.ts     # Checkpoint tool definitions
+    chief-of-staff/           # Agent Definitions (`SKILL.md`)
+      agents/
+        oracle/
+        executor/
+        ...
 ```
 
 ---
 
-### Core Principles
+## 5. New Tools (v4.1)
 
-**Skill-Based Subagent Design:**
+### Event-Driven Ledger Tools
 
-- Each agent is a specialist with focused expertise
-- `chief-of-staff` coordinates complex multi-step workflows
-- Agents communicate via structured results, not shared state
-- 16x context reduction through partitioned agent contexts
+| Tool                     | Description                             |
+| ------------------------ | --------------------------------------- |
+| `ledger_emit_event`      | Emit events for epic/task operations    |
+| `ledger_get_history`     | Query event history from durable stream |
+| `ledger_get_intents`     | List active workflow intents            |
+| `ledger_get_checkpoints` | List pending human approvals            |
 
-- **Durable Stream**: Event-sourced log (`.jsonl`) used for crash recovery and replay
-- **LEDGER.md**: Human-readable summary of Epic progress and handoffs
-- **Resilience**: System rebuilds state from the Durable Stream during startup
+### Checkpoint Tools (Human-in-the-Loop)
 
-**Access Control:**
+| Tool                   | Description                          |
+| ---------------------- | ------------------------------------ |
+| `checkpoint_request`   | Request human approval for decisions |
+| `checkpoint_approve`   | Approve a pending checkpoint         |
+| `checkpoint_reject`    | Reject with optional reason          |
+| `checkpoint_pending`   | List all pending checkpoints         |
+| `checkpoint_templates` | Get pre-built approval templates     |
 
-- Protected agents only respond to coordinator patterns
-- Prevents direct invocation of internal agents
-- Ensures proper state management and coordination
+### Learning & Recovery Tools
 
-**Governance-First (v4.0):**
-
-- **Directives** (The Law): User decisions that agents MUST follow
-- **Assumptions** (The Debt): Agent decisions logged for user review
-- Chief-of-Staff runs 3-phase loop: STATE CHECK → DELEGATION → AUDIT
-- Strategic Polling replaces open-ended questions
-
-**Event-Driven Architecture:**
-
-- Prefer asynchronous processing over synchronous blocking
-- Use hooks for event observation (non-blocking)
-- Design for eventual consistency
+| Tool                | Description                       |
+| ------------------- | --------------------------------- |
+| `extract_learnings` | Auto-extract patterns from events |
+| `recovery_status`   | Check recovery state              |
+| `recovery_perform`  | Trigger crash recovery            |
 
 ---
 
-## Build & Test Commands
+## 6. Leveraging the Durable Stream API
 
-- **Build**: `mise run build` or `bun build ./src/index.ts --outdir dist --target bun`
-- **Test**: `mise run test` or `bun test`
-- **Single Test**: `bun test BackgroundTask.test.ts` (use file glob pattern)
-- **Watch Mode**: `bun test --watch`
-- **Lint**: `mise run lint` (eslint)
-- **Fix Lint**: `mise run lint:fix` (eslint --fix)
-- **Format**: `mise run format` (prettier)
+### Event Types
 
----
+The Durable Stream supports the following event categories:
 
-## Code Style Guidelines
+**Lifecycle Events**
 
-### Imports & Module System
+- `lifecycle.session.created` - New session started
+- `lifecycle.session.idle` - Session became idle
+- `lifecycle.session.error` - Session error occurred
 
-- Use ES6 `import`/`export` syntax (module: "ESNext", type: "module")
-- **Named exports only** (`export { MyClass }`), **no default exports**
-- Group imports: external libraries first, then internal modules
-- Use explicit file extensions (`.ts`) for internal imports
+**Execution Events**
 
-### Formatting (Prettier)
+- `execution.step_start` - Step execution started
+- `execution.step_finish` - Step execution completed
+- `execution.tool_start` - Tool execution started
+- `execution.tool_finish` - Tool execution completed
 
-- **Single quotes** (`singleQuote: true`)
-- **Line width**: 100 characters
-- **Tab width**: 2 spaces
-- **Trailing commas**: ES5 (no trailing commas in function parameters)
-- **Semicolons**: enabled
+**Agent Events**
 
-### TypeScript & Naming
+- `agent.spawned` - Agent task started
+- `agent.completed` - Agent task completed successfully
+- `agent.failed` - Agent task failed
+- `agent.aborted` - Agent task was aborted
+- `agent.handoff` - Task handed off to another agent
 
-- **NeverNesters**: avoid deeply nested structures. Always exit early
-- **Strict mode**: enforced (`"strict": true`)
-- **Classes**: PascalCase (e.g., `MemoryLane`, `MemoryAdapter`)
-- **Methods/properties**: camelCase
-- **Status strings**: use union types (e.g., `'pending' | 'running' | 'completed' | 'failed'`)
-- **Explicit types**: prefer explicit type annotations over inference for complex types
-- **Avoid `any`**: use `unknown` or more specific types
+**Ledger Events (v4.1)**
 
-### Type System Rules
+- `ledger.epic.created/started/completed/failed` - Epic lifecycle
+- `ledger.task.created/started/completed/failed/yielded` - Task lifecycle
+- `ledger.governance.directive_added` - New directive created
+- `ledger.governance.assumption_added` - New assumption recorded
+- `ledger.learning.extracted` - Learning was extracted
 
-- **Avoid type assertions** (`x as SomeType`) unless justified
-- **No `#private` fields**: use TypeScript `private` visibility
-- **Prefer `readonly`** for properties never reassigned outside constructor
-- **Optional params**: use `?` instead of `| undefined`
-- **Array types**: use `T[]` for simple types, `Array<T>` for complex unions
-- **Never use `{}`**: prefer `unknown` or `Record<string, unknown>`
+### Using the Event-Driven Ledger
 
-### Error Handling
+```typescript
+import {
+  getEventDrivenLedger,
+  createLedgerEventHandlers,
+} from './orchestrator/event-driven-ledger';
 
-- Check error type before accessing: `error instanceof Error ? error.toString() : String(error)`
-- Log errors with `[ERROR]` prefix for consistency
-- Always provide error context when recording output
-- Use union types for status (never strings)
+const ledger = getEventDrivenLedger();
+await ledger.initialize();
 
-### Linting Rules
+const handlers = createLedgerEventHandlers(ledger);
 
-- `@typescript-eslint/no-explicit-any`: warn (avoid `any` type)
-- `no-console`: error (minimize console logs)
-- `prettier/prettier`: error (formatting violations are errors)
+// Emit events for ledger operations
+await handlers.onEpicCreated({
+  id: 'abc123',
+  title: 'Build Auth System',
+  request: 'Implement JWT authentication',
+  status: 'pending',
+  createdAt: Date.now(),
+  tasks: [],
+  context: [],
+  progressLog: [],
+});
 
----
+await handlers.onTaskCreated(
+  {
+    id: 'abc123.1',
+    title: 'Implement JWT',
+    agent: 'executor',
+    status: 'pending',
+    outcome: '-',
+    dependencies: [],
+  },
+  { id: 'abc123', title: 'Build Auth System' } as any
+);
+```
 
-## Testing
+### Using Checkpoints
 
-- Framework: **vitest** with `describe` & `it` blocks
-- Style: Descriptive nested test cases with clear expectations
-- Assertion library: `expect()` (vitest)
-- Test files: `*.test.ts` adjacent to source files
-- Mock patterns: Use vitest mocking for external dependencies
+```typescript
+import { getCheckpointManager, CHECKPOINT_TEMPLATES } from './orchestrator/checkpoint';
 
----
+const manager = getCheckpointManager();
+await manager.initialize();
 
-## Documentation Standards
+// Get a pre-built template
+const template = CHECKPOINT_TEMPLATES.strategyValidation([
+  'Use JWT with RS256',
+  'Use OAuth 2.0',
+  'Use session-based auth',
+]);
 
-### Required Documentation
+// Request approval
+const checkpointId = await manager.requestCheckpoint('stream-id', template, (result) => {
+  if (result.approved) {
+    console.log(`Selected: ${result.selectedOption}`);
+  }
+});
+```
 
-Every module MUST include:
+### Crash Recovery
 
-1. **`SPEC.md`** (in module directory):
-   - Technical specification and architecture
-   - ADRs for non-obvious design choices
-   - Integration points and dependencies
+```typescript
+import { performRecovery, getRecoveryStatus } from './orchestrator/crash-recovery';
 
-2. **`README.md`** (for user-facing modules):
-   - Quick start and usage examples
-   - Available agents/tools and their purposes
-   - Workflow patterns with examples
-
-3. **`SKILL.md`** (for skill-based agents):
-   - Agent identity and role
-   - Available tools and capabilities
-   - Response format and communication style
-
-### Automatic Documentation Updates
-
-Agents are responsible for keeping documentation in sync with the codebase:
-
-1. **Proactive Updates**:
-   - Update `docs/adrs/` when making architectural decisions
-   - Update `src/{module}/SPEC.md` when internal design changes
-   - Update `README.md` files if public APIs change
-
-2. **Context Awareness**:
-   - Verify documentation before completing major work
-   - Update existing docs rather than leaving stale information
-
-### Documentation Tone
-
-- **Professional & Precise**: Use industry-standard terminology
-- **Direct & Grounded**: Avoid fluff; focus on actionable insights
-- **No Redundancy**: Comments must add information, not restate code
+// Check if recovery is needed
+const status = await getRecoveryStatus();
+if (status.hasPendingCheckpoints || status.activeIntentCount > 0) {
+  const report = await performRecovery();
+  console.log(`Recovered ${report.eventsReplayed} events`);
+}
+```
 
 ---
 
 ## Project Context
 
-- **Type**: ES Module package for OpenCode plugin system
-- **Target**: Bun runtime, ES2021+
+- **Type**: ES Module for OpenCode
+- **Target**: Bun runtime
 - **Purpose**: Skill-based multi-agent orchestration with durable state
+- **Version**: 4.1 (Event-Sourced Persistence)
 
 ---
 

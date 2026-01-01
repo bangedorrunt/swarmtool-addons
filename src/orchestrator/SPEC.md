@@ -1,257 +1,108 @@
-# Orchestrator Module: Technical Specification
+# Orchestrator Module: Technical Specification (v4.0)
 
-The Orchestrator module is the engine of the skill-based subagent system. It manages agent lifecycles, supervises background tasks, and ensures state continuity through the `LEDGER.md`.
+The Orchestrator module is the governance engine of the skill-based subagent system. It implements a **Governance-First** architecture where the **Chief-of-Staff** acts as a Governor, managing the boundary between User Directives (The Law) and Agent Assumptions (The Debt).
 
-## 1. Actor Execution Patterns
+## 1. Core Architecture: Governance-First
 
-The orchestrator implements three primary communication patterns between the Coordinator and the Specialist Actor.
+v4.0 pivots from "Task-Driven Routing" to "Governance-First Orchestration".
 
-### I. Communication Modes Summary
+### I. State Taxonomy
 
-| Mode              | async value | Visibility          | Result      | Use Case                                     |
-| :---------------- | :---------- | :------------------ | :---------- | :------------------------------------------- |
-| Async (Handoff)   | true        | User sees sub-agent | No result   | Interviewer, Spec-Writer, Planner (dialogue) |
-| Sync (Background) | false       | Hidden from user    | Text result | Oracle, Executor, Validator                  |
+| State Type | Location | Mutability | Source | Enforcement |
+|Types|Types|Types|Types|Types|
+| **Directives** | LEDGER → Governance | Immutable | User / Polls | **Must Obey** (The Law) |
+| **Assumptions** | LEDGER → Governance | Mutable | Agents | **Must Audit** (The Debt) |
 
-#### When to Use Async (Handoff)
+### II. The 3-Phase Governance Loop
 
-• Interviewer: User needs to answer questions
-• Spec-Writer: User needs to approve specification
-• Planner: User needs to approve implementation plan
-• Any agent operating in DIALOGUE mode
+Every major workflow follows this cycle:
 
-#### When to Use Sync (Background)
+1.  **PHASE 1: STATE CHECK**
+    - Load Directives from LEDGER.
+    - Check if critical Directives are missing for the request.
+    - If missing: Trigger **Strategic Poll** (User fills the gap).
+    - If present: Proceed.
 
-• Oracle: Strategic decomposition (no user input needed)
-• Executor: Code implementation (supervised by TaskRegistry)
-• Validator: Quality checks (automated)
-• Any task where parent needs the result to continue
+2.  **PHASE 2: DELEGATION**
+    - Dispatch sub-agents (Oracle, Execution).
+    - **Constraint**: Pass Directives as hard constraints.
+    - **Capture**: Collect `assumptions_made` and `learnings` from results.
 
-### II. Sequential (Durable Stream)
+3.  **PHASE 3: AUDIT**
+    - Merge new Assumptions into LEDGER.
+    - Report completion to user with an "Assumption Audit" request.
 
-Used for background delegation where the Coordinator needs the result to proceed.
+## 2. Skill-Based Subagent Roster
 
-- `async: false` in `skill_agent`.
-- Spawns a new isolated session.
-- Polls for `idle` status before retrieving the last assistant message.
+The system uses specialized workers coordinated by the Chief-of-Staff.
 
-### II. Parallel (Interactive Handoff)
+| Agent Name | Role | v4.0 Capability | Access |
+| :--- | :--- | :--- | :--- |
+| **Chief-of-Staff** | **Governor** | Governance Loop, Strategic Polling, Drift Detection | Public |
+| **Oracle** | **Tactical Architect** | Parallel Execution Strategy, Conflict Re-decomposition | Internal |
+| **Executor** | **Builder** | Parallel-Safe Execution, File Tracking, TDD | Internal |
+| **Interviewer** | **Strategist** | (Fallback) Deep ambiguity resolution via dialogue | Internal |
+| **Context-Loader** | **Librarian** | Hydrates context from Memory Lane + LEDGER | Internal |
+| **Planner** | **Blueprinter** | Detailed implementation planning | Internal |
+| **Validator** | **QA** | Verification | Internal |
+| **Spec-Writer** | **Scribe** | Creates/Updates Specifications | Internal |
+| **Spec-Reviewer** | **Gatekeeper** | Verifies logic against spec | Internal |
+| **Code-Reviewer** | **Gatekeeper** | Verifies code quality/standards | Internal |
+| **Debugger** | **Mechanic** | Systematic debugging on failure | Internal |
+| **Workflow-Arch** | **Meta-Designer** | Designs new workflows/agents | Internal |
 
-Used when the Specialist needs to interact directly with the user.
+## 3. Human-in-the-Loop Patterns
 
-- `async: true` in `skill_agent`.
-- Returns a `HANDOFF_INTENT` metadata.
-- Intercepted by the `tool.execute.after` hook.
-- Triggers a `promptAsync` after a 800ms settlement delay.
+### I. Strategic Polling (Primary)
 
-### III. Map-Reduce (Parallel Fan-out)
+Replaces open-ended questioning for missing Directives.
+- **Trigger**: Chief-of-Staff detects missing Directive (e.g., "No DB selected").
+- **Mechanism**: Yields `HANDOFF_INTENT` with structured options (A/B/C).
+- **User Action**: Selects option.
+- **Result**: Immediate conversion to Directive.
 
-Used for executing multiple independent tasks simultaneously.
+### II. Assumption Audit (Post-Task)
 
-- **Tools**: `skill_spawn_batch` and `skill_gather`.
-- **Workflow**:
-  1. `spawn_batch` registers multiple tasks in the `TaskRegistry`.
-  2. Observer monitors all sessions in parallel.
-  3. `skill_gather` aggregates results into a structured array once all tasks reach `idle`.
+Replaces silent drift.
+- **Trigger**: Task completion.
+- **Mechanism**: User reviews `## Assumptions` section in LEDGER.
+- **User Action**: Endorse (Implicit) or Reject (Explicit).
+- **Result**: Rejection triggers rework.
 
-## 2. Task Observation & Resilience
+### III. Dialogue (Fallback)
 
-### I. Task Registry
+Used only for deep ambiguity where Polling fails.
+- **Agent**: `interviewer`.
+- **Mechanism**: Multi-turn conversation.
 
-Maintains an in-memory map of all delegated tasks:
+## 4. Execution Patterns
 
-- `taskId`: Linked to `LEDGER.md` (e.g., `abc123.1`).
-- `sessionId`: The isolated session ID.
-- `heartbeat`: Last activity timestamp for stuck detection.
-- `retryCount`: Tracks attempts (max 2).
+### I. Parallel Execution (Map-Reduce)
+- **Engine**: Oracle returns `execution_strategy: "parallel"`.
+- **Action**: Chief-of-Staff uses `skill_spawn_batch`.
+- **Safety**: Executors track `files_modified`.
+- **Conflict**: If file collision detected, CoS triggers Oracle `CONFLICT_REDECOMPOSE`.
 
-### II. Task States & Observer Actions
+### II. Yield & Resume (Upward Instruction)
+- **Mechanism**: Sub-agents return `status: "HANDOFF_INTENT"`.
+- **Use Case**: "I need an API key" or "Ask user preference".
+- **Flow**: CoS catches Yield -> Executes Instruction -> Resumes Sub-agent.
 
-| State       | Description             | Observer Action              |
-| ----------- | ----------------------- | ---------------------------- |
-| `pending`   | Registered, not started | None                         |
-| `running`   | Actively executing      | Check for timeout/stuck      |
-| `completed` | Finished successfully   | Fetch result & update LEDGER |
-| `failed`    | Error occurred          | Log anti-pattern & Retry     |
-| `timeout`   | Exceeded `timeout_ms`   | Kill session & Retry         |
-| `blocked`   | Waiting for user input  | Alert Coordinator            |
+## 5. Resilience & Durability
 
-### III. Observer Loop
+### I. LEDGER as Single Source of Truth
+- State is NOT in memory; it is in `.opencode/LEDGER.md`.
+- **Crash Recovery**: On startup, CoS reads LEDGER to resume active Epic.
 
-A background watchdog that runs every 30s-120s (adaptive interval):
+### II. Heartbeats & Observation
+- **TaskRegistry**: Tracks running tasks.
+- **Watchdog**: Kills/Retries tasks with stale heartbeats (>30s).
 
-1. **Adaptive Interval**: Checks more frequently for high-complexity tasks.
-2. **Auto-Retry**: Creates a **new session** for retries to ensure a clean context.
-3. **Silent Sync**: Automatically updates `LEDGER.md` tasks upon state changes.
+## 6. Access Control
 
-### IV. Recovery Tools
-
-High-level agents (Chief-of-Staff) have explicit tools to handle deadlocks:
-
-- **`task_kill`**: Forcefully mark a stuck task as failed (stopping the clock).
-- **`task_fetch_context`**: Retrieve the full context snapshot (including memory and file state) from a failed task to pass to a replacement agent.
-- **`task_retry`**: Manually trigger a retry for a failed task (bypassing the Observer's schedule).
-
-## 3. Durable Messaging (SwarmMail)
-
-Agents can coordinate without direct parent-child blocking via the **SwarmMail** bus.
-
-- **Pattern**: `swarmmail_send()` --> `Inbox` --> `swarmmail_inbox()`.
-- **Use Case**: Long-running tasks where the coordinator might clear its context before the worker finishes.
-
-## 3.5 LEDGER.md Persistence & Crash Recovery
-
-All task state is persisted to `.opencode/LEDGER.md` for resilience.
-
-### State Synchronization
-
-```typescript
-// On task update
-await updateTaskStatus(ledger, taskId, 'completed', result);
-await saveLedger(ledger); // Persists to .opencode/LEDGER.md
-
-// On session start
-const ledger = await loadLedger();
-const tasks = await TaskRegistry.loadFromLedger(); // Restore running tasks
-```
-
-### Crash Recovery Workflow
-
-```
-┌───────────────────────────────────────────────────────────┐
-│                   SESSION START                            │
-├───────────────────────────────────────────────────────────┤
-│ 1. Load .opencode/LEDGER.md                               │
-│ 2. Check for active Epic                                   │
-│    ├─ YES → Resume:                                        │
-│    │   • pending tasks → re-queue in TaskRegistry         │
-│    │   • running tasks → mark stuck, schedule retry       │
-│    │   • completed tasks → aggregate for summary          │
-│    └─ NO → Start fresh epic                               │
-│ 3. Check for Handoff                                       │
-│    └─ YES → Display "Resuming: {what's next}"             │
-│ 4. Query LEDGER + Memory Lane for learnings               │
-└───────────────────────────────────────────────────────────┘
-```
-
-### Error Handling: User Rejection Flows
-
-| Agent           | Rejection Response   | Next Action                            |
-| --------------- | -------------------- | -------------------------------------- |
-| **Interviewer** | User rejects summary | Loop back to `needs_input`, re-gather  |
-| **Spec-Writer** | User rejects spec    | Revise specification, re-prompt        |
-| **Planner**     | User rejects plan    | Return to Oracle with feedback         |
-| **All**         | User says "cancel"   | Archive epic as CANCELLED, clear state |
-
-## 4. Interaction Patterns (Human-in-the-Loop)
-
-These patterns define how agents interact with mandatory approval checkpoints.
-
-### I. Pattern 1: Ask User Question Workflow (Interviewer-Led)
-
-Use Case: Ambiguous requests requiring clarification.
-
-```
- USER        CHIEF-OF-STAFF    INTERVIEWER    ORACLE        PLANNER
-  | "Build OAuth" |              |              |              |
-  |-------------->| Analyze      |              |              |
-  |               | skill_agent  |              |              |
-  |               |------------->| Check Memory |              |
-  |               |              |<------------>|              |
-  |               |              | HANDOFF      |              |
-  | "Google/JWT"  |<-------------| "Clarify..." |              |
-  |-------------->|              |              |              |
-  |               |              | Accumulate   |              |
-  | "Yes, go"     |<-------------| "Summary..." |              |
-  |-------------->|              | approved     |              |
-  |               | status: approved            |              |
-  |               | consult Oracle              |              |
-  |               |---------------------------->|              |
-  |               |                             | Decompose    |
-  |               | skill_agent (async: true)   |<-------------|
-  |               |------------------------------------------->|
-  |               |                             | HANDOFF      |
-  | "Execute"     |<-------------------------------------------|
-  |-------------->|                             | approved     |
-```
-
-### II. Pattern 2: SDD Workflow
-
-Use Case: Formal specification and phased execution.
-
-```
- USER    CHIEF    INTERVIEWER    SPEC WRITER    ORACLE    PLANNER    EXECUTOR
-  | Req   |          |              |              |         |          |
-  |------>| Phase 1: Clarification  |              |         |          |
-  |       |--------->| needs_input  |              |         |          |
-  | Ans   |<---------|              |              |         |          |
-  |------>| approved |              |              |         |          |
-  |       | Phase 2: Specification  |              |         |          |
-  |       |------------------------>| needs_appr   |         |          |
-  | Appr  |<------------------------|              |         |          |
-  |------>| approved                |              |         |          |
-  |       | Phase 3: Strategy (Sync)|              |         |          |
-  |       |--------------------------------------->| Tasks   |          |
-  |       | Phase 4: Planning (Async)              |<--------|          |
-  |       |------------------------------------------------->| needs_appr|
-  | Appr  |<-------------------------------------------------|          |
-  |------>| approved                                         |          |
-  |       | Phase 5: Supervised Execution                    |          |
-  |       |------------------------------------------------------------>|
-```
-
-## 5. Implementation Logic
-
-### I. Chief-of-Staff TaskRegistry Integration
-
-```typescript
-async function orchestrateWithSupervision(plan: OracleStrategy) {
-  const taskIds: string[] = [];
-  for (const phase of plan.phases) {
-    if (phase.mode === 'parallel') {
-      const phaseTaskIds = await Promise.all(
-        phase.tasks.map((task) =>
-          skill_agent({
-            agent_name: 'executor',
-            prompt: task.description,
-            async: false,
-            max_retries: 3,
-            timeout_ms: 180000,
-          })
-        )
-      );
-      taskIds.push(...phaseTaskIds);
-    } else {
-      for (const task of plan.tasks) {
-        const taskId = await skill_agent({
-          agent_name: 'executor',
-          prompt: task.description,
-          async: false,
-          max_retries: 3,
-        });
-        taskIds.push(taskId);
-      }
-    }
-  }
-  return await task_aggregate({ task_ids: taskIds });
-}
-```
-
-### II. TaskObserver Background Monitoring
-
-• Interval: Adaptive polling (every 10-30s).
-• Timeout Detection: Kills sessions and retries up to max_retries.
-• Stuck Detection: Restarts tasks with no progress for 30s.
-• State Sync: Updates session status and fetches results upon completion.
-
-## 6. Access Control Policy
-
-To ensure coordination integrity, sub-agents are protected:
-
-- **Protected List**: `executor`, `planner`, `validator`, `oracle`, `librarian`, `interviewer`, `spec-reviewer`, `code-quality-reviewer`, `debugger`.
-- **Rule**: They only respond to `chief-of-staff` or the user.
-- **Error**: `ACCESS_DENIED` with a suggestion to use the coordinator.
+- **Public**: `chief-of-staff`
+- **Protected**: All others (Reply "Access Denied" if called directly).
+- **Enforcement**: Middleware checks `agent_name` against whitelist.
 
 ---
-
-_Architecture Version: 3.1.0 (Map-Reduce Enabled)_
+_Architecture Version: 4.0.0 (Governance-First)_

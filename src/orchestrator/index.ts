@@ -137,3 +137,51 @@ export {
 
 // Export Resilient Orchestration - Tools
 export { createResilienceTools, resilienceTools } from './resilience-tools';
+
+// Export Event-Driven Ledger Integration
+export {
+  EventDrivenLedger,
+  getEventDrivenLedger,
+  initializeEventDrivenLedger,
+  shutdownEventDrivenLedger,
+  createLedgerEventHandlers,
+  type LedgerEventConfig,
+  type LedgerEventType,
+  type LedgerEventPayload,
+} from './event-driven-ledger';
+
+// Export Checkpoint System (HITL)
+export {
+  CheckpointManager,
+  getCheckpointManager,
+  initializeCheckpointManager,
+  shutdownCheckpointManager,
+  createCheckpointWorkflow,
+  CHECKPOINT_TEMPLATES,
+  type CheckpointDefinition,
+  type CheckpointResult,
+  type CheckpointHandler,
+} from './checkpoint';
+
+// Export Crash Recovery
+export {
+  CrashRecoverySystem,
+  performRecovery,
+  getRecoveryStatus,
+  createRecoveryWorkflow,
+  type RecoveryState,
+  type RecoveryOptions,
+  type RecoveryReport,
+} from './crash-recovery';
+
+// Export Learning Extraction Pipeline
+export {
+  LearningExtractor,
+  getLearningExtractor,
+  initializeLearningExtractor,
+  shutdownLearningExtractor,
+  extractSessionLearnings,
+  extractEventLearnings,
+  type Learning,
+  type LearningExtractorConfig,
+} from './learning-extractor';

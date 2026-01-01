@@ -21,6 +21,8 @@ import { createAgentTools } from './agent-spawn';
 import { createEventLogTools } from './event-log';
 import { HANDOFF_SETTLE_DELAY_MS } from './memory-lane/hooks';
 import { initializeDurableStream, getDurableStream } from './durable-stream';
+import { ledgerEventTools } from './orchestrator/tools/ledger-tools';
+import { checkpointTools } from './orchestrator/tools/checkpoint-tools';
 
 interface SkillAgentArgs {
   skill_name?: string;
@@ -135,7 +137,9 @@ export const SwarmToolAddons: Plugin = async (input) => {
   });
   const resumeResult = await durableStream.resume();
   if (resumeResult.pending_checkpoints.length > 0) {
-    console.log(`[DurableStream] Resumed with ${resumeResult.pending_checkpoints.length} pending checkpoints`);
+    console.log(
+      `[DurableStream] Resumed with ${resumeResult.pending_checkpoints.length} pending checkpoints`
+    );
   }
 
   // Create session learning hook with skill_agent integration
@@ -156,7 +160,7 @@ export const SwarmToolAddons: Plugin = async (input) => {
           session_id: skillArgs.session_id,
           context: skillArgs.context,
         },
-        { sessionID: '', messageID: '', agent: '', abort: () => { } } as any
+        { sessionID: '', messageID: '', agent: '', abort: () => {} } as any
       );
       try {
         return JSON.parse(result as string);
@@ -173,6 +177,8 @@ export const SwarmToolAddons: Plugin = async (input) => {
       ...skillAgentTools,
       ...agentTools,
       ...eventLogTools,
+      ...ledgerEventTools,
+      ...checkpointTools,
     },
 
     // 2. OpenCode Hooks (must be flat on this object)
@@ -315,7 +321,7 @@ export const SwarmToolAddons: Plugin = async (input) => {
       // 0. Durable Stream Bridge (Event Sourcing)
       const stream = getDurableStream();
       if (stream.isInitialized()) {
-        await stream['handleSdkEvent'](event).catch(() => { });
+        await stream['handleSdkEvent'](event).catch(() => {});
       }
 
       // 1. Session Learning
