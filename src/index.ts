@@ -10,7 +10,7 @@
 
 import type { Plugin } from '@opencode-ai/plugin';
 import path from 'node:path';
-import { memoryLaneTools, triggerMemoryExtraction } from './memory-lane';
+import { memoryLaneTools } from './memory-lane';
 import { loadConfig, DEFAULT_MODELS } from './opencode';
 import { SignalBuffer } from './orchestrator/signal-buffer';
 import { loadLocalAgents, loadSkillAgents, loadCommands } from './opencode';
@@ -19,7 +19,6 @@ import { createOpenCodeSessionLearningHook } from './orchestrator/hooks';
 import { loadChiefOfStaffSkills } from './opencode/config/skill-loader';
 import { createAgentTools } from './agent-spawn';
 import { createEventLogTools } from './event-log';
-import { HANDOFF_SETTLE_DELAY_MS } from './memory-lane/hooks';
 import { initializeDurableStream, getDurableStream } from './durable-stream';
 import { ledgerEventTools } from './orchestrator/tools/ledger-tools';
 import { checkpointTools } from './orchestrator/tools/checkpoint-tools';
@@ -196,18 +195,6 @@ export const SwarmToolAddons: Plugin = async (input) => {
       hookInput: { tool: string; sessionID: string; callID: string },
       hookOutput: { title: string; output: string; metadata: any }
     ) => {
-      // Swarm Complete Handoff (Memory Extraction)
-      if (hookInput.tool === 'swarm_complete') {
-        try {
-          if (hookOutput.metadata?.outcome) {
-            triggerMemoryExtraction(projectPath, hookOutput.metadata.outcome, input.$ as any);
-          }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.toString() : String(error);
-          console.error('[ERROR] Memory extraction failed:', errorMessage);
-        }
-      }
-
       // Agent Lifecycle Handoff 2.0 (Detected via metadata or output)
       let handoffData = null;
       let isHandoffIntent = false;
@@ -235,9 +222,6 @@ export const SwarmToolAddons: Plugin = async (input) => {
         // New: Handle UPWARD_SIGNAL for Yielding
         if (handoffData.type === 'UPWARD_SIGNAL') {
           // We need to route this to the PARENT session.
-          // Current limitation: We don't easily know the parentID here unless we passed it.
-          // But wait, the child session's parent IS the target.
-          // We can get the session struct to find parentID.
           try {
             const sessionRes = await input.client.session.get({
               path: { id: hookInput.sessionID },
@@ -261,10 +245,6 @@ export const SwarmToolAddons: Plugin = async (input) => {
                   data: { summary: handoffData.summary },
                 },
               };
-
-              // If Parent is IDLE using our buffer logic, we can push immediately,
-              // BUT effectively we should just use the buffer logic generally to be safe.
-              // Or if we specifically want to "Wake Up" we might check status.
 
               if (parentStatus?.type === 'idle') {
                 // Push immediately
@@ -296,6 +276,7 @@ export const SwarmToolAddons: Plugin = async (input) => {
         const { target_agent, prompt, session_id } = handoff;
 
         if (target_agent && prompt && session_id) {
+          // Use a fixed delay for settling
           setTimeout(async () => {
             try {
               await input.client.session.promptAsync({
@@ -309,7 +290,7 @@ export const SwarmToolAddons: Plugin = async (input) => {
               const errorMessage = err instanceof Error ? err.toString() : String(err);
               console.error('[ERROR] Handoff prompt failed:', errorMessage);
             }
-          }, HANDOFF_SETTLE_DELAY_MS);
+          }, 800);
         }
       }
     },

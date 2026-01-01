@@ -2,30 +2,9 @@
 
 ## Meta
 
-session_id: sess_dps_001
-status: active
-phase: PLANNING
-last_updated: 2026-01-01T00:00:00.000Z
-tasks_completed: 2/2
-current_task: -
 
 ---
 
-## Epic: orch-sdk-v2
-
-**Title**: Refactor Orchestrator to Native Event-Driven SDK V2
-**Status**: in_progress
-
-| ID     | Title                                       | Agent              | Status | Outcome   |
-| ------ | ------------------------------------------- | ------------------ | ------ | --------- |
-| orch.1 | Update ActorState & Trace Propagation       | workflow-architect | ✅     | SUCCEEDED |
-| orch.2 | Implement Async Spawn & Resume Logic        | executor           | ✅     | SUCCEEDED |
-| orch.3 | Add Cascading Cancellation & Loop Detection | executor           | ✅     | SUCCEEDED |
-
-### Dependencies
-
-- orch.2 -> depends on -> orch.1
-- orch.3 -> depends on -> orch.2
 
 ---
 

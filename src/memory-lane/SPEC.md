@@ -62,11 +62,11 @@ CREATE TABLE memories (
 
 ## 4. Extraction Mechanism
 
-The extraction is triggered by the `swarm_complete` tool hook.
+The extraction is triggered by session lifecycle events (`session.idle`, `session.deleted`).
 
-1. Intercepts the `outcome` metadata from the tool result.
-2. Spawns the `chief-of-staff/memory-catcher` subagent.
-3. The agent distilled the task transcript into structured taxonomy entries.
+1. Intercepts session events to detect idle state.
+2. Spawns the `chief-of-staff/memory-catcher` subagent via the skill-based agent infrastructure.
+3. The agent distills the session transcript into structured taxonomy entries.
 4. Entries are persisted via the `memory_lane_store` tool.
 
 ---

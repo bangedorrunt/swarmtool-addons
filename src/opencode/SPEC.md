@@ -28,10 +28,10 @@ Skills are named using a slash-convention: `[skill-name]/[agent-name]`.
 
 Platform-specific paths:
 
-| Platform | Path |
-|----------|------|
-| macOS/Linux | `~/.config/opencode/swarmtool-addons.json` |
-| Windows | `%APPDATA%\Roaming\opencode\swarmtool-addons.json` |
+| Platform    | Path                                               |
+| ----------- | -------------------------------------------------- |
+| macOS/Linux | `~/.config/opencode/swarmtool-addons.json`         |
+| Windows     | `%APPDATA%\Roaming\opencode\swarmtool-addons.json` |
 
 ### II. Model Override Feature
 
@@ -64,24 +64,24 @@ This ensures that user-specified models in `swarmtool-addons.json` always win.
 
 ### IV. Supported Agent Paths
 
-| Category | Agent Paths |
-|----------|-------------|
-| **Primary Agent** | `chief-of-staff` |
-| **Strategy Subagents** | `chief-of-staff/oracle`, `chief-of-staff/planner`, `chief-of-staff/workflow-architect` |
-| **Dialogue Subagents** | `chief-of-staff/interviewer`, `chief-of-staff/spec-writer` |
+| Category                | Agent Paths                                                                                     |
+| ----------------------- | ----------------------------------------------------------------------------------------------- |
+| **Primary Agent**       | `chief-of-staff`                                                                                |
+| **Strategy Subagents**  | `chief-of-staff/oracle`, `chief-of-staff/planner`, `chief-of-staff/workflow-architect`          |
+| **Dialogue Subagents**  | `chief-of-staff/interviewer`, `chief-of-staff/spec-writer`                                      |
 | **Execution Subagents** | `chief-of-staff/executor`, `chief-of-staff/validator`, `chief-of-staff/frontend-ui-ux-engineer` |
-| **Research Subagents** | `chief-of-staff/explore`, `chief-of-staff/librarian` |
-| **Learning Subagents** | `chief-of-staff/memory-catcher` |
-| **Native OpenCode** | `Code`, `Ask`, `Summarize`, `Plan`, `Build`, `Explore` (case-sensitive) |
+| **Research Subagents**  | `chief-of-staff/explore`, `chief-of-staff/librarian`                                            |
+| **Learning Subagents**  | `chief-of-staff/memory-catcher`                                                                 |
+| **Native OpenCode**     | `Code`, `Ask`, `Summarize`, `Plan`, `Build`, `Explore` (case-sensitive)                         |
 
 ### V. Model Override Fields
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `model` | string | ✅ | Model identifier (e.g., `google/gemini-3-flash`) |
-| `temperature` | number | ❌ | Generation temperature (0.0 - 2.0) |
-| `disable` | boolean | ❌ | Disable this agent entirely |
-| `forcedSkills` | string[] | ❌ | Force specific skills to load |
+| Field          | Type     | Required | Description                                      |
+| -------------- | -------- | -------- | ------------------------------------------------ |
+| `model`        | string   | ✅       | Model identifier (e.g., `google/gemini-3-flash`) |
+| `temperature`  | number   | ❌       | Generation temperature (0.0 - 2.0)               |
+| `disable`      | boolean  | ❌       | Disable this agent entirely                      |
+| `forcedSkills` | string[] | ❌       | Force specific skills to load                    |
 
 ## 3. Configuration Hooks
 
@@ -96,8 +96,8 @@ The plugin utilizes the `config` hook to modify the OpenCode runtime at startup:
 The `index.ts` file acts as the global switchboard, registering hooks for the entire session lifecycle:
 
 - `tool.execute.before`: Injects continuity context from `LEDGER.md` before tool execution.
-- `tool.execute.after`: Intercepts `HANDOFF_INTENT` and `swarm_complete` for orchestration and learning extraction.
-- `event`: Handles session start/end events for learning injection and capture.
+- `tool.execute.after`: Intercepts `HANDOFF_INTENT` for orchestration and learning extraction.
+- `event`: Handles session start/end events for learning injection and capture across all agents.
 
 ---
 

@@ -17,6 +17,8 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { MemoryLaneStore } from '../../memory-lane/memory-store';
 import type { MemoryType } from '../../memory-lane/taxonomy';
+import { getLearningExtractor } from '../learning-extractor';
+import { getEventDrivenLedger } from '../event-driven-ledger';
 
 // Re-export for compatibility with standalone usage
 export {
@@ -172,22 +174,6 @@ function extractKeywords(message: string): string[] {
 }
 
 /**
- * Detect user corrections in message content
- */
-function detectCorrections(content: string): boolean {
-  const correctionPatterns = [
-    /no[,.]?\s+(do|use|try|make|don't|instead|actually)/i,
-    /that's (wrong|incorrect|not right)/i,
-    /not what i (asked|meant|wanted)/i,
-    /instead[,.]?\s+(use|do|try)/i,
-    /prefer[s]?\s+.+\s+(over|instead|rather)/i,
-    /actually[,.]?\s+(i want|use|it should)/i,
-  ];
-
-  return correctionPatterns.some((pattern) => pattern.test(content));
-}
-
-/**
  * Build context injection string from memories and ledger
  */
 function buildLearningContext(memories: Memory[], ledger: string | null): string {
@@ -231,6 +217,15 @@ function buildLearningContext(memories: Memory[], ledger: string | null): string
   }
 
   return sections.join('\n');
+}
+
+/**
+ * Truncate a transcript to prevent context window failures
+ */
+function truncateTranscript(text: string, maxChars: number = 16000): string {
+  if (!text || text.length <= maxChars) return text;
+  const truncated = text.slice(0, maxChars);
+  return `${truncated}\n\n[... TRANSCRIPT TRUNCATED TO ${maxChars} CHARACTERS TO PREVENT CONTEXT ROT ...]`;
 }
 
 /**
@@ -331,27 +326,58 @@ export function createOpenCodeSessionLearningHook(
 
     if (userMessages.length === 0) return;
 
-    // Detect corrections in user messages
-    const corrections = userMessages.filter(detectCorrections);
+    const extractor = getLearningExtractor();
+    const ledger = getEventDrivenLedger();
 
-    // If we have corrections, store them immediately
-    for (const correction of corrections) {
-      await storeToMemoryLane(`User correction: ${correction.slice(0, 200)}`, 'correction');
+    // 1. Extract learnings using the advanced extractor
+    const transcript = userMessages.join('\n---\n');
+    const learnings = await extractor.extractFromEvents([
+      {
+        id: `session_${sessionID}_transcript`,
+        type: 'agent.completed' as any,
+        stream_id: 'session-learning',
+        correlation_id: sessionID,
+        actor: 'user',
+        payload: { result: transcript },
+        timestamp: Date.now(),
+      },
+    ]);
+
+    // 2. Store extracted learnings to Memory Lane and Ledger Event Stream
+    for (const learning of learnings) {
+      await storeToMemoryLane(learning.information, learning.type as any, learning.entities);
+      await ledger.emit('ledger.learning.extracted', {
+        learningType: learning.type,
+        learningContent: learning.information,
+      });
     }
 
-    // If skill_agent is provided, use memory-catcher for deeper extraction
+    // 3. Auto-update LEDGER.md progress for modified files
+    if (modifiedFiles.length > 0) {
+      // Auto-tracking: This ensures even built-in agents contribute to the project history.
+      await ledger.emit('ledger.task.completed', {
+        taskId: 'auto-track-' + Date.now().toString().slice(-4),
+        taskTitle: `Modified files: ${modifiedFiles.join(', ')}`,
+        result: 'Captured via expanded auto-track hook',
+      });
+    }
+
+    // 4. Spawn memory-catcher for deeper extraction if needed
     if (skillAgent) {
+      const transcriptSummary = truncateTranscript(transcript);
+
       await skillAgent({
         skill_name: 'chief-of-staff',
         agent_name: 'memory-catcher',
-        prompt: 'Extract learnings from this completed session.',
+        prompt: 'Extract deep patterns and anti-patterns from this session.',
         context: {
-          transcript_summary: userMessages.slice(-20).join('\n---\n'),
+          transcript_summary: transcriptSummary,
           files_touched: modifiedFiles,
-          user_corrections: corrections,
           session_id: sessionID,
         },
-      }).catch(() => {});
+      }).catch((e: any) => {
+        console.error('[SessionLearning] memory-catcher failed:', e.message || e);
+      });
     }
   }
 
@@ -387,26 +413,35 @@ export function createOpenCodeSessionLearningHook(
   return async ({ event }: { event: { type: string; properties?: unknown } }) => {
     const props = event.properties as Record<string, unknown> | undefined;
 
-    // Session created - initialize tracking
-    if (event.type === 'session.created') {
+    // Helper to get session ID from various possible locations
+    const getSessionID = (): string | undefined => {
+      if (props?.sessionID) return props.sessionID as string;
+      if (props?.sessionId) return props.sessionId as string;
+      if (props?.id) return props.id as string;
       const info = props?.info as Record<string, unknown> | undefined;
-      const sessionID = info?.id as string | undefined;
-      if (sessionID) {
-        sessionFirstMessages.set(sessionID, false);
-        sessionUserMessages.set(sessionID, []);
-        sessionModifiedFiles.set(sessionID, []);
-      }
+      if (info?.sessionID) return info.sessionID as string;
+      if (info?.sessionId) return info.sessionId as string;
+      if (info?.id) return info.id as string;
+      return undefined;
+    };
+
+    const sessionID = getSessionID();
+
+    // Session created - initialize tracking
+    if (event.type === 'session.created' && sessionID) {
+      sessionFirstMessages.set(sessionID, false);
+      sessionUserMessages.set(sessionID, []);
+      sessionModifiedFiles.set(sessionID, []);
       return;
     }
 
     // Message created - check for first user message
-    if (event.type === 'message.created') {
+    if (event.type === 'message.created' && sessionID) {
       const info = props?.info as Record<string, unknown> | undefined;
-      const sessionID = info?.sessionID as string | undefined;
       const role = info?.role as string | undefined;
       const content = info?.content as string | undefined;
 
-      if (!sessionID || !content) return;
+      if (!content) return;
 
       // Track user messages
       if (role === 'user') {
@@ -421,7 +456,6 @@ export function createOpenCodeSessionLearningHook(
 
           if (injection) {
             // Return injection to be added to system prompt
-            // OpenCode will append this to the context
             return { systemPromptAddition: injection };
           }
         }
@@ -438,22 +472,20 @@ export function createOpenCodeSessionLearningHook(
     }
 
     // Tool executed - track file modifications
-    if (event.type === 'tool.execute.after') {
-      const sessionID = props?.sessionID as string | undefined;
+    if (event.type === 'tool.execute.after' && sessionID) {
       const toolName = props?.toolName as string | undefined;
       const result = props?.result as Record<string, unknown> | undefined;
 
-      if (!sessionID) return;
+      // Track file modifications from ANY tool that returns a path in its result
+      // or from known write tools.
+      const filePath =
+        (result?.path as string) || (result?.filePath as string) || (props?.path as string);
 
-      // Track file modifications from write tools
-      if (toolName === 'write' || toolName === 'edit' || toolName === 'patch') {
-        const filePath = result?.path as string | undefined;
-        if (filePath) {
-          const files = sessionModifiedFiles.get(sessionID) || [];
-          if (!files.includes(filePath)) {
-            files.push(filePath);
-            sessionModifiedFiles.set(sessionID, files);
-          }
+      if (filePath) {
+        const files = sessionModifiedFiles.get(sessionID) || [];
+        if (!files.includes(filePath)) {
+          files.push(filePath);
+          sessionModifiedFiles.set(sessionID, files);
         }
       }
 
@@ -461,10 +493,7 @@ export function createOpenCodeSessionLearningHook(
     }
 
     // Session idle - schedule learning capture
-    if (event.type === 'session.idle' && captureEnabled) {
-      const sessionID = props?.sessionID as string | undefined;
-      if (!sessionID) return;
-
+    if (event.type === 'session.idle' && captureEnabled && sessionID) {
       // Cancel any existing pending capture
       const existing = pendingCaptures.get(sessionID);
       if (existing) {
@@ -482,27 +511,22 @@ export function createOpenCodeSessionLearningHook(
     }
 
     // Session deleted - cleanup
-    if (event.type === 'session.deleted') {
-      const info = props?.info as Record<string, unknown> | undefined;
-      const sessionID = info?.id as string | undefined;
+    if (event.type === 'session.deleted' && sessionID) {
+      // Final capture before cleanup
+      if (captureEnabled) {
+        await captureLearnings(sessionID);
+      }
 
-      if (sessionID) {
-        // Final capture before cleanup
-        if (captureEnabled) {
-          await captureLearnings(sessionID);
-        }
+      // Cleanup
+      sessionFirstMessages.delete(sessionID);
+      sessionInjectedContent.delete(sessionID);
+      sessionUserMessages.delete(sessionID);
+      sessionModifiedFiles.delete(sessionID);
 
-        // Cleanup
-        sessionFirstMessages.delete(sessionID);
-        sessionInjectedContent.delete(sessionID);
-        sessionUserMessages.delete(sessionID);
-        sessionModifiedFiles.delete(sessionID);
-
-        const pending = pendingCaptures.get(sessionID);
-        if (pending) {
-          clearTimeout(pending);
-          pendingCaptures.delete(sessionID);
-        }
+      const pending = pendingCaptures.get(sessionID);
+      if (pending) {
+        clearTimeout(pending);
+        pendingCaptures.delete(sessionID);
       }
 
       return;

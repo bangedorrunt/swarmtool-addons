@@ -6,21 +6,21 @@ The Memory Lane module provides standalone memory storage and semantic search fo
 
 The Memory Lane module is responsible for:
 
-- **Memory Extraction**: Automatically extracting learnings from completed task transcripts
+- **Memory Extraction**: Automatically extracting learnings from any agent's session transcript
 - **Semantic Storage**: Storing memories with rich taxonomy and entity associations
 - **Smart Search**: Intent-boosted search with entity resolution and disambiguation
 - **Feedback Loops**: Adaptive learning via helpful/harmful signals
-- **Hooks Integration**: Event-driven extraction via tool execution hooks
+- **Hooks Integration**: Event-driven extraction via session lifecycle hooks
 - **Independence**: Operates natively with OpenCode, decoupled from swarm-tools
 
 ## Features
 
 ### Automatic Memory Extraction
 
-Extracts valuable learnings from completed tasks automatically:
+Extracts valuable learnings from completed sessions automatically:
 
-- **Trigger on Completion**: Listens to `swarm_complete` tool execution
-- **Transcript Analysis**: Parses task results for insights
+- **Trigger on Idle/Exit**: Listens to `session.idle` and `session.deleted` events
+- **Transcript Analysis**: Parses conversation for insights across all agents
 - **Entity Resolution**: Extracts entities from touched files
 - **Taxonomy Classification**: Categorizes learnings (correction, decision, insight, etc.)
 
@@ -112,12 +112,12 @@ Memory Lane is a sidecar to OpenCode, providing a persistent knowledge layer for
 │  │  (Sidecar)      │           │  (Core)      │                 │
 │  │  ┌───────────┐  │           │              │                 │
 │  │  │   Hooks   │◄─┴───────────┤   Lifecycle  │                 │
-│  │  │ (Tool)    │              │   System     │                 │
+│  │  │ (Session) │              │   System     │                 │
 │  │  └───────────┘              └──────────────┘                 │
 │  │                                                         ││
-│  │  swarm_complete triggers:                                  ││
+│  │  Session Events trigger:                                    ││
 │  │  ┌─────────────────┐                                     ││
-│  │  │ memory-catcher│  ← Spawned via opencode CLI            ││
+│  │  │ memory-catcher│  ← Spawned via skill_agent               ││
 │  │  │ Subagent      │                                     ││
 │  │  └─────────────────┘                                     ││
 │  │           │                                              ││
@@ -130,9 +130,10 @@ Memory Lane is a sidecar to OpenCode, providing a persistent knowledge layer for
 │  │  ┌─────────────────┐                                     ││
 │  │  │  Memory Store  │  Independent SQLite database          ││
 │  │  │  (Drizzle)     │  ~/.opencode/memories.db              ││
-│  │  └─────────────────┘                                     ││
+│  │  │  └─────────────────┘                                     ││
 │  └─────────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────┘
+
 ```
 
 ## Database Location

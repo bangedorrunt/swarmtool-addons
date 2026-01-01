@@ -702,10 +702,7 @@ The plugin hook system is the backbone of OpenCode's extensibility. This section
 Hooks follow an **input-output pattern** where plugins receive context and can modify behavior by returning values through the output object:
 
 ```typescript
-type HookFunction = (
-  input: HookInput,
-  output: HookOutput
-) => Promise<void> | void;
+type HookFunction = (input: HookInput, output: HookOutput) => Promise<void> | void;
 ```
 
 ### 14.2 Hooks Interface Reference
@@ -733,8 +730,19 @@ interface Hooks {
   ) => Promise<void>;
 
   'chat.params'?: (
-    input: { sessionID: string; agent: string; model: string; provider: string; message?: UserMessage },
-    output: { temperature?: number; topP?: number; topK?: number; options?: Record<string, unknown> }
+    input: {
+      sessionID: string;
+      agent: string;
+      model: string;
+      provider: string;
+      message?: UserMessage;
+    },
+    output: {
+      temperature?: number;
+      topP?: number;
+      topK?: number;
+      options?: Record<string, unknown>;
+    }
   ) => Promise<void>;
 
   // Tool execution lifecycle
@@ -783,15 +791,16 @@ Every plugin receives a `PluginInput` object providing access to OpenCode's runt
 
 ```typescript
 interface PluginInput {
-  client: OpencodeClient;     // API client for session/agent operations
-  project: Project;           // Project metadata
-  directory: string;          // Project directory path
-  worktree: string;           // Git worktree path
-  $: BunShell;                // Shell execution utilities
+  client: OpencodeClient; // API client for session/agent operations
+  project: Project; // Project metadata
+  directory: string; // Project directory path
+  worktree: string; // Git worktree path
+  $: BunShell; // Shell execution utilities
 }
 ```
 
 The `BunShell` (`$`) provides shell execution capabilities using Bun's APIs:
+
 ```typescript
 type BunShell = {
   run: (cmd: string) => Promise<{ stdout: string; stderr: string }>;
@@ -813,9 +822,11 @@ const myTool = tool({
   description: 'Does something useful',
   parameters: z.object({
     input: z.string().description('Input value'),
-    options: z.object({
-      verbose: z.boolean().default(false),
-    }).optional(),
+    options: z
+      .object({
+        verbose: z.boolean().default(false),
+      })
+      .optional(),
   }),
   execute: async (args, context) => {
     // args: Parsed arguments matching schema
@@ -827,12 +838,13 @@ const myTool = tool({
 ```
 
 **ToolContext Interface:**
+
 ```typescript
 interface ToolContext {
-  sessionID: string;      // Current session ID
-  messageID: string;      // Message that triggered the tool
-  agent: string;          // Current agent name
-  abort: AbortSignal;     // Cancellation signal
+  sessionID: string; // Current session ID
+  messageID: string; // Message that triggered the tool
+  agent: string; // Current agent name
+  abort: AbortSignal; // Cancellation signal
 }
 ```
 
@@ -875,11 +887,12 @@ interface AuthOAuthResult {
 The `swarmtool-addons` plugin demonstrates practical hook usage:
 
 #### Tool.execute.before Hook
+
 ```typescript
 'tool.execute.before': async ({ tool, sessionID, callID }, output) => {
   // Log tool calls for debugging
   console.log(`[${sessionID}] Tool called: ${tool.name}`);
-  
+
   // Inject context for specific tools
   if (tool.name === 'skill_agent') {
     output.args = {
@@ -891,16 +904,12 @@ The `swarmtool-addons` plugin demonstrates practical hook usage:
 ```
 
 #### Tool.execute.after Hook
+
 ```typescript
 'tool.execute.after': async ({ tool, sessionID, callID }, output) => {
-  // Extract learnings from agent completions
-  if (tool.name === 'swarm_complete') {
-    await extractAndStoreLearnings(sessionID, output.output);
-  }
-  
   // Handle handoffs with settlement delay
   if (tool.name === 'handoff' || output.metadata?.handoff) {
-    await new Promise(resolve => setTimeout(resolve, HANDOFF_SETTLE_DELAY_MS));
+    await new Promise(resolve => setTimeout(resolve, 800));
     await input.client.session.promptAsync({
       sessionID,
       body: { agent: 'chief-of-staff', parts: parseHandoffParts(output.output) },
@@ -910,6 +919,7 @@ The `swarmtool-addons` plugin demonstrates practical hook usage:
 ```
 
 #### Session Learning Hook Pattern
+
 From `src/orchestrator/hooks/opencode-session-learning.ts`:
 
 ```typescript
@@ -937,9 +947,7 @@ export function createOpenCodeSessionLearningHook() {
 
             if (!sessionFirstMessages.get(sessionID)) {
               sessionFirstMessages.set(sessionID, true);
-              const memories = await queryMemoryLane(
-                extractKeywords(event.data.content)
-              );
+              const memories = await queryMemoryLane(extractKeywords(event.data.content));
               await injectLearnings(sessionID, memories);
             }
           }
@@ -1040,12 +1048,12 @@ From `opencode-session-learning.ts`, learnings are stored in priority order:
 
 ```typescript
 const LEARNING_TYPE_ORDER = [
-  'correction',     // User corrections (highest priority)
-  'decision',       // Architectural decisions
-  'preference',     // User preferences
-  'anti_pattern',   // What didn't work
-  'pattern',        // What worked well
-  'insight',        // General insights
+  'correction', // User corrections (highest priority)
+  'decision', // Architectural decisions
+  'preference', // User preferences
+  'anti_pattern', // What didn't work
+  'pattern', // What worked well
+  'insight', // General insights
 ];
 ```
 

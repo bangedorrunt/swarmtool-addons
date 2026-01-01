@@ -58,6 +58,10 @@ const SUCCESS_PATTERNS = [
   /good (job|job!|work)/i,
   /thank(s| you)/i,
   /exactly (what i|what we)/i,
+  /looks good/i,
+  /awesome/i,
+  /great/i,
+  /ship it/i,
 ];
 
 const FAILURE_PATTERNS = [
@@ -68,6 +72,10 @@ const FAILURE_PATTERNS = [
   /cancel/i,
   /never mind/i,
   /start over/i,
+  /error/i,
+  /fail/i,
+  /broken/i,
+  /didn.?t work/i,
 ];
 
 export class LearningExtractor {
@@ -125,6 +133,34 @@ export class LearningExtractor {
           information: this.extractContext(content, pattern),
           entities: this.extractEntities(content),
           confidence: 0.9,
+          sourceEventId: event.id,
+          extractedAt: Date.now(),
+        });
+        break;
+      }
+    }
+
+    for (const pattern of FAILURE_PATTERNS) {
+      if (pattern.test(content)) {
+        learnings.push({
+          id: `failure_${event.id}`,
+          type: 'anti_pattern',
+          information: `Detected failure/rejection: "${content.slice(0, 100)}..."`,
+          confidence: 0.8,
+          sourceEventId: event.id,
+          extractedAt: Date.now(),
+        });
+        break;
+      }
+    }
+
+    for (const pattern of SUCCESS_PATTERNS) {
+      if (pattern.test(content)) {
+        learnings.push({
+          id: `success_${event.id}`,
+          type: 'pattern',
+          information: `Detected success/approval: "${content.slice(0, 100)}..."`,
+          confidence: 0.8,
           sourceEventId: event.id,
           extractedAt: Date.now(),
         });
