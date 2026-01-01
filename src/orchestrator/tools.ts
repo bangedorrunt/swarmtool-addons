@@ -1,6 +1,5 @@
 import { tool, type PluginInput } from '@opencode-ai/plugin';
-import { loadSkillAgents } from '../opencode/loader';
-import { loadChiefOfStaffSkills, getAvailableSkillNames } from '../opencode/config/skill-loader';
+import { resolveAgent, listAllAgents } from './skill-agent-resolution';
 import { spawnChildAgent } from './session-coordination';
 import { loadActorState } from './actor/state';
 import { processMessage } from './actor/core';
@@ -208,35 +207,17 @@ export function createSkillAgentTools(client: PluginInput['client']) {
           : prompt;
 
         // 1. Resolve agent
-        const searchNames = [agent_name];
-        if (skill_name) {
-          const prefixed1 = `${skill_name}/${agent_name}`;
-          const prefixed2 = `${skill_name}-${agent_name}`;
-          if (!searchNames.includes(prefixed1)) {
-            searchNames.push(prefixed1);
-          }
-          if (!searchNames.includes(prefixed2)) {
-            searchNames.push(prefixed2);
-          }
-        }
-
-        const [skillAgents, chiefOfStaffSkills] = await Promise.all([
-          loadSkillAgents(),
-          loadChiefOfStaffSkills(),
-        ]);
-
-        const allAgents = [
-          ...skillAgents,
-          ...chiefOfStaffSkills.map((s) => ({ name: s.name, config: s })),
-        ];
-
-        const agent = allAgents.find((a: any) => searchNames.includes(a.name));
+        const agent = await resolveAgent({
+          skill_name,
+          agent_name: raw_agent_name,
+          agent: agent_alias,
+        });
 
         if (!agent) {
           return JSON.stringify({
             success: false,
             error: 'AGENT_NOT_FOUND',
-            message: `Agent not found: ${agent_name}`,
+            message: `Agent not found: ${raw_agent_name || agent_alias}`,
           });
         }
 
@@ -469,18 +450,7 @@ export function createSkillAgentTools(client: PluginInput['client']) {
       description: 'List available skill-based agents',
       args: {},
       async execute() {
-        const [skillAgents, chiefOfStaffSkills] = await Promise.all([
-          loadSkillAgents(),
-          loadChiefOfStaffSkills(),
-        ]);
-
-        const allAgentNames = [
-          ...skillAgents.map((a) => a.name),
-          ...chiefOfStaffSkills.map((s) => s.name),
-        ];
-
-        // Deduplicate and sort
-        const uniqueAgents = [...new Set(allAgentNames)].sort();
+        const uniqueAgents = await listAllAgents();
 
         return JSON.stringify(
           {
@@ -582,32 +552,13 @@ export function createSkillAgentTools(client: PluginInput['client']) {
 
         // Batch spawning agents
 
-        // Resolve all agents first
-        const [skillAgents, chiefOfStaffSkills] = await Promise.all([
-          loadSkillAgents(),
-          loadChiefOfStaffSkills(),
-        ]);
-
-        const allAgents = [
-          ...skillAgents,
-          ...chiefOfStaffSkills.map((s) => ({ name: s.name, config: s })),
-        ];
-
         // Spawn all tasks in parallel
         const spawnPromises = tasks.map(async (task, index) => {
-          const searchNames = [task.agent_name];
-          if (task.skill_name) {
-            const prefixed1 = `${task.skill_name}/${task.agent_name}`;
-            const prefixed2 = `${task.skill_name}-${task.agent_name}`;
-            if (!searchNames.includes(prefixed1)) {
-              searchNames.push(prefixed1);
-            }
-            if (!searchNames.includes(prefixed2)) {
-              searchNames.push(prefixed2);
-            }
-          }
+          const agent = await resolveAgent({
+            skill_name: task.skill_name,
+            agent_name: task.agent_name,
+          });
 
-          const agent = allAgents.find((a) => searchNames.includes(a.name));
           if (!agent) {
             return {
               task_id: index,

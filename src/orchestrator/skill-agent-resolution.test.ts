@@ -1,159 +1,84 @@
-import { describe, expect, it, vi } from 'vitest';
-import { createSkillAgentTools } from './tools';
-
-// Mock @opencode-ai/plugin
-vi.mock('@opencode-ai/plugin', () => {
-    const mockTool: any = vi.fn((opts) => ({
-        execute: opts.execute,
-    }));
-    mockTool.schema = {
-        string: () => ({ optional: () => ({ describe: () => ({}) }), describe: () => ({}) }),
-        boolean: () => ({ optional: () => ({ default: () => ({ describe: () => ({}) }) }) }),
-        number: () => ({ optional: () => ({ default: () => ({ describe: () => ({}) }) }) }),
-        any: () => ({ optional: () => ({ describe: () => ({}) }) }),
-        array: () => ({ describe: () => ({}) }),
-        object: () => ({ describe: () => ({}) }),
-    };
-    return {
-        tool: mockTool,
-    };
-});
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { resolveAgent, listAllAgents } from './skill-agent-resolution';
+import { loadSkillAgents } from '../opencode/loader';
+import { loadChiefOfStaffSkills } from '../opencode/config/skill-loader';
 
 // Mock dependencies
 vi.mock('../opencode/loader', () => ({
-    loadSkillAgents: vi.fn(async () => [
-        { name: 'test-skill/test-agent', config: { prompt: 'test' } },
-        { name: 'other-agent', config: { prompt: 'other' } }
-    ]),
+  loadSkillAgents: vi.fn(),
 }));
 
 vi.mock('../opencode/config/skill-loader', () => ({
-    loadChiefOfStaffSkills: vi.fn(async () => [
-        { name: 'chief-of-staff/oracle', description: 'oracle', prompt: 'oracle' },
-        { name: 'chief-of-staff/executor', description: 'executor', prompt: 'executor' },
-    ]),
-    getAvailableSkillNames: vi.fn(async () => ['chief-of-staff/oracle', 'chief-of-staff/executor']),
+  loadChiefOfStaffSkills: vi.fn(),
 }));
 
-vi.mock('./session-coordination', () => ({
-    spawnChildAgent: vi.fn(),
-}));
+describe('Skill Agent Resolution Logic', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
-vi.mock('./actor/state', () => ({
-    loadActorState: vi.fn(async () => ({})),
-}));
+  it('should resolve agent using exact name', async () => {
+    (loadSkillAgents as any).mockResolvedValue([{ name: 'executor', config: {} }]);
+    (loadChiefOfStaffSkills as any).mockResolvedValue([]);
 
-vi.mock('./actor/core', () => ({
-    processMessage: vi.fn(),
-}));
+    const result = await resolveAgent({ agent_name: 'executor' });
+    expect(result?.name).toBe('executor');
+  });
 
-describe('skill_agent Resolution', () => {
-    const mockClient = {
-        session: {
-            create: vi.fn(async () => ({ data: { id: 'session-123' } })),
-            prompt: vi.fn(async () => { }),
-            promptAsync: vi.fn(async () => { }),
-            status: vi.fn(async () => ({ data: {} })),
-            messages: vi.fn(async () => ({ data: [] })),
-        },
-    };
+  it('should resolve agent with chief-of-staff prefix if not provided', async () => {
+    (loadSkillAgents as any).mockResolvedValue([]);
+    (loadChiefOfStaffSkills as any).mockResolvedValue([
+      { name: 'chief-of-staff/oracle', config: {} },
+    ]);
 
-    const tools = createSkillAgentTools(mockClient as any);
-    const skill_agent = tools.skill_agent;
+    const result = await resolveAgent({ agent_name: 'oracle' });
+    expect(result?.name).toBe('chief-of-staff/oracle');
+  });
 
-    it('should resolve agent using hierarchical name in agent_name', async () => {
-        const result = await skill_agent.execute({
-            agent_name: 'chief-of-staff/oracle',
-            prompt: 'hello',
-            async: true,
-            timeout_ms: 60000
-        }, { sessionID: 'parent-123' } as any);
+  it('should resolve agent with skill_name prefix', async () => {
+    (loadSkillAgents as any).mockResolvedValue([{ name: 'my-skill/my-agent', config: {} }]);
+    (loadChiefOfStaffSkills as any).mockResolvedValue([]);
 
-        const parsed = JSON.parse(result);
-        expect(parsed.success).toBe(true);
-        expect(parsed.agent).toBe('chief-of-staff/oracle');
-    });
+    const result = await resolveAgent({ skill_name: 'my-skill', agent_name: 'my-agent' });
+    expect(result?.name).toBe('my-skill/my-agent');
+  });
 
-    it('should resolve agent using short name and skill_name', async () => {
-        const result = await skill_agent.execute({
-            skill_name: 'chief-of-staff',
-            agent_name: 'oracle',
-            prompt: 'hello',
-            async: true,
-            timeout_ms: 60000
-        }, { sessionID: 'parent-123' } as any);
+  it('should fallback to Explore if agent not found', async () => {
+    (loadSkillAgents as any).mockResolvedValue([]);
+    (loadChiefOfStaffSkills as any).mockResolvedValue([
+      { name: 'chief-of-staff/explore', config: {} },
+    ]);
 
-        const parsed = JSON.parse(result);
-        expect(parsed.success).toBe(true);
-        expect(parsed.agent).toBe('chief-of-staff/oracle');
-    });
+    const result = await resolveAgent({ agent_name: 'unknown-agent' });
+    expect(result?.name).toBe('chief-of-staff/explore');
+  });
 
-    it('should resolve agent using "agent" alias (backward compatibility)', async () => {
-        const result = await (skill_agent.execute as any)({
-            agent: 'chief-of-staff/executor',
-            prompt: 'hello',
-            async: true,
-            timeout_ms: 60000
-        }, { sessionID: 'parent-123' } as any);
+  it('should fallback to General if Explore not found', async () => {
+    (loadSkillAgents as any).mockResolvedValue([]);
+    (loadChiefOfStaffSkills as any).mockResolvedValue([
+      { name: 'chief-of-staff/general', config: {} },
+    ]);
 
-        const parsed = JSON.parse(result);
-        expect(parsed.success).toBe(true);
-        expect(parsed.agent).toBe('chief-of-staff/executor');
-    });
+    const result = await resolveAgent({ agent_name: 'unknown-agent' });
+    expect(result?.name).toBe('chief-of-staff/general');
+  });
 
-    it('should resolve nested agent by short name if it includes a slash', async () => {
-        const result = await skill_agent.execute({
-            agent_name: 'test-skill/test-agent',
-            prompt: 'hello',
-            async: true,
-            timeout_ms: 60000
-        }, { sessionID: 'parent-123' } as any);
+  it('should return null if no agent or fallback exists', async () => {
+    (loadSkillAgents as any).mockResolvedValue([]);
+    (loadChiefOfStaffSkills as any).mockResolvedValue([]);
 
-        const parsed = JSON.parse(result);
-        expect(parsed.success).toBe(true);
-        expect(parsed.agent).toBe('test-skill/test-agent');
-    });
+    const result = await resolveAgent({ agent_name: 'unknown-agent' });
+    expect(result).toBeNull();
+  });
 
-    it('should return error if agent not found', async () => {
-        const result = await skill_agent.execute({
-            agent_name: 'non-existent',
-            prompt: 'hello',
-            async: true,
-            timeout_ms: 60000
-        }, { sessionID: 'parent-123' } as any);
+  it('should list all agents uniquely and sorted', async () => {
+    (loadSkillAgents as any).mockResolvedValue([{ name: 'executor' }, { name: 'common' }]);
+    (loadChiefOfStaffSkills as any).mockResolvedValue([
+      { name: 'chief-of-staff/oracle' },
+      { name: 'common' },
+    ]);
 
-        const parsed = JSON.parse(result);
-        expect(parsed.success).toBe(false);
-        expect(parsed.error).toBe('AGENT_NOT_FOUND');
-    });
-
-    it('should return error if both agent_name and agent are missing', async () => {
-        const result = await (skill_agent.execute as any)({
-            prompt: 'hello',
-            async: true,
-            timeout_ms: 60000
-        }, { sessionID: 'parent-123' } as any);
-
-        const parsed = JSON.parse(result);
-        expect(parsed.success).toBe(false);
-        expect(parsed.error).toBe('MISSING_ARGUMENT');
-    });
-});
-
-describe('skill_list Resolution', () => {
-    const mockClient = { session: {} };
-    const tools = createSkillAgentTools(mockClient as any);
-    const skill_list = tools.skill_list;
-
-    it('should list all agents from both loaders', async () => {
-        const result = await skill_list.execute({}, {} as any);
-        const parsed = JSON.parse(result);
-
-        expect(parsed.success).toBe(true);
-        expect(parsed.agents).toContain('chief-of-staff/executor');
-        expect(parsed.agents).toContain('chief-of-staff/oracle');
-        expect(parsed.agents).toContain('test-skill/test-agent');
-        expect(parsed.agents).toContain('other-agent');
-        expect(parsed.count).toBe(4);
-    });
+    const agents = await listAllAgents();
+    expect(agents).toEqual(['chief-of-staff/oracle', 'common', 'executor']);
+  });
 });
