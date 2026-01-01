@@ -7,6 +7,7 @@ This is an addon to leverage amazing swarm-tools features. It implements a robus
 ## 🌟 Key Features
 
 • 🏗️ **Skill-Based Subagent Architecture**: Package domain expertise into specialized, on-demand workers.
+• 🏛️ **Governance-First Orchestration (v4.0)**: Explicit Directives (The Law) + Tracked Assumptions (The Debt) for drift prevention.
 • 🔄 **Dual-Mode Orchestration**: Support for both Parallel (Async) interactive handoffs and Sequential (Sync) background delegation.
 • 🧠 **Self-Learning Memory System**: Automatic cross-session wisdom accumulation via Memory Lane (Vector DB) + LEDGER.md.
 • 📝 **Durable State Continuity**: `LEDGER.md` persists work across sessions with crash recovery built-in.

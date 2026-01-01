@@ -32,22 +32,22 @@ The Orchestrator module provides skill-based agents that can be composed into po
 
 | Agent                     | What It Does                | When to Use                                   |
 | ------------------------- | --------------------------- | --------------------------------------------- |
-| **🔮 Oracle**             | Expert technical advisor    | Architecture questions, technology choices    |
-| **📚 Librarian**          | Library research specialist | Learning new libraries, finding examples      |
-| **🔍 Explore**            | Codebase search expert      | Finding code, understanding project structure |
-| **🎤 Interviewer**        | Requirement clarifier       | When your request is unclear                  |
+| **👔 Chief-of-Staff**     | Governor & Strategist (v4.0)| Complex multi-step projects, drift prevention |
+| **🔮 Oracle**             | Tactical Architect (v4.0)   | Architecture questions, technology choices    |
+| **🎯 Interviewer**        | Strategist with Polling     | Complex multi-turn clarification only         |
+| **🔨 Executor**           | Transparent Worker (v4.0)   | Actual code implementation                    |
 | **📋 Spec-Writer**        | Requirements documenter     | Before starting new features                  |
 | **📐 Planner**            | Implementation strategist   | Creating step-by-step plans                   |
 | **✅ Validator**          | Quality gate checker        | Reviewing plans against best practices        |
-| **🔨 Executor**           | TDD implementer             | Actual code implementation                    |
+| **📚 Librarian**          | Library research specialist | Learning new libraries, finding examples      |
+| **🔍 Explore**            | Codebase search expert      | Finding code, understanding project structure |
 | **🧠 Memory-Catcher**     | Learning extractor          | Automatically captures what you prefer        |
-| **👔 Chief-of-Staff**     | Team coordinator            | Complex multi-step projects                   |
 | **🏗️ Workflow-Architect** | Pattern designer            | Creating new workflow patterns                |
-| **📝 Spec-Reviewer** ⭐    | Spec compliance checker     | First stage of two-stage review               |
-| **🎯 Code-Quality-Reviewer** ⭐ | Code quality checker  | Second stage of two-stage review              |
-| **🐛 Debugger** ⭐         | Root cause analyst          | Systematic debugging (4-phase protocol)       |
+| **📝 Spec-Reviewer**      | Spec compliance checker     | First stage of two-stage review               |
+| **🎯 Code-Quality-Reviewer** | Code quality checker     | Second stage of two-stage review              |
+| **🐛 Debugger**           | Root cause analyst          | Systematic debugging (4-phase protocol)       |
 
-> ⭐ **New agents** for two-stage review and systematic debugging.
+> ⭐ **v4.0 agents** include Governance features: `assumptions_made` output and Directive compliance.
 
 
 ---
@@ -358,6 +358,38 @@ USER: "Build dashboard"
 - **Execution**: User can monitor with `task_status` anytime
 
 See [docs/WORKFLOW_PATTERNS_GUIDE.md](../docs/WORKFLOW_PATTERNS_GUIDE.md) for detailed sequence diagrams and decision trees.
+
+---
+
+## 🏛️ Governance (v4.0)
+
+Chief-of-Staff now manages **Directives** (The Law) and **Assumptions** (The Debt):
+
+```
+┌─────────────────────────────────────────┐
+│        .opencode/LEDGER.md              │
+├─────────────────────────────────────────┤
+│ ## Governance                           │
+│                                         │
+│ ### Directives (The Law)                │
+│ - [x] Tech Stack: Next.js (User)        │
+│ - [x] Database: PostgreSQL (User)       │
+│                                         │
+│ ### Assumptions (The Debt)              │
+│ - [?] UI Lib: Shadcn (Executor: standard)│
+│ - [?] Auth: Clerk (Oracle: fastest)     │
+└─────────────────────────────────────────┘
+```
+
+**Key concepts:**
+- **Directives**: User decisions that agents MUST follow. Immutable.
+- **Assumptions**: Agent decisions pending user review. Logged for audit.
+- **Strategic Polls**: A/B/C options instead of open questions.
+
+**3-Phase Governance Loop:**
+1. **STATE CHECK**: Load Directives, detect gaps, create Polls
+2. **DELEGATION**: Send task with Directives constraint
+3. **AUDIT**: Log `assumptions_made` from agent output
 
 ---
 

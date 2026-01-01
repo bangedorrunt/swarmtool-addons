@@ -4,7 +4,7 @@
 
 ### Skill-Based Agent Architecture
 
-This plugin implements a **Skill-Based Subagent** architecture where domain expertise is packaged into specialized, on-demand workers coordinated by a `chief-of-staff` agent.
+This plugin implements a **Skill-Based Subagent** architecture with **Governance-First Orchestration (v4.0)** where domain expertise is packaged into specialized, on-demand workers coordinated by a `chief-of-staff` Governor agent.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -114,6 +114,13 @@ src/
 - Protected agents only respond to coordinator patterns
 - Prevents direct invocation of internal agents
 - Ensures proper state management and coordination
+
+**Governance-First (v4.0):**
+
+- **Directives** (The Law): User decisions that agents MUST follow
+- **Assumptions** (The Debt): Agent decisions logged for user review
+- Chief-of-Staff runs 3-phase loop: STATE CHECK → DELEGATION → AUDIT
+- Strategic Polling replaces open-ended questions
 
 **Event-Driven Architecture:**
 
@@ -246,4 +253,4 @@ Agents are responsible for keeping documentation in sync with the codebase:
 
 ---
 
-_Last Updated: 2025-12-31_
+_Last Updated: 2026-01-01_
