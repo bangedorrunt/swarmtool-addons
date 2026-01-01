@@ -1,0 +1,64 @@
+{
+  "raw": "```json\n{\n  \"epic\": {\n    \"title\": \"Refactor Order Schema and Update Queries\",\n    \"request\": \"Refactor the database schema for orders and update all existing queries to match\",\n    \"rationale\": \"This request involves a breaking change to the database schema, requiring a coordinated update of both the schema definition and all application code that interacts with it.\"\n  },\n  \"tasks\": [\n    {\n      \"title\": \"Refactor 'orders' database schema\",\n      \"agent\": \"executor\",\n      \"dependencies\": [],\n      \"affects_files\": [\n        \"migrations/v2/001_refactor_orders_schema.sql\",\n        \"src/db/schema.ts\",\n        \"src/models/Order.ts\"\n      ],\n      \"complexity\": \"medium\",\n      \"description\": \"Analyze the existing 'orders' table schema, identify areas for improvement (e.g., normalization, indexing, data types), and implement the refactored schema. This includes creating and applying necessary database migration scripts. Ensure backward compatibility considerations are documented if a phased rollout is needed.\",\n      \"durable_intent\": \"schema-refactor-orders\"\n    },\n    {\n      \"title\": \"Update all 'orders' related queries and ORM mappings\",\n      \"agent\": \"executor\",\n      \"dependencies\": [\"Refactor 'orders' database schema\"],\n      \"affects_files\": [\n        \"src/services/orderService.ts\",\n        \"src/repositories/orderRepository.ts\",\n        \"src/controllers/orderController.ts\",\n        \"src/routes/api/orders.ts\",\n        \"tests/integration/order.test.ts\",\n        \"src/utils/dataMappers.ts\"\n      ],\n      \"complexity\": \"high\",\n      \"description\": \"Identify all application code that interacts with the 'orders' table (SQL queries, ORM calls, data models, DTOs). Update these components to align with the new database schema. This includes modifying select, insert, update, and delete statements, adjusting object-relational mappings, and updating relevant business logic. Comprehensive unit and integration tests must be updated/created to ensure correctness.\",\n      \"durable_intent\": \"queries-update-orders\"\n    }\n  ],\n  \"execution_strategy\": {\n    \"mode\": \"sequential\",\n    \"rationale\": \"The task of updating queries is directly dependent on the completion of the database schema refactoring. Queries cannot be updated to match a schema that doesn't yet exist or is in flux. Running these in parallel would lead to broken application logic and potential data corruption.\",\n    \"risk_assessment\": \"NONE\"\n  },\n  \"assumptions_made\": [\n    {\n      \"choice\": \"A robust database migration system is in place.\",\n      \"rationale\": \"Schema changes require controlled, versioned migrations to ensure consistency and reversibility.\"\n    },\n    {\n      \"choice\": \"The refactoring involves breaking changes to existing queries.\",\n      \"rationale\": \"If the refactoring was purely additive/non-breaking, a mixed strategy might be considered for some peripheral tasks, but updating *all* existing queries implies breaking changes.\"\n    },\n    {\n      \"choice\": \"Automated tests for 'orders' functionality exist or will be created.\",\n      \"rationale\": \"Critical for verifying the correctness of both schema and query updates.\"\n    }\n  ]\n}\n```",
+  "parsed": {
+    "epic": {
+      "title": "Refactor Order Schema and Update Queries",
+      "request": "Refactor the database schema for orders and update all existing queries to match",
+      "rationale": "This request involves a breaking change to the database schema, requiring a coordinated update of both the schema definition and all application code that interacts with it."
+    },
+    "tasks": [
+      {
+        "title": "Refactor 'orders' database schema",
+        "agent": "executor",
+        "dependencies": [],
+        "affects_files": [
+          "migrations/v2/001_refactor_orders_schema.sql",
+          "src/db/schema.ts",
+          "src/models/Order.ts"
+        ],
+        "complexity": "medium",
+        "description": "Analyze the existing 'orders' table schema, identify areas for improvement (e.g., normalization, indexing, data types), and implement the refactored schema. This includes creating and applying necessary database migration scripts. Ensure backward compatibility considerations are documented if a phased rollout is needed.",
+        "durable_intent": "schema-refactor-orders"
+      },
+      {
+        "title": "Update all 'orders' related queries and ORM mappings",
+        "agent": "executor",
+        "dependencies": [
+          "Refactor 'orders' database schema"
+        ],
+        "affects_files": [
+          "src/services/orderService.ts",
+          "src/repositories/orderRepository.ts",
+          "src/controllers/orderController.ts",
+          "src/routes/api/orders.ts",
+          "tests/integration/order.test.ts",
+          "src/utils/dataMappers.ts"
+        ],
+        "complexity": "high",
+        "description": "Identify all application code that interacts with the 'orders' table (SQL queries, ORM calls, data models, DTOs). Update these components to align with the new database schema. This includes modifying select, insert, update, and delete statements, adjusting object-relational mappings, and updating relevant business logic. Comprehensive unit and integration tests must be updated/created to ensure correctness.",
+        "durable_intent": "queries-update-orders"
+      }
+    ],
+    "execution_strategy": {
+      "mode": "sequential",
+      "rationale": "The task of updating queries is directly dependent on the completion of the database schema refactoring. Queries cannot be updated to match a schema that doesn't yet exist or is in flux. Running these in parallel would lead to broken application logic and potential data corruption.",
+      "risk_assessment": "NONE"
+    },
+    "assumptions_made": [
+      {
+        "choice": "A robust database migration system is in place.",
+        "rationale": "Schema changes require controlled, versioned migrations to ensure consistency and reversibility."
+      },
+      {
+        "choice": "The refactoring involves breaking changes to existing queries.",
+        "rationale": "If the refactoring was purely additive/non-breaking, a mixed strategy might be considered for some peripheral tasks, but updating *all* existing queries implies breaking changes."
+      },
+      {
+        "choice": "Automated tests for 'orders' functionality exist or will be created.",
+        "rationale": "Critical for verifying the correctness of both schema and query updates."
+      }
+    ]
+  },
+  "model": "gemini-2.5-flash",
+  "timestamp": "2026-01-01T08:46:33.624Z"
+}

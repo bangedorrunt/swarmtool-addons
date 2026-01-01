@@ -6,7 +6,11 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/evals/**/*.eval.ts'],
     exclude: ['node_modules', 'dist'],
-    testTimeout: 10000,
+    testTimeout: 60000,
+    reporters: ['default', 'json'],
+    outputFile: {
+      json: './test-results.json',
+    },
     server: {
       deps: {
         // Force inline @opencode-ai/plugin to work around ESM resolution

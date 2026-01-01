@@ -30,9 +30,11 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.2",
     "@libsql/client": "^0.15.15",
     "@opencode-ai/plugin": "dev",
     "@types/proper-lockfile": "^4.1.4",
+    "ai": "^6.0.5",
     "drizzle-orm": "^0.45.1",
     "gray-matter": "^4.0.3",
     "proper-lockfile": "^4.1.2",

@@ -1,0 +1,72 @@
+name: AI Evaluation & Testing
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-eval:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      # 1. Chạy Unit Tests trước (Nhanh và không tốn phí)
+      - name: Run Unit Tests
+        run: npm test
+
+      # 2. Khôi phục Cache của Evalite (Tiết kiệm token)
+      - name: Restore Evalite Cache
+        uses: actions/cache@v4
+        with:
+          path: .evalite/cache
+          key: ${{ runner.os }}-evalite-${{ hashFiles('src/orchestrator/chief-of-staff/agents/**/SKILL.md') }}
+          restore-keys: |
+            ${{ runner.os }}-evalite-
+
+      # 3. Chạy LLM Evaluations
+      - name: Run AI Evaluations
+        env:
+          GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+        run: npm run eval
+        if: success()
+
+      # 4. Tạo Báo cáo Tổng hợp (Step Summary)
+      - name: Generate Evaluation Report
+        if: always()
+        run: |
+          echo "### 📊 AI Evaluation Summary" >> $GITHUB_STEP_SUMMARY
+          if [ -f "test-results.json" ]; then
+            PASSED=$(jq '.numPassedTests' test-results.json)
+            FAILED=$(jq '.numFailedTests' test-results.json)
+            TOTAL=$(jq '.numTotalTests' test-results.json)
+            DURATION=$(jq '.startTime' test-results.json)
+            
+            echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+            echo "| ✅ Passed | $PASSED |" >> $GITHUB_STEP_SUMMARY
+            echo "| ❌ Failed | $FAILED |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🚀 Total | $TOTAL |" >> $GITHUB_STEP_SUMMARY
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "#### 📝 Detailed Results" >> $GITHUB_STEP_SUMMARY
+            echo "| Test Suite | Status | Duration |" >> $GITHUB_STEP_SUMMARY
+            echo "| :--- | :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+            jq -r '.testResults[] | "| \(.name) | \(.status) | \((.endTime - .startTime)/1000)s |"' test-results.json >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ No evaluation results found." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # 5. Lưu lại Cache mới

@@ -1,75 +1,60 @@
 import { evalite } from 'evalite';
+import { cachedInference, loadSkillContent } from './utils';
 import type { DialogueState } from '../agent-spawn';
 
-// Mock Agent Dialogue Logic (mimicking src/agent-spawn.ts)
-const mockDialogueSystem = (
-    input: string,
-    previousState?: DialogueState
-): DialogueState => {
-    if (!previousState) {
-        // Initial State
-        return {
-            status: 'needs_input',
-            turn: 1,
-            message_to_user: "I need more information about...",
-            pending_questions: ["What uses this?"],
-            history: [{ role: 'user', content: input, timestamp: new Date().toISOString() }]
-        };
-    }
-
-    // Continuation
-    const newState = { ...previousState };
-    newState.turn += 1;
-    newState.history = [
-        ...(newState.history || []),
-        { role: 'user', content: input, timestamp: new Date().toISOString() }
-    ];
-
-    if (input.toLowerCase().includes('yes') || input.toLowerCase().includes('approve')) {
-        newState.status = 'approved';
-        newState.message_to_user = "Proceeding with execution.";
-    } else {
-        newState.status = 'needs_input';
-        newState.message_to_user = "Understood. Any other constraints?";
-    }
-
-    return newState;
-};
-
-evalite('HITL Dialogue System', {
-    data: [
-        {
-            name: "Start Dialogue",
-            input: "I want to delete the database",
-            prevState: undefined,
-            expectedStatus: "needs_input"
-        },
-        {
-            name: "Approve Dialogue",
-            input: "Yes, I approve",
-            prevState: {
-                status: 'needs_approval',
-                turn: 1,
-                message_to_user: "Confirm deletion?",
-                history: []
-            } as DialogueState,
-            expectedStatus: "approved"
-        }
-    ],
-    task: async (data) => {
-        return mockDialogueSystem(data.input, data.prevState);
+evalite('Interviewer: HITL Dialogue System (Real LLM)', {
+  data: () => [
+    {
+      input: {
+        name: 'Initial Ambiguity',
+        text: 'I want to integrate a payment system',
+        prevState: undefined,
+      },
+      expectedStatus: 'needs_input',
     },
-    scorers: [
-        // Verify Status Transition
-        // @ts-ignore
-        (result, { expectedStatus }) => {
-            return result.status === expectedStatus ? 1 : 0;
-        },
-        // Verify History integrity
-        // @ts-ignore
-        (result, { input }) => {
-            const lastMsg = result.history?.[result.history.length - 1];
-            return (lastMsg && lastMsg.content === input) ? 1 : 0;
-        }
-    ]
+    {
+      input: {
+        name: 'Approval Detection',
+        text: 'Yes, proceed with Stripe',
+        prevState: {
+          status: 'needs_approval',
+          turn: 2,
+          message_to_user: 'Should I use Stripe for payments?',
+          history: [
+            { role: 'user', content: 'integrate payment' },
+            { role: 'assistant', content: 'Which provider?' },
+          ],
+        } as DialogueState,
+      },
+      expectedStatus: 'approved',
+    },
+  ],
+  task: async (input: any) => {
+    const system = loadSkillContent('interviewer');
+
+    const prompt = `
+      User Input: "${input.text}"
+      Previous State: ${JSON.stringify(input.prevState || 'null')}
+      
+      Respond as the Interviewer agent in DIALOGUE mode. 
+      Return only the JSON structure as defined in your SKILL.md.
+    `;
+
+    const result = await cachedInference({
+      system,
+      prompt,
+      tag: 'interviewer',
+      model: 'gemini-2.5-flash',
+    });
+
+    return result.parsed || result;
+  },
+  scorers: [
+    // @ts-ignore
+    (result, ctx) => {
+      const state = result?.dialogue_state || result;
+      const status = state?.status;
+      return status === ctx?.expectedStatus ? 1 : 0;
+    },
+  ],
 });
