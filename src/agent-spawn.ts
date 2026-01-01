@@ -163,7 +163,15 @@ export function createAgentTools(client: any) {
 
         // Add dialogue context if needed
         const dialogueMarker = previousState
-          ? `\n\n[DIALOGUE CONTINUATION]\nPrevious status: ${previousState.status}`
+          ? `\n\n[DIALOGUE CONTINUATION]\nPrevious status: ${previousState.status}\nTurn: ${previousState.turn || 1}\n${
+              previousState.accumulated_direction
+                ? `Accumulated Direction: ${JSON.stringify(previousState.accumulated_direction)}\n`
+                : ''
+            }${
+              (previousState as any).proposal
+                ? `Previous Proposal: ${JSON.stringify((previousState as any).proposal)}\n`
+                : ''
+            }`
           : '';
 
         const finalPrompt = fullPrompt + dialogueMarker;
@@ -337,7 +345,9 @@ export function createAgentTools(client: any) {
         }
 
         const dialoguePrompt = prevState
-          ? `[Continuing dialogue - Turn ${prevState.turn + 1}]\n\nUser response: ${question}\n\nPrevious questions: ${prevState.pending_questions?.join(', ') || 'N/A'}`
+          ? `[Continuing dialogue - Turn ${(prevState.turn || 0) + 1}]\n\nUser response: ${question}\n\nPrevious context:\n- Questions asked: ${
+              prevState.pending_questions?.join(', ') || 'N/A'
+            }\n- Accumulated direction: ${JSON.stringify(prevState.accumulated_direction || {})}\n- Previous proposal: ${JSON.stringify((prevState as any).proposal || 'None')}`
           : `[Starting clarification dialogue]\n\n${question}`;
 
         // 1. Synchronous Pattern

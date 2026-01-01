@@ -24,6 +24,11 @@
     "dist",
     "src/version.ts"
   ],
+  "scripts": {
+    "test": "vitest",
+    "eval": "vitest run src/evals/**/*.eval.ts",
+    "lint": "eslint ."
+  },
   "dependencies": {
     "@libsql/client": "^0.15.15",
     "@opencode-ai/plugin": "dev",
@@ -39,10 +44,12 @@
     "@types/node": "^20.19.27",
     "@typescript-eslint/eslint-plugin": "8.47.0",
     "@typescript-eslint/parser": "8.47.0",
+    "better-sqlite3": "^12.5.0",
     "bun-types": "latest",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
+    "evalite": "^0.1.0",
     "prettier": "^3.7.4",
     "typescript-eslint": "^8.51.0",
     "vitest": "^3.2.4"

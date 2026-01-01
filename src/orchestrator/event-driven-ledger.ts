@@ -57,6 +57,7 @@ export interface LedgerEventPayload {
   taskTitle?: string;
   agent?: string;
   result?: string;
+  summary?: string;
   error?: string;
   directiveContent?: string;
   assumptionContent?: string;
@@ -259,7 +260,7 @@ export function createLedgerEventHandlers(ledger: EventDrivenLedger) {
         error,
       }),
 
-    onTaskYielded: (task: Task, epic: Epic, reason: string) =>
+    onTaskYielded: (task: Task, epic: Epic, reason: string, summary?: string) =>
       ledger.emit('ledger.task.yielded', {
         epicId: epic.id,
         epicTitle: epic.title,
@@ -267,6 +268,7 @@ export function createLedgerEventHandlers(ledger: EventDrivenLedger) {
         taskTitle: task.title,
         agent: task.agent,
         result: reason,
+        summary,
       }),
 
     onDirectiveAdded: (content: string) =>

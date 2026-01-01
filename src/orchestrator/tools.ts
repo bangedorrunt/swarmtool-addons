@@ -70,6 +70,7 @@ export function createSkillAgentTools(client: PluginInput['client']) {
             if (task) {
               task.status = 'suspended';
               task.yieldReason = reason;
+              task.yieldSummary = summary;
               await saveLedger(ledger);
             }
           }
@@ -109,15 +110,29 @@ export function createSkillAgentTools(client: PluginInput['client']) {
 
         let targetSessionId = session_id;
 
-        // 1. Resolve Session ID from Ledger if task_id provided
+        // 1. Resolve Session ID and Summary from Ledger if task_id provided
         const ledger = await loadLedger();
+        let yieldSummary: string | undefined;
+
         if (task_id && ledger.epic) {
           const task = ledger.epic.tasks.find((t) => t.id === task_id);
           if (task) {
             targetSessionId = task.sessionId;
+            yieldSummary = task.yieldSummary;
             // Update status back to running
             task.status = 'running';
             task.yieldReason = undefined;
+            task.yieldSummary = undefined;
+            await saveLedger(ledger);
+          }
+        } else if (targetSessionId && ledger.epic) {
+          // If only session_id is provided, try to find the task by session_id to get the summary
+          const task = ledger.epic.tasks.find((t) => t.sessionId === targetSessionId);
+          if (task) {
+            yieldSummary = task.yieldSummary;
+            task.status = 'running';
+            task.yieldReason = undefined;
+            task.yieldSummary = undefined;
             await saveLedger(ledger);
           }
         }
@@ -130,13 +145,17 @@ export function createSkillAgentTools(client: PluginInput['client']) {
           });
         }
 
-        // 2. Trigger Resume Prompt
+        // 2. Trigger Resume Prompt with Context Hydration
         try {
+          const resumePrompt = yieldSummary
+            ? `[SYSTEM: RESUME SIGNAL]\n\n## Previous Reasoning State\n${yieldSummary}\n\n## User Response\n${signal_data}`
+            : `[SYSTEM: RESUME SIGNAL]\n${signal_data}`;
+
           await client.session.promptAsync({
             path: { id: targetSessionId },
             body: {
-              agent: 'system', // or implicit
-              parts: [{ type: 'text', text: `[SYSTEM: RESUME SIGNAL]\n${signal_data}` }],
+              agent: 'system',
+              parts: [{ type: 'text', text: resumePrompt }],
             },
           });
         } catch (e) {

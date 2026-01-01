@@ -199,6 +199,7 @@ export class CrashRecoverySystem {
         case 'ledger.task.yielded':
           task.status = 'suspended';
           task.yieldReason = payload.result;
+          task.yieldSummary = payload.summary;
           break;
       }
     }

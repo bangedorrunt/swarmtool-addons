@@ -68,6 +68,7 @@ export interface Task {
   completedAt?: number;
   sessionId?: string; // Durable Subagent Reference
   yieldReason?: string;
+  yieldSummary?: string;
   // v4.1: Parallel execution tracking
   affectsFiles?: string[]; // Files this task will modify
   filesModified?: Array<{ path: string; operation: 'create' | 'modify' | 'delete' }>;

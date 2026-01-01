@@ -30,6 +30,7 @@ export const ledger_emit_event = tool({
     task_title: tool.schema.string().optional(),
     agent: tool.schema.string().optional(),
     result: tool.schema.string().optional(),
+    summary: tool.schema.string().optional(),
     error: tool.schema.string().optional(),
   },
   async execute(args) {
@@ -43,6 +44,7 @@ export const ledger_emit_event = tool({
       taskTitle: args.task_title,
       agent: args.agent,
       result: args.result,
+      summary: args.summary,
       error: args.error,
     });
 
