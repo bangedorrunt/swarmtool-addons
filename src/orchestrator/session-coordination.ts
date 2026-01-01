@@ -32,6 +32,11 @@ export interface SpawnResult {
   learningsInjected?: number;
   spawnEventId?: string;
   completionEventId?: string;
+  yieldInfo?: {
+    reason: string;
+    summary: string;
+    options?: any[];
+  };
 }
 
 /**
@@ -188,7 +193,7 @@ export async function spawnChildAgent(
     onStatusChange?.('created');
 
     const ledger = getEventDrivenLedger();
-    const spawnEvent = await ledger.emit('ledger.task.started', {
+    const spawnEvent = await ledger.emit('ledger.task.started' as any, {
       epicId: parentSessionId,
       taskId: childSessionId,
       taskTitle: `Agent: ${agent}`,
@@ -254,7 +259,6 @@ export async function spawnChildAgent(
   }
 
   // 6. Wait for completion using event-driven approach
-  const startTime = Date.now();
   const result = await waitForSessionCompletion(
     client,
     childSessionId,
@@ -267,14 +271,21 @@ export async function spawnChildAgent(
   // 7. Track completion/failure in actor state AND durable stream
   const ledger = getEventDrivenLedger();
   if (result.status === 'completed') {
-    await ledger.emit('ledger.task.completed', {
+    await ledger.emit('ledger.task.completed' as any, {
       epicId: parentSessionId,
       taskId: childSessionId,
       agent,
       result: result.result || '',
     });
+  } else if (result.yieldInfo) {
+    await ledger.emit('ledger.task.yielded' as any, {
+      epicId: parentSessionId,
+      taskId: childSessionId,
+      agent,
+      result: result.yieldInfo.summary,
+    });
   } else {
-    await ledger.emit('ledger.task.failed', {
+    await ledger.emit('ledger.task.failed' as any, {
       epicId: parentSessionId,
       taskId: childSessionId,
       agent,
@@ -291,10 +302,24 @@ export async function spawnChildAgent(
               type: 'subagent.complete' as const,
               payload: { sessionId: childSessionId, agent, result: result.result?.slice(0, 500) },
             } as const)
-          : ({
-              type: 'subagent.failed' as const,
-              payload: { sessionId: childSessionId, agent, error: result.error || 'Unknown error' },
-            } as const);
+          : result.yieldInfo
+            ? ({
+                type: 'agent.yield' as const,
+                payload: {
+                  sessionId: childSessionId,
+                  agent,
+                  reason: result.yieldInfo.reason,
+                  summary: result.yieldInfo.summary,
+                },
+              } as const)
+            : ({
+                type: 'subagent.failed' as const,
+                payload: {
+                  sessionId: childSessionId,
+                  agent,
+                  error: result.error || 'Unknown error',
+                },
+              } as const);
 
       await processMessage(currentState, msg);
     }
@@ -316,7 +341,6 @@ export async function waitForSessionCompletion(
   onStatusChange?: (status: string) => void
 ): Promise<SpawnResult> {
   // 1. Check history for missed events (Race condition handling)
-  // Check DurableStream history first to avoid deadlocks if event fired before subscription
   const durableStream = getDurableStream();
   const history = durableStream.getEventHistory();
 
@@ -328,6 +352,7 @@ export async function waitForSessionCompletion(
       targetId === sessionId &&
       (e.type === 'agent.completed' ||
         e.type === 'agent.failed' ||
+        e.type === 'agent.yield' ||
         e.type === 'lifecycle.session.idle')
     );
   });
@@ -342,6 +367,21 @@ export async function waitForSessionCompletion(
         result: (previousEvent.payload as any).result as string,
         completionEventId: previousEvent.id,
       };
+    } else if (previousEvent.type === 'agent.yield') {
+      const payload = previousEvent.payload as any;
+      return {
+        success: true,
+        sessionId,
+        agent,
+        status: 'spawned',
+        result: payload.summary,
+        completionEventId: previousEvent.id,
+        yieldInfo: {
+          reason: payload.reason,
+          summary: payload.summary,
+          options: payload.options,
+        },
+      };
     } else if (previousEvent.type === 'agent.failed') {
       return {
         success: false,
@@ -352,7 +392,6 @@ export async function waitForSessionCompletion(
         completionEventId: previousEvent.id,
       };
     } else if (previousEvent.type === 'lifecycle.session.idle') {
-      // If idle, fetch result manually
       return await fetchSessionResult(client, sessionId, agent);
     }
   }
@@ -362,7 +401,6 @@ export async function waitForSessionCompletion(
 
   const eventPromise = new Promise<SpawnResult>((resolve) => {
     const handler = async (event: StreamEvent) => {
-      // Check stream_id (mapped from sessionID in orchestrator.ts) or intent_id
       const payload = event.payload as any;
       const targetId = payload.stream_id || payload.intent_id || (event as any).stream_id;
 
@@ -377,6 +415,20 @@ export async function waitForSessionCompletion(
           result: payload.result as string,
           completionEventId: event.id,
         });
+      } else if (event.type === 'agent.yield') {
+        resolve({
+          success: true,
+          sessionId,
+          agent,
+          status: 'spawned',
+          result: payload.summary,
+          completionEventId: event.id,
+          yieldInfo: {
+            reason: payload.reason,
+            summary: payload.summary,
+            options: payload.options,
+          },
+        });
       } else if (event.type === 'agent.failed') {
         resolve({
           success: false,
@@ -388,7 +440,6 @@ export async function waitForSessionCompletion(
         });
       } else if (event.type === 'lifecycle.session.idle') {
         const result = await fetchSessionResult(client, sessionId, agent);
-        // Attach the event ID of the idle state as completion proof
         result.completionEventId = event.id;
         resolve(result);
       }
@@ -396,11 +447,13 @@ export async function waitForSessionCompletion(
 
     const unsubCompleted = durableStream.subscribe('agent.completed', handler);
     const unsubFailed = durableStream.subscribe('agent.failed', handler);
+    const unsubYield = durableStream.subscribe('agent.yield', handler);
     const unsubIdle = durableStream.subscribe('lifecycle.session.idle', handler);
 
     cleanup = () => {
       unsubCompleted();
       unsubFailed();
+      unsubYield();
       unsubIdle();
     };
   });
@@ -490,8 +543,6 @@ export async function fetchSessionResult(
 
 /**
  * Get all child sessions for a parent
- *
- * Uses session.children() to discover spawned agents
  */
 export async function getChildSessions(
   client: any,
@@ -514,8 +565,6 @@ export async function getChildSessions(
 
 /**
  * Gather results from all child sessions
- *
- * Useful for parallel spawns - wait for all to complete
  */
 export async function gatherChildResults(
   client: any,

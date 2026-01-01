@@ -17,7 +17,7 @@ Delegate the request to the **Chief-of-Staff**. It will determine if:
 ```javascript
 skill_agent({
   agent_name: "chief-of-staff",
-  prompt: "Consult on: $ARGUMENTS. Use Strategic Polling if Directives are missing.",
+  prompt: "Consult on: $ARGUMENTS. MODE B: CONSULTATIVE. You MUST use 'checkpoint_request' to present a Strategic Poll (A/B/C options) for this question.",
   async: false
 })
 ```

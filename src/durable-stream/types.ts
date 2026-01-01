@@ -30,6 +30,8 @@ export type EventType =
   | 'agent.failed'
   | 'agent.aborted'
   | 'agent.handoff'
+  | 'agent.yield'
+  | 'agent.resumed'
   // HITL (Human-in-the-Loop)
   | 'checkpoint.requested'
   | 'checkpoint.approved'

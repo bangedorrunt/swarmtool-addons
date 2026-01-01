@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { waitForSessionCompletion } from './session-coordination';
-import { getDurableStream } from '../durable-stream';
+import { getDurableStream, shutdownDurableStream } from '../durable-stream';
 import { mkdir, rm } from 'node:fs/promises';
 
 describe('Session Coordination - waitForSessionCompletion', () => {
@@ -20,6 +20,7 @@ describe('Session Coordination - waitForSessionCompletion', () => {
   });
 
   afterEach(async () => {
+    await shutdownDurableStream();
     await rm(TEST_DIR, { recursive: true, force: true });
   });
 

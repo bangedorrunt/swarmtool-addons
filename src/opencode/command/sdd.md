@@ -24,7 +24,7 @@ Invoke the Chief-of-Staff with the request.
 */
 skill_agent({
   agent_name: "chief-of-staff",
-  prompt: "Execute SDD Governance Loop for: $ARGUMENTS",
+  prompt: "Execute SDD Governance Loop for: $ARGUMENTS. MODE B: CONSULTATIVE. You MUST use 'checkpoint_request' for Requirements Confirmation (Phase 1) and Execution Plan Approval (Phase 3).",
   async: false
 })
 ```

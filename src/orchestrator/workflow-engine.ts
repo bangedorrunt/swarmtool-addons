@@ -238,6 +238,13 @@ export class WorkflowProcessor {
           };
         }
 
+        // 6. Handle Yield/Polling
+        if (result.yieldInfo) {
+          this.state.status = 'paused';
+          await this.saveToLedger();
+          return; // Stop and wait for resume (the UI/CoS will handle the poll)
+        }
+
         this.state.current_step_index++;
         await this.saveToLedger();
       }
