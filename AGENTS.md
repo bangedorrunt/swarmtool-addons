@@ -46,7 +46,8 @@ This plugin implements a **Skill-Based Subagent** architecture with **Governance
    - Captures learnings from agent interactions
 
 3. **Storage**:
-   - `LEDGER.md` for durable state persistence and crash recovery
+   - `Durable Stream` (`.opencode/durable_stream.jsonl`) for event-sourced recovery
+   - `LEDGER.md` for human-readable state tracking
    - SQLite/libSQL for Memory Lane semantic storage
    - Agent definitions in `~/.config/opencode/skill/`
 
@@ -102,12 +103,9 @@ src/
 - Agents communicate via structured results, not shared state
 - 16x context reduction through partitioned agent contexts
 
-**LEDGER.md Persistence:**
-
-- Single source of truth for workflow state
-- Survives session clears and crashes
-- Tracks Epic progress, learnings, and handoffs
-- Located at `.opencode/LEDGER.md`
+- **Durable Stream**: Event-sourced log (`.jsonl`) used for crash recovery and replay
+- **LEDGER.md**: Human-readable summary of Epic progress and handoffs
+- **Resilience**: System rebuilds state from the Durable Stream during startup
 
 **Access Control:**
 
