@@ -28,6 +28,19 @@ import { checkpointTools } from './orchestrator/tools/checkpoint-tools';
 import { formatStatusLine } from './orchestrator/progress';
 import { formatYieldMessage } from './orchestrator/hitl';
 import type { ProgressPayload } from './durable-stream/types';
+import {
+  loadLedger,
+  saveLedger,
+  DEFAULT_LEDGER_PATH,
+  clearActiveDialogue,
+} from './orchestrator/ledger';
+import {
+  buildDialogueContinuationPrompt,
+  getUserTextFromParts,
+  isCancelMessage,
+  isSlashCommand,
+  shouldRouteToActiveDialogue,
+} from './orchestrator/dialogue-routing';
 
 const activeAgentCalls = new Map<string, string>();
 
@@ -51,7 +64,11 @@ interface HandoffData {
 
 /**
  * Auto-migrate chief-of-staff skills to .opencode/skill/ if not found.
- * Ensures OpenCode can discover our skills.
+ * Creates flat structure for OpenCode skill discovery:
+ * - .opencode/skill/chief-of-staff/SKILL.md (orchestrator)
+ * - .opencode/skill/architect/SKILL.md
+ * - .opencode/skill/interviewer/SKILL.md
+ * etc.
  */
 async function ensureChiefOfStaffSkills(): Promise<void> {
   const fsp = await import('node:fs/promises');
@@ -59,10 +76,10 @@ async function ensureChiefOfStaffSkills(): Promise<void> {
   const targetDir = path.join(projectRoot, '.opencode', 'skill');
   const sourceDir = path.join(import.meta.dir, 'orchestrator', 'chief-of-staff');
 
-  // Check if already migrated by looking for chief-of-staff/oracle
-  const oracleSkill = path.join(targetDir, 'chief-of-staff', 'agents', 'oracle', 'SKILL.md');
+  // Check if already migrated by looking for flat structure
+  const architectSkill = path.join(targetDir, 'architect', 'SKILL.md');
   try {
-    await fsp.access(oracleSkill);
+    await fsp.access(architectSkill);
     return; // Already migrated
   } catch {
     // Continue with migration
@@ -71,7 +88,7 @@ async function ensureChiefOfStaffSkills(): Promise<void> {
   // Ensure target directory exists
   await fsp.mkdir(targetDir, { recursive: true });
 
-  // Copy parent chief-of-staff skill
+  // Copy parent chief-of-staff skill (orchestrator stays in its own directory)
   const chiefOfStaffTarget = path.join(targetDir, 'chief-of-staff');
   await fsp.mkdir(chiefOfStaffTarget, { recursive: true });
 
@@ -82,7 +99,7 @@ async function ensureChiefOfStaffSkills(): Promise<void> {
     // Source file may not exist
   }
 
-  // Copy all agent skills as flat chief-of-staff-* directories
+  // Copy all agent skills as FLAT directories in .opencode/skill/
   const agentsDir = path.join(sourceDir, 'agents');
   try {
     const agents = await fsp.readdir(agentsDir);
@@ -93,8 +110,8 @@ async function ensureChiefOfStaffSkills(): Promise<void> {
         const skillMd = path.join(agentPath, 'SKILL.md');
         try {
           await fsp.access(skillMd);
-          // Keep hierarchical structure: .opencode/skill/chief-of-staff/agents/{agent}/SKILL.md
-          const targetAgentDir = path.join(chiefOfStaffTarget, 'agents', agentName);
+          // Create flat structure: .opencode/skill/{agent}/SKILL.md
+          const targetAgentDir = path.join(targetDir, agentName);
           await fsp.mkdir(targetAgentDir, { recursive: true });
           await fsp.copyFile(skillMd, path.join(targetAgentDir, 'SKILL.md'));
         } catch {
@@ -186,6 +203,43 @@ export const SwarmToolAddons: Plugin = async (input) => {
       ...ledgerTools,
       ...ledgerEventTools,
       ...checkpointTools,
+    },
+
+    // Multi-turn dialogue routing (v5.1)
+    // If there's an active dialogue bound to this session, route user replies to chief-of-staff.
+    'chat.message': async (hookInput, hookOutput) => {
+      const text = getUserTextFromParts(hookOutput.parts);
+
+      if (!text) return;
+      if (isSlashCommand(text)) return; // don't interfere with slash commands
+
+      let ledger;
+      try {
+        ledger = await loadLedger(DEFAULT_LEDGER_PATH);
+      } catch {
+        return;
+      }
+
+      const active = ledger.activeDialogue;
+      const routing = shouldRouteToActiveDialogue(active, hookInput.sessionID);
+      if (!routing.shouldRoute) return;
+
+      if (isCancelMessage(text)) {
+        clearActiveDialogue(ledger);
+        await saveLedger(ledger, DEFAULT_LEDGER_PATH);
+        return;
+      }
+
+      // Force continuation to the orchestrator regardless of current selected agent.
+      hookOutput.message.agent = 'chief-of-staff';
+
+      const firstTextPart = (hookOutput.parts || []).find((p: any) => p?.type === 'text');
+      if (firstTextPart && active) {
+        (firstTextPart as any).text = buildDialogueContinuationPrompt({
+          userResponse: text,
+          activeDialogue: active,
+        });
+      }
     },
 
     // 2. OpenCode Hooks (must be flat on this object)
