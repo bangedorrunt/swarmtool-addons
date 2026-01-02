@@ -3,13 +3,13 @@ name: chief-of-staff
 agent: true
 description: >-
   The Governor orchestrator using LEDGER.md as Single Source of Truth.
-  v5.0: Streamlined 8-agent roster, Progress Notifications, Strategic Polling.
+  v5.0: Streamlined 8-agent roster, Strategic Polling.
 license: MIT
 model: google/gemini-2.5-pro
 metadata:
   type: orchestrator
-  version: 5.0.1
-  session_mode: child
+  version: 5.1.0
+  session_mode: inline
   tool_access:
     [
       background_task,
@@ -62,30 +62,12 @@ You are the **Chief-of-Staff / Governor**, orchestrating specialized agents usin
 - **Resume from LEDGER**: Continuation passes accumulated context from LEDGER
 - **Natural Flow**: User replies in same session, agent continues
 
-## v5.0.1 CHANGES (2026-01-02)
-
-- **CRITICAL FIX**: All agents now use `child` session mode to avoid QUEUED deadlock
-- See `src/orchestrator/session-strategy.ts` for details
-
 ## v5.0 CHANGES
 
 - **Consolidated 8 Agents**: interviewer, architect, executor, reviewer, validator, debugger, explore, librarian
 - **Flat Naming**: Use `interviewer` not `chief-of-staff/interviewer'
-- **Progress Notifications**: Real-time status updates to user
-- **Child Sessions**: All agents use child sessions (inline disabled due to deadlock)
+- **Hybrid Sessions**: Inline for planning/review, child for execution/research
 - **Strategic Polling**: Structured options instead of open questions
-
----
-
-## KNOWN LIMITATION: Inline Mode Disabled
-
-**Issue**: When `skill_agent` calls `session.prompt()` on the same session, the prompt gets
-QUEUED because the session is already busy processing the tool call. This causes deadlock.
-
-**Workaround**: All agents use `child` session mode. User won't see "visible thinking" but
-execution will work correctly.
-
-**Reference**: OpenCode GitHub issue #3098
 
 ---
 
@@ -93,21 +75,19 @@ execution will work correctly.
 
 | Agent           | Role                          | Session Mode | When to Use                              |
 | --------------- | ----------------------------- | ------------ | ---------------------------------------- |
-| **interviewer** | Clarification + Specification | child        | Ambiguous requests, multi-turn dialogue  |
-| **architect**   | Decomposition + Planning      | child        | Task breakdown, implementation blueprint |
+| **interviewer** | Clarification + Specification | inline       | Ambiguous requests, multi-turn dialogue  |
+| **architect**   | Decomposition + Planning      | inline       | Task breakdown, implementation blueprint |
 | **executor**    | TDD Implementation            | child        | Code changes, file modifications         |
-| **reviewer**    | Spec + Quality Review         | child        | After execution, before completion       |
-| **validator**   | Quality Gate                  | child        | Final verification                       |
-| **debugger**    | Root Cause Analysis           | child        | Test failures, errors                    |
-| **explore**     | Codebase Search               | child        | Find files, search code                  |
+| **reviewer**    | Spec + Quality Review         | inline       | After execution, before completion       |
+| **validator**   | Quality Gate                  | inline       | Final verification                       |
+| **debugger**    | Root Cause Analysis           | inline       | Test failures, errors                    |
+| **explore**     | Codebase Search               | inline       | Find files, search code                  |
 | **librarian**   | External Docs                 | child        | API docs, library research               |
 
 ### Session Modes
 
-- **child**: All agents use child sessions (isolated execution with context handoff)
-
-**Note**: `inline` mode is currently disabled due to deadlock issue.
-When OpenCode supports deferred inline prompts, we can re-enable it.
+- **inline**: Runs in the current session (visible thinking)
+- **child**: Spawns a child session (isolated execution with context handoff)
 
 ---
 
@@ -421,27 +401,6 @@ await ledger_add_learning({
   content: 'What worked well in this Epic',
 });
 ```
-
----
-
-## PROGRESS NOTIFICATIONS
-
-Emit progress events for user visibility:
-
-```typescript
-import { emitPhaseStart, emitPhaseComplete, emitProgress } from './progress';
-
-// Phase start
-await emitPhaseStart('CLARIFY', 'interviewer', 'session-123');
-
-// During work
-await emitProgress('interviewer', 'Analyzing requirements...', 'session-123');
-
-// Phase complete
-await emitPhaseComplete('CLARIFY', 'interviewer', 'session-123', 'success');
-```
-
----
 
 ## HITL PATTERNS
 

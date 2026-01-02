@@ -23,7 +23,6 @@ bun test
 
 # Specific module
 bun test src/orchestrator/file-ledger/
-bun test src/orchestrator/progress.test.ts
 bun test src/orchestrator/hitl.test.ts
 
 # Type check
@@ -74,7 +73,6 @@ src/
 +-- orchestrator/            # CORE: Governance engine
 |   +-- file-ledger/         # v6.0 file-based state (NEW)
 |   +-- ledger.ts            # v5.0 single-file ledger (DEPRECATED)
-|   +-- progress.ts          # User notifications
 |   +-- hitl.ts              # Human-in-the-loop utilities
 |   +-- session-strategy.ts  # inline/child session modes
 |   +-- chief-of-staff/      # Main orchestrator + 8 subagents
@@ -146,33 +144,8 @@ Extract learnings to .opencode/learnings/
 
 | Module                | Purpose                           | Tests    |
 | --------------------- | --------------------------------- | -------- |
-| `progress.ts`         | User notifications during phases  | 11 tests |
 | `hitl.ts`             | Poll formatting, response parsing | 24 tests |
 | `session-strategy.ts` | inline/child session modes        | yes      |
-
-### progress.ts
-
-**Purpose**: Emit progress events for user visibility
-
-**Key Functions**:
-
-```typescript
-import { emitProgress, emitPhaseStart, emitPhaseComplete, emitUserActionNeeded } from './progress';
-
-// Emit phase start
-await emitPhaseStart('CLARIFY', 'interviewer', sessionId);
-
-// Emit progress update
-await emitProgress('interviewer', 'Analyzing requirements...', sessionId, { percent: 50 });
-
-// Emit phase complete
-await emitPhaseComplete('CLARIFY', 'interviewer', sessionId, 'success');
-
-// Request user action
-await emitUserActionNeeded('interviewer', 'approval_needed', 'Review spec', sessionId);
-```
-
-**Phase Icons**: Each phase has an emoji icon for UI display (see `getPhaseIcon`)
 
 ### hitl.ts
 

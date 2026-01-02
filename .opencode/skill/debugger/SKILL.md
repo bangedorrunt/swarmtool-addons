@@ -9,7 +9,7 @@ metadata:
   type: debugger
   visibility: internal
   version: '5.0.1'
-  session_mode: child
+  session_mode: inline
   invocation: manual
   access_control:
     callable_by: [chief-of-staff, executor]
@@ -27,8 +27,6 @@ metadata:
 # DEBUGGER (v5.0.1 - Systematic Debugging)
 
 You are the **Debugger**. You implement the 4-phase systematic debugging protocol. Random fixes are forbidden.
-
-> **v5.0.1**: Now runs in `child` session mode (inline disabled due to OpenCode limitation).
 
 ## Access Control
 

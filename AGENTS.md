@@ -101,7 +101,6 @@ Domain expertise is packaged into specialized, on-demand workers coordinated by 
 - Consolidated from 16 agents to 8 agents
 - Flat naming convention (use `interviewer` not `chief-of-staff/interviewer`)
 - Hybrid session modes (inline for planning, child for execution)
-- Progress notifications for user visibility
 
 ### Core Orchestrator
 
@@ -207,23 +206,11 @@ Reply '1', '2', or your choice.
 
 User selection immediately becomes a **Directive** in LEDGER.
 
-### II. Progress Notifications
-
-Real-time status updates via event system:
-
-```typescript
-import { emitPhaseStart, emitProgress, emitPhaseComplete } from './progress';
-
-await emitPhaseStart('CLARIFY', 'interviewer', sessionId);
-await emitProgress('interviewer', 'Analyzing requirements...', sessionId);
-await emitPhaseComplete('CLARIFY', 'interviewer', sessionId, 'success');
-```
-
-### III. Assumption Audit (Post-Task)
+### II. Assumption Audit (Post-Task)
 
 Agents report `assumptions_made` which are logged in LEDGER. Users implicitly endorse by proceeding, or reject to trigger rework.
 
-### IV. Checkpoint System
+### III. Checkpoint System
 
 Built-in checkpoint support for critical decisions:
 
@@ -283,7 +270,7 @@ src/
     core.ts
     orchestrator.ts
     store.ts
-    types.ts                  # Includes progress event types (v5.0)
+    types.ts                  # Event types
 
   opencode/                   # Runtime Integration
     index.ts
@@ -294,7 +281,6 @@ src/
   orchestrator/               # Governance Engine
     index.ts
     ledger.ts                 # Legacy v5.0 ledger (deprecated)
-    progress.ts               # Progress notifications (v5.0)
     hitl.ts                   # HITL utilities (v5.0)
     session-strategy.ts       # Hybrid session modes (v5.0)
     learning-extractor.ts

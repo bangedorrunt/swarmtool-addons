@@ -4,7 +4,7 @@
 session_id: sess_2d3297
 status: active
 phase: CLARIFICATION
-last_updated: 2026-01-02T10:49:38.045Z
+last_updated: 2026-01-02T13:10:14.788Z
 tasks_completed: 0/0
 
 ---
@@ -50,6 +50,9 @@ tasks_completed: 0/0
 
 ## Handoff
 
+**Created**: 
+**Reason**: session_break
+**Resume Command**: """""""""""
 
 ### What's Done
 
@@ -72,4 +75,8 @@ tasks_completed: 0/0
 
 ## Active Dialogue
 
-*No active dialogue*
+agent: chief-of-staff
+command: /sdd
+turn: 1
+status: needs_input
+session_id: ses_4812b7e01ffedcfDKqmTKz9mDo

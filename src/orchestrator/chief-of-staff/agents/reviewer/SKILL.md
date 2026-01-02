@@ -9,7 +9,7 @@ metadata:
   type: reviewer
   visibility: internal
   version: '5.0.1'
-  session_mode: child
+  session_mode: inline
   invocation: manual
   access_control:
     callable_by: [chief-of-staff]

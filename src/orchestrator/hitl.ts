@@ -11,8 +11,6 @@
  */
 
 import { getCheckpointManager } from './checkpoint';
-import { emitUserActionNeeded } from './progress';
-import type { ActionRequired } from '../durable-stream/types';
 
 // Poll option interface
 export interface PollOption {
@@ -198,15 +196,6 @@ export async function requestPoll(
   poll: PollConfig
 ): Promise<UserResponse | null> {
   const checkpointManager = getCheckpointManager();
-
-  // Emit progress event for visibility
-  const actionRequired: ActionRequired = {
-    type: 'poll',
-    options: poll.options,
-    prompt: poll.description,
-  };
-
-  await emitUserActionNeeded(poll.agent || 'system', actionRequired, formatPoll(poll), sessionId);
 
   // Create checkpoint with promise-based handler
   return new Promise((resolve) => {

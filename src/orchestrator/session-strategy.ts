@@ -19,9 +19,15 @@
  * completion) to preserve inline visibility without re-entrancy.
  */
 
-import { emitContextHandoff } from './progress';
 import { loadLedger } from './ledger';
-import type { ContextHandoffPayload } from '../durable-stream/types';
+
+type HandoffContext = {
+  directives: string[];
+  decisions: string[];
+  plan?: string;
+  files_affected?: string[];
+  learnings?: string[];
+};
 
 /**
  * Session mode for agent execution.
@@ -33,8 +39,6 @@ export type SessionMode = 'inline' | 'child';
  */
 export interface AgentSessionConfig {
   mode: SessionMode;
-  /** Original intended mode (for documentation/future use) */
-  intendedMode: SessionMode;
   reason: string;
   contextRequired: boolean;
 }
@@ -63,37 +67,31 @@ export const AGENT_SESSION_CONFIG: Record<string, AgentSessionConfig> = {
   // INLINE - Visible planning/review
   interviewer: {
     mode: 'inline',
-    intendedMode: 'inline',
     reason: 'User needs to see clarification process and respond',
     contextRequired: true,
   },
   architect: {
     mode: 'inline',
-    intendedMode: 'inline',
     reason: 'User needs to see planning/decomposition and approve',
     contextRequired: true,
   },
   reviewer: {
     mode: 'inline',
-    intendedMode: 'inline',
     reason: 'User needs to see review results immediately',
     contextRequired: true,
   },
   validator: {
     mode: 'inline',
-    intendedMode: 'inline',
     reason: 'User needs to see validation results immediately',
     contextRequired: true,
   },
   debugger: {
     mode: 'inline',
-    intendedMode: 'inline',
     reason: 'Debugging visible within executor context',
     contextRequired: true,
   },
   explore: {
     mode: 'inline',
-    intendedMode: 'inline',
     reason: 'Quick search results should be visible',
     contextRequired: false,
   },
@@ -101,13 +99,11 @@ export const AGENT_SESSION_CONFIG: Record<string, AgentSessionConfig> = {
   // CHILD - Always child mode (no change needed)
   executor: {
     mode: 'child',
-    intendedMode: 'child',
     reason: 'Long-running, file modifications, needs isolation',
     contextRequired: true,
   },
   librarian: {
     mode: 'child',
-    intendedMode: 'child',
     reason: 'External research may be slow, runs in background',
     contextRequired: false,
   },
@@ -115,7 +111,6 @@ export const AGENT_SESSION_CONFIG: Record<string, AgentSessionConfig> = {
   // Chief-of-Staff is special - it's the orchestrator
   'chief-of-staff': {
     mode: 'inline',
-    intendedMode: 'inline',
     reason: 'Orchestrator runs in main session',
     contextRequired: false,
   },
@@ -148,10 +143,10 @@ export async function buildHandoffContext(
   fromAgent: string,
   fromSession: string,
   toAgent: string
-): Promise<ContextHandoffPayload['context']> {
+): Promise<HandoffContext> {
   const ledger = await loadLedger();
 
-  const context: ContextHandoffPayload['context'] = {
+  const context: HandoffContext = {
     directives: ledger.governance.directives.map((d) => d.content),
     decisions: ledger.epic?.context || [],
     files_affected: [],
@@ -190,9 +185,6 @@ export async function prepareChildSessionPrompt(
   toAgent: string
 ): Promise<string> {
   const context = await buildHandoffContext(fromAgent, fromSession, toAgent);
-
-  // Emit handoff event for tracking
-  await emitContextHandoff(fromAgent, fromSession, toAgent, context);
 
   // Build context header
   const contextHeader: string[] = [];
@@ -233,14 +225,4 @@ export async function prepareChildSessionPrompt(
   }
 
   return contextHeader.join('\n') + originalPrompt;
-}
-
-/**
- * Check if inline mode is available for this request.
- * Returns false if session is too long or other constraints.
- */
-export function canUseInlineMode(_sessionId: string, _agent: string): boolean {
-  // Future enhancement: Check session context size
-  // For now, always allow inline mode as configured
-  return true;
 }

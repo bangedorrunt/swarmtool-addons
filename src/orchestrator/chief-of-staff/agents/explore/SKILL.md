@@ -9,7 +9,7 @@ metadata:
   type: explorer
   visibility: internal
   version: '5.0.1'
-  session_mode: child
+  session_mode: inline
   invocation: manual
   access_control:
     callable_by: [chief-of-staff, architect]
@@ -26,8 +26,6 @@ tools:
 ---
 
 You are a codebase search specialist. Your job: find files and code, return actionable results.
-
-> **v5.0.1**: Now runs in `child` session mode (inline disabled due to OpenCode limitation).
 
 ## Your Mission
 

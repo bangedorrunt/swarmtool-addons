@@ -13,10 +13,22 @@ import { getTaskRegistry } from './task-registry';
 import { WorkflowLoader, WorkflowProcessor } from './workflow-engine';
 import { getDurableStream } from '../durable-stream';
 import { getSessionMode, requiresContext, prepareChildSessionPrompt } from './session-strategy';
-import { emitProgress, emitPhaseStart } from './progress';
 import { createModuleLogger } from '../utils/logger';
 
 const log = createModuleLogger('Tools');
+
+/**
+ * Utility function to create properly formatted JSON strings for tool calls.
+ * Prevents common JSON formatting errors like missing commas, unquoted strings, etc.
+ */
+function createToolCallJSON(params: Record<string, unknown>): string {
+  try {
+    return JSON.stringify(params, null, 2);
+  } catch (error) {
+    log.error({ error, params }, 'Failed to create tool call JSON');
+    throw new Error(`Invalid tool call parameters: ${error}`);
+  }
+}
 
 interface AgentConfig {
   name: string;
@@ -271,14 +283,6 @@ export function createSkillAgentTools(client: PluginInput['client']) {
           // v5.0: Check session strategy for hybrid mode
           const sessionMode = getSessionMode(targetAgentName);
           const needsContext = requiresContext(targetAgentName);
-
-          // Emit progress for visibility
-          await emitPhaseStart(
-            targetAgentName,
-            'STARTING',
-            `Starting ${targetAgentName}...`,
-            execContext?.sessionID
-          );
 
           // INLINE MODE: Run in current session (visible thinking)
           if (sessionMode === 'inline' && execContext?.sessionID) {

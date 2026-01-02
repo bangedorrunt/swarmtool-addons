@@ -34,11 +34,6 @@ vi.mock('./ledger', () => ({
   }),
 }));
 
-// Mock progress module
-vi.mock('./progress', () => ({
-  emitContextHandoff: async () => {},
-}));
-
 describe('Session Strategy', () => {
   describe('AGENT_SESSION_CONFIG', () => {
     it('should have 8 active agents configured', () => {
@@ -70,14 +65,6 @@ describe('Session Strategy', () => {
       expect(AGENT_SESSION_CONFIG.executor.mode).toBe('child');
       expect(AGENT_SESSION_CONFIG.librarian.mode).toBe('child');
       expect(AGENT_SESSION_CONFIG['chief-of-staff'].mode).toBe('inline');
-    });
-
-    it('should preserve intended modes for future reference', () => {
-      // These are the intended modes when OpenCode supports deferred inline prompts
-      expect(AGENT_SESSION_CONFIG.interviewer.intendedMode).toBe('inline');
-      expect(AGENT_SESSION_CONFIG.architect.intendedMode).toBe('inline');
-      expect(AGENT_SESSION_CONFIG.executor.intendedMode).toBe('child');
-      expect(AGENT_SESSION_CONFIG.librarian.intendedMode).toBe('child');
     });
   });
 

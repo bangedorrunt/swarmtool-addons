@@ -186,19 +186,6 @@ export {
   type LearningExtractorConfig,
 } from './learning-extractor';
 
-// Export Progress System (v5.0)
-export {
-  emitProgress,
-  emitPhaseStart,
-  emitPhaseComplete,
-  emitUserActionNeeded,
-  emitContextHandoff,
-  formatStatusLine,
-  subscribeToProgress,
-  AGENT_PHASES,
-  type AgentName,
-} from './progress';
-
 // Export HITL Utilities (v5.0)
 export {
   formatPoll,
@@ -220,7 +207,6 @@ export {
   requiresContext,
   buildHandoffContext,
   prepareChildSessionPrompt,
-  canUseInlineMode,
   AGENT_SESSION_CONFIG,
   type SessionMode,
   type AgentSessionConfig,

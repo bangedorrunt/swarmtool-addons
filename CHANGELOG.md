@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **/sdd HITL gating**: Updated the `/sdd` command contract to be approval-gated (spec + plan) using multi-turn Active Dialogue.
+
+### Changed
+
+- **Removed progress notifications pipeline**: Dropped the `orchestrator/progress` module and the runtime hook that injected `progress.*` events into chat.
+- **Session strategy cleanup**: Removed the deadlock-era `intendedMode` field and the unused `canUseInlineMode` helper.
+- **Skill metadata alignment**: Updated `session_mode` frontmatter across chief-of-staff and subagent skills to match the intended hybrid inline/child split.
+
 ## [6.1.0] - 2026-01-02
 
 ### Fixed

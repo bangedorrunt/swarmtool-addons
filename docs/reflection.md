@@ -313,7 +313,7 @@ Reflected: 2026-01-02
 Session Info
 
 - Date: 2026-01-02
-- Task/Feature: v5.0/v6.0 Separation + Inline Mode Deadlock Fix + Agent Consolidation
+- Task/Feature: v5.0/v6.0 Documentation Separation + Inline Mode Deadlock Fix + Agent Consolidation
 - Duration: ~3h
 
 ---
@@ -356,17 +356,6 @@ Technical Decisions
 ```
 
 **Reference**: sst/opencode#3098 "Chained prompts executing together"
-
-### Why Not "Ralph Loop" Pattern?
-
-In Session 1 reflection, we discussed the Ralph Loop (deferred inline prompts via HANDOFF_INTENT). However, this session we chose simpler child mode approach:
-
-| Approach              | Pros                        | Cons                                     |
-| --------------------- | --------------------------- | ---------------------------------------- |
-| Ralph Loop (deferred) | Preserves inline visibility | Complex orchestration; eventual delivery |
-| Child mode (chosen)   | Simple; guaranteed delivery | Lost visibility                          |
-
-**Decision**: Child mode for now. Ralph Loop can be revisited when OpenCode provides better event hook support.
 
 ---
 
@@ -454,7 +443,7 @@ Blockers & Dependencies
 
 Senior Developer Checklist
 
-- ✅ Alternatives considered (Ralph Loop vs child mode)
+- ✅ Alternatives considered (inline vs child mode)
 - ✅ Code is maintainable (simple configuration change)
 - ✅ Decisions documented (session-strategy.ts header explains rationale)
 - ✅ Future scale considered (intendedMode for restoration)
@@ -466,7 +455,7 @@ Senior Developer Checklist
 
 Learning
 
-New insight: OpenCode's session model fundamentally doesn't support nested prompts on the same session. The "Ralph Loop" pattern discussed in Session 1 was a theoretical solution; in practice, child mode is the reliable workaround.
+New insight: OpenCode's session model fundamentally doesn't support nested prompts on the same session. Child sessions are the reliable workaround.
 
 Pattern to remember: When a platform doesn't support a pattern (nested prompts), work with its constraints (child sessions) rather than fighting them.
 
@@ -479,9 +468,8 @@ Skill practiced: Configuration-driven architecture; version management; document
 Next Actions
 
 1. Monitor user feedback on visibility loss (consider reverting if complaints)
-2. Revisit Ralph Loop pattern when OpenCode improves event hooks
-3. Implement proper DIALOGUE mode multi-turn loop (separate enhancement)
-4. Add progress notification display for child mode execution
+2. Implement proper DIALOGUE mode multi-turn loop (separate enhancement)
+3. Add progress notification display for child mode execution
 
 ---
 
@@ -506,3 +494,141 @@ Energy Check
 ---
 
 Reflected: 2026-01-02
+
+---
+
+## Session 4
+
+Session Info
+
+- Date: 2026-01-02
+- Task/Feature: Refactor: remove deadlock-workaround leftovers + Fix /sdd HITL gating
+- Duration: ~2h
+
+---
+
+What Was Built
+Removed the now-redundant Progress Notifications pipeline (module, events, and chat injection) following the restoration of inline mode. Cleaned up workaround artifacts (`intendedMode`, `canUseInlineMode`). Fixed the `/sdd` command to be strictly approval-gated using multi-turn Active Dialogue markers. Updated all SKILL metadata and documentation.
+
+---
+
+Technical Decisions
+| Decision | Rationale | Trade-offs |
+|----------|-----------|------------|
+| Remove progress system end-to-end | With inline visibility restored (via deferred prompts), extra system-injected progress lines became redundant noise. | Loss of granular "percent complete" events in Durable Stream (low impact). |
+| Approval-gating via Active Dialogue markers | Fixes broken `/sdd` HITL by requiring specific state markers (`SDD_SPEC_APPROVED`) before proceeding to next phase. | Requires orchestrator to strictly follow the marker protocol in the command prompt. |
+| Purge transparency workarounds from prompts | RESTORED inline visibility makes "ANALYSIS SUMMARY" prompts unnecessary; removing them reduces output token usage. | Relies entirely on OpenCode's "thinking" blocks being visible. |
+
+### /sdd HITL Fix Reasoning
+
+1. **Observed failure mode**: The `/sdd` command was running sequentially through phases without pausing for user approval, despite documentation saying it was HITL.
+2. **Root cause**: The prompt didn't have "hard gates". Agents would interpret "ask for approval" as a suggestion rather than a blocking requirement.
+3. **Pattern selection**: Multi-turn gating via Ledger markers. 
+   - Step 1: Check for `SDD_SPEC_APPROVED`. If missing, call interviewer + `ledger_update_active_dialogue` + STOP.
+   - Step 2: Only when marker exists, proceed to PLAN.
+4. **Reliability**: Using the `ActiveDialogue` decisions array ensures the state persists even if the session context is trimmed.
+
+---
+
+## PATTERNS Applied
+Patterns Used Successfully
+
+- Approval-gated workflow orchestration
+- State-marker based branching (Ledger markers)
+- Metadata-driven configuration (session_mode alignment)
+
+Anti-Patterns Avoided
+
+- Redundant UI notification spam
+- "Zombie" configuration fields (`intendedMode`)
+- Documentation/Code drift
+
+---
+
+## Problems Solved
+| Problem | Solution | Pattern/Approach |
+|---------|----------|------------------|
+| Redundant progress messages | Deleted progress notification pipeline | Deletion / Simplification |
+| Broken `/sdd` HITL flow | Implemented strict approval gates via Ledger markers | Gated Orchestration |
+| Metadata inconsistency | Updated all SKILL.md files to match restored inline strategy | Configuration alignment |
+| Workaround leftovers | Removed `intendedMode` and `canUseInlineMode` | Technical debt cleanup |
+
+---
+
+## Code Quality
+
+- Refactoring done: Deleted `progress.ts`, updated `hitl.ts`, `tools.ts`, `session-strategy.ts`, and 9 `SKILL.md` files.
+- Technical debt removed: Eliminated artifacts from the temporary "all-child-mode" workaround.
+- Maintainability rating: High (Architecture is now cleaner and documentation matches reality).
+
+---
+
+## Architecture Fit
+
+- Aligned with system design?: Yes — reinforces the "deferred inline" pattern and uses Active Dialogue for HITL as intended in v5.1.
+- Design changes needed?: None.
+
+---
+
+## Wins & Regrets
+What I'm Proud Of
+
+- Aggressively removed redundant code once the underlying deadlock was fixed properly.
+- Simplified the interviewer/architect prompts by removing manual transparency headers.
+- Fixed the `/sdd` command which was a major blocker for Spec-Driven Development.
+
+What Could Be Better
+
+- Deleted some tracked files in `.opencode/skill/` that were duplicates; should have checked if they were truly unused by all deployment paths first (though they were redundant with the flat source).
+
+---
+
+## Blockers & Dependencies
+
+- External blockers: None.
+- Waiting on: Nothing.
+
+---
+
+## Senior Developer Checklist
+
+- ✅ Alternatives considered (Gating progress vs Deleting)
+- ✅ Code is maintainable
+- ✅ Decisions documented
+- ✅ Future scale considered
+- ✅ Solution is simple enough
+- ✅ Patterns applied appropriately
+- ✅ Anti-patterns avoided
+
+---
+
+## Learning
+New insight: Workarounds for platform limitations (like deadlock) should be fully purged once a structural fix is implemented to avoid "feature creep" and metadata rot.
+
+Pattern to remember: Approval-gated commands should check for explicit "passed" markers in durable state before transitioning phases.
+
+---
+
+## Next Actions
+
+1. Monitor `/sdd` flow in production to ensure the approval gates aren't too restrictive.
+2. Consider a "summary" event in Durable Stream that replaces the granular progress events without the chat noise.
+
+---
+
+## Notes for Future Self
+
+```
+- Inline mode is now the standard for planning; child mode for execution.
+- HITL gating in commands relies on activeDialogue.accumulatedDirection.decisions markers.
+- Keep SKILL.md session_mode frontmatter in sync with AGENT_SESSION_CONFIG.
+```
+
+---
+
+## Energy Check
+
+- Frustration: 🙂
+- Satisfaction: 😄
+- Energy: 🔋
+
