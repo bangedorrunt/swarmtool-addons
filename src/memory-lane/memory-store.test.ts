@@ -3,7 +3,7 @@ import { MemoryLaneStore } from './memory-store';
 import { getDatabasePath } from '../utils/database-path';
 import { existsSync, unlinkSync } from 'node:fs';
 
-// Mock fetch for Ollama API
+// Mock fetch for lm-studio API
 global.fetch = vi.fn() as any;
 
 describe('MemoryLaneStore', () => {
@@ -19,10 +19,10 @@ describe('MemoryLaneStore', () => {
     }
     store = new MemoryLaneStore();
 
-    // Mock successful Ollama response
+    // Mock successful lm-studio response
     (global.fetch as any).mockResolvedValue({
       ok: true,
-      json: async () => ({ embedding: new Array(768).fill(0.1) }),
+      json: async () => ({ data: [{ embedding: new Array(1024).fill(0.1) }] }),
     });
   });
 

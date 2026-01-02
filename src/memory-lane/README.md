@@ -80,7 +80,7 @@ Core storage operations via `MemoryLaneStore`:
 
 - **Standalone libSQL**: Uses `@libsql/client` directly
 - **Drizzle ORM**: Type-safe queries and schema management
-- **Local Embeddings**: Communicates directly with Ollama HTTP API
+- **Local Embeddings**: Communicates directly with lm-studio HTTP API
 - **Cosine Similarity**: Fast JavaScript-based vector search
 
 ### Memory Tools (`tools.ts`)

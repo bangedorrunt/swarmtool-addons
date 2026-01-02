@@ -40,7 +40,7 @@ CREATE TABLE memories (
   metadata TEXT,            -- JSON blob (MemoryLaneMetadata)
   collection TEXT DEFAULT 'memory-lane',
   tags TEXT,                -- JSON array
-  embedding BLOB,           -- F32 vector (nomic-embed-text, 768 dims)
+  embedding BLOB,           -- F32 vector (mxbai-embed-large-v1, 1024 dims)
   decay_factor REAL DEFAULT 1.0,
   valid_from TEXT,
   valid_until TEXT,
@@ -149,9 +149,9 @@ Higher weight = higher relevance in default ranking.
 
 ### 4.1 Vector Embeddings
 
-- **Model**: `nomic-embed-text` (768 dimensions)
-- **Provider**: Local Ollama instance (`http://127.0.0.1:11434`)
-- **Auto-start**: On macOS, attempts to launch Ollama automatically.
+- **Model**: `mixedbread-ai/mxbai-embed-large-v1` (1024 dimensions)
+- **Provider**: Local lm-studio instance (`http://127.0.0.1:1234`)
+- **Auto-start**: On macOS, attempts to launch LM Studio automatically.
 
 ### 4.2 Semantic Search Algorithm
 
@@ -216,12 +216,12 @@ Higher feedback scores boost memory relevance in future searches.
 
 ## 6. Configuration
 
-| Setting             | Default                       | Description                  |
-| :------------------ | :---------------------------- | :--------------------------- |
-| `dbPath`            | `~/.opencode/memories.db`     | SQLite database location     |
-| `embeddingModel`    | `nomic-embed-text`            | Vector embedding model       |
-| `ollamaUrl`         | `http://127.0.0.1:11434`      | Ollama API endpoint          |
-| `minScoreThreshold` | 0.2 (0.15 with entity filter) | Minimum similarity to return |
+| Setting             | Default                              | Description                  |
+| :------------------ | :----------------------------------- | :--------------------------- |
+| `dbPath`            | `~/.opencode/memories.db`            | SQLite database location     |
+| `embeddingModel`    | `mixedbread-ai/mxbai-embed-large-v1` | Vector embedding model       |
+| `lmStudioUrl`       | `http://127.0.0.1:1234`              | lm-studio API endpoint       |
+| `minScoreThreshold` | 0.2 (0.15 with entity filter)        | Minimum similarity to return |
 
 ---
 

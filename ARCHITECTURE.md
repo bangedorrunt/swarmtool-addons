@@ -41,7 +41,7 @@ The system utilizes a **Skill-Based Subagent** architecture coordinated by the *
 | **Orchestrator**         | Governance & Task Delegation | Durable Stream, Memory Lane, Actor Model            |
 | **Chief-of-Staff**       | Supervisory Logic & HITL     | Orchestrator, Ledger Tools, Checkpoint System       |
 | **Durable Stream**       | Event-Sourced Persistence    | Bun File API (JSONL), Proper-Lockfile, OpenCode SDK |
-| **Memory Lane**          | Semantic Memory & Patterns   | SQLite, Ollama Embeddings, Taxonomy                 |
+| **Memory Lane**          | Semantic Memory & Patterns   | SQLite, lm-studio Embeddings, Taxonomy              |
 | **Actor Model**          | Stateless Message Processing | Durable Stream (for correlation)                    |
 | **Opencode Integration** | Load Skill & SDK Hooks       | Orchestrator, Configuration Loader                  |
 

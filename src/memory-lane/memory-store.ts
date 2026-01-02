@@ -1,11 +1,11 @@
 /**
  * Memory Lane Store
  *
- * Standalone memory storage using Drizzle ORM and direct Ollama HTTP API.
+ * Standalone memory storage using Drizzle ORM and direct lm-studio HTTP API.
  * No external dependencies on swarm-mail or swarm-tools.
  *
  * Features:
- * - Vector embeddings via Ollama nomic-embed-text
+ * - Vector embeddings via lm-studio mixedbread-ai/mxbai-embed-large-v1
  * - Semantic search with cosine similarity
  * - Memory Lane taxonomy (correction, decision, pattern, etc.)
  * - Temporal validity and decay
@@ -56,8 +56,8 @@ export interface MemorySearchResult {
 
 export class MemoryLaneStore {
   private readonly COLLECTION = 'memory-lane';
-  private readonly EMBEDDING_MODEL = 'nomic-embed-text';
-  private readonly OLLAMA_URL = 'http://127.0.0.1:11434';
+  private readonly EMBEDDING_MODEL = 'mixedbread-ai/mxbai-embed-large-v1';
+  private readonly LM_STUDIO_URL = 'http://127.0.0.1:1234';
   private readonly db: MemoryDb;
   private readonly client: Client;
   private schemaInitialized = false;
@@ -350,41 +350,40 @@ export class MemoryLaneStore {
   }
 
   /**
-   * Generate embedding using Ollama HTTP API
+   * Generate embedding using lm-studio HTTP API (OpenAI-compatible)
    */
   private async generateEmbedding(text: string): Promise<number[]> {
-    await this.ensureOllama();
+    await this.ensureLmStudio();
 
     try {
-      const response = await fetch(`${this.OLLAMA_URL}/api/embeddings`, {
+      const response = await fetch(`${this.LM_STUDIO_URL}/v1/embeddings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: this.EMBEDDING_MODEL,
-          prompt: text,
+          input: text,
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`Ollama embedding failed: ${response.status}`);
+        throw new Error(`lm-studio embedding failed: ${response.status}`);
       }
 
       const data = await response.json();
-      return data.embedding;
+      return data.data[0].embedding;
     } catch (err) {
       console.error('[MemoryLaneStore] Embedding error:', err);
-      // Return empty embedding on error
-      return new Array(768).fill(0);
+      return new Array(1024).fill(0);
     }
   }
 
   /**
-   * Ensure Ollama is running (Mac auto-start)
+   * Ensure lm-studio is running (Mac auto-start)
    */
-  private async ensureOllama(): Promise<void> {
+  private async ensureLmStudio(): Promise<void> {
     const check = async () => {
       try {
-        const response = await fetch(`${this.OLLAMA_URL}/api/tags`);
+        const response = await fetch(`${this.LM_STUDIO_URL}/v1/models`);
         return response.ok;
       } catch {
         return false;
@@ -393,20 +392,16 @@ export class MemoryLaneStore {
 
     if (await check()) return;
 
-    // Mac-specific auto-start
     if (process.platform === 'darwin') {
       try {
         const { exec } = await import('node:child_process');
-        exec('open -a Ollama');
+        exec('open -a "LM Studio"');
 
-        // Poll for up to 15 seconds
         for (let i = 0; i < 15; i++) {
           await new Promise((r) => setTimeout(r, 1000));
           if (await check()) return;
         }
-      } catch {
-        // Silently ignore - auto-start is a best-effort feature
-      }
+      } catch {}
     }
   }
 
