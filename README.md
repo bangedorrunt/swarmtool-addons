@@ -13,6 +13,7 @@ This is an extension module for OpenCode AI, providing advanced multi-agent orch
 • 📝 **Autonomous Project Tracking**: `LEDGER.md` automatically records file changes and task progress across any agent interaction.
 • 🛡️ **Resilient State Continuity**: Event-sourced persistence via Durable Stream with full crash recovery and audit logs built-in.
 • 🚀 **High Context Efficiency**: Partitioned sub-sessions reduce token noise by up to 16x, enabling focused reasoning on complex tasks.
+• 📊 **Structured Logging**: Pino-based JSON logging with module-scoped loggers for better debugging and observability.
 
 ## 🗺️ Documentation Map
 

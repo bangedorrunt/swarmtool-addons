@@ -20,6 +20,9 @@ import {
   Ledger,
   Task,
 } from './ledger';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('ledger-hooks');
 
 // ============================================================================
 // Types
@@ -73,7 +76,7 @@ export interface SessionEndResult {
  * 4. Check for Handoff (continue from break)
  */
 export async function onSessionStart(ledgerPath?: string): Promise<SessionStartResult> {
-  console.log('[SessionHook] Starting session...');
+  log.info('Starting session...');
 
   const ledger = await loadLedger(ledgerPath);
 
@@ -89,7 +92,7 @@ export async function onSessionStart(ledgerPath?: string): Promise<SessionStartR
     epicTitle = ledger.epic.title;
     const progress = getProgress(ledger);
     epicProgress = `${progress.completed}/${progress.total} tasks (${progress.percentComplete}%)`;
-    console.log(`[SessionHook] Resuming epic: ${epicTitle} - ${epicProgress}`);
+    log.info({ epicTitle, epicProgress }, 'Resuming epic');
   }
 
   // Check for handoff
@@ -98,7 +101,7 @@ export async function onSessionStart(ledgerPath?: string): Promise<SessionStartR
 
   if (hasHandoff && ledger.handoff) {
     resumeCommand = ledger.handoff.resumeCommand;
-    console.log(`[SessionHook] Handoff found: "${resumeCommand}"`);
+    log.info({ resumeCommand }, 'Handoff found');
   }
 
   // Log learnings summary
@@ -108,7 +111,7 @@ export async function onSessionStart(ledgerPath?: string): Promise<SessionStartR
     recentLearnings.decisions.length;
 
   if (totalLearnings > 0) {
-    console.log(`[SessionHook] Surfacing ${totalLearnings} recent learnings`);
+    log.info({ count: totalLearnings }, 'Surfacing recent learnings');
   }
 
   // Update session status
@@ -135,7 +138,7 @@ export async function onSessionStart(ledgerPath?: string): Promise<SessionStartR
  * 4. Save LEDGER
  */
 export async function onTaskComplete(taskResult: TaskResult, ledgerPath?: string): Promise<void> {
-  console.log(`[SessionHook] Task completed: ${taskResult.taskId}`);
+  log.info({ taskId: taskResult.taskId }, 'Task completed');
 
   const ledger = await loadLedger(ledgerPath);
 
@@ -177,7 +180,7 @@ export async function onTaskComplete(taskResult: TaskResult, ledgerPath?: string
  * 3. Signal safe to /clear
  */
 export async function onPreCompact(context: SessionContext, ledgerPath?: string): Promise<string> {
-  console.log('[SessionHook] Context limit approaching, creating handoff...');
+  log.info('Context limit approaching, creating handoff...');
 
   const ledger = await loadLedger(ledgerPath);
 
@@ -193,7 +196,7 @@ export async function onPreCompact(context: SessionContext, ledgerPath?: string)
     ? `Handoff created for epic "${ledger.epic.title}". Safe to /clear.`
     : 'Handoff created. Safe to /clear.';
 
-  console.log(`[SessionHook] ${message}`);
+  log.info({ message }, 'Handoff created');
   return message;
 }
 
@@ -209,7 +212,7 @@ export async function onSessionEnd(
   outcome?: 'SUCCEEDED' | 'PARTIAL' | 'FAILED',
   ledgerPath?: string
 ): Promise<SessionEndResult> {
-  console.log('[SessionHook] Ending session...');
+  log.info('Ending session...');
 
   const ledger = await loadLedger(ledgerPath);
 
@@ -222,7 +225,7 @@ export async function onSessionEnd(
     finalOutcome = outcome || 'PARTIAL';
     archiveEpic(ledger, outcome);
     epicArchived = true;
-    console.log(`[SessionHook] Epic archived: ${finalOutcome}`);
+    log.info({ outcome }, 'Epic archived');
   }
 
   // Count learnings

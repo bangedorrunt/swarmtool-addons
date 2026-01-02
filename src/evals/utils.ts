@@ -4,6 +4,9 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('eval-utils');
 
 /**
  * Shared utility for LLM Inference with File-based Caching
@@ -34,7 +37,7 @@ export async function cachedInference(params: {
 
   // 3. Call Real LLM
   const provider = process.env.EVAL_PROVIDER || 'lmstudio';
-  console.log(`[LLM API] Calling ${model} (${provider}) for ${tag}...`);
+  log.info({ model, provider, tag }, 'Calling LLM API');
 
   let modelInstance;
 

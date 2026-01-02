@@ -19,6 +19,9 @@ import { MemoryLaneStore } from '../../memory-lane/memory-store';
 import type { MemoryType } from '../../memory-lane/taxonomy';
 import { getLearningExtractor } from '../learning-extractor';
 import { getEventDrivenLedger } from '../event-driven-ledger';
+import { createModuleLogger } from '../../utils/logger';
+
+const log = createModuleLogger('SessionLearning');
 
 // Re-export for compatibility with standalone usage
 export {
@@ -378,7 +381,7 @@ export function createOpenCodeSessionLearningHook(
           session_id: sessionID,
         },
       }).catch((e: any) => {
-        console.error('[SessionLearning] memory-catcher failed:', e.message || e);
+        log.error({ err: e }, 'memory-catcher failed');
       });
     }
   }

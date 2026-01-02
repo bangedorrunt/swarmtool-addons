@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Structured Logging with Pino** (`src/utils/logger.ts`)
+  - Created new logging module with module-scoped loggers
+  - Added `createModuleLogger('ModuleName')` for consistent logging
+  - Implemented structured JSON output with metadata
+  - Supports log levels: info, warn, error, debug
+
+- **Code Quality Review Documentation**
+  - Comprehensive review of 609 source files (~97k lines)
+  - Identified critical, high, and medium priority issues
+  - Added 25 recommendations for improvements
+
+### Changed
+
+- **Replaced 100+ console statements** across 25 files
+  - `src/orchestrator/ledger.ts` (20 statements)
+  - `src/orchestrator/observer.ts` (24 statements)
+  - `src/orchestrator/file-ledger/index.ts` (14 statements)
+  - `src/memory-lane/memory-store.ts` (5 statements)
+  - And 21 more files...
+
+### Fixed
+
+- **Security Issue**: Removed database path from logs (`src/memory-lane/memory-store.ts`)
+- **Console Cleanup**: Removed all `console.log`, `console.error`, `console.warn` from source files
+- **Linting**: Pass with no errors after logging refactor
+
+### Technical Details
+
+**Logger Module** (`src/utils/logger.ts`):
+
+```typescript
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('Ledger');
+log.info({ key: value }, 'Message');
+log.error({ error }, 'Error message');
+```
+
+**Files Updated**:
+
+| Module                | Files  | Statements Replaced |
+| --------------------- | ------ | ------------------- |
+| Orchestrator          | 8      | ~70                 |
+| OpenCode Config       | 3      | ~10                 |
+| Memory/Durable Stream | 2      | ~7                  |
+| Hooks                 | 2      | ~10                 |
+| Tools                 | 5      | ~15                 |
+| **Total**             | **25** | **100+**            |
+
+### Version Update
+
+| Component       | Old Version | New Version                |
+| --------------- | ----------- | -------------------------- |
+| opencode-addons | 5.1.1       | 5.2.0                      |
+| TECHNICAL.md    | 5.1.0       | 7.0.0 (Structured Logging) |
+
+### Breaking Changes
+
+- **None**: This is a backward-compatible enhancement. Logging changes have no impact on public APIs.
+
+### Migration Notes
+
+No migration required. All changes are internal implementation details.
+
 ### Fixed
 
 - **Multi-turn dialogue continuation reliability**

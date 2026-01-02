@@ -8,6 +8,9 @@
 
 import type { Ledger } from './ledger';
 import { loadLedger, saveLedger } from './ledger';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('signal-buffer');
 
 export interface UpwardSignal {
   id: string;
@@ -42,11 +45,9 @@ export class SignalBuffer {
     queue.push(signal);
     this.buffer.set(signal.targetSessionId, queue);
 
-    // In a production implementation, we would persist this to a file or DB here.
-    // For now, we rely on in-memoryMap + Ledger 'suspended' state as the source of truth if we crash.
-    // (The agent will simply re-yield if it wakes up and sees no result).
-    console.log(
-      `[SignalBuffer] Enqueued signal from ${signal.sourceAgent} for ${signal.targetSessionId}`
+    log.info(
+      { sourceAgent: signal.sourceAgent, targetSessionId: signal.targetSessionId },
+      'Enqueued signal'
     );
   }
 
@@ -65,7 +66,7 @@ export class SignalBuffer {
     const queue = this.buffer.get(sessionId) || [];
     this.buffer.delete(sessionId);
     if (queue.length > 0) {
-      console.log(`[SignalBuffer] Flushed ${queue.length} signals for ${sessionId}`);
+      log.info({ sessionId, count: queue.length }, 'Flushed signals');
     }
     return queue;
   }

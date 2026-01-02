@@ -21,6 +21,9 @@ import type {
 import type { ResumeResult } from '../durable-stream/types';
 import { loadLedger, saveLedger } from './ledger';
 import { getDurableStream } from '../durable-stream/orchestrator';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('crash-recovery');
 
 export interface RecoveryState {
   ledger: Ledger;
@@ -283,7 +286,7 @@ export class CrashRecoverySystem {
       timestamp: new Date().toISOString(),
     };
 
-    console.log('[CrashRecovery] State snapshot created:', snapshot.timestamp);
+    log.info({ timestamp: snapshot.timestamp }, 'State snapshot created');
   }
 }
 

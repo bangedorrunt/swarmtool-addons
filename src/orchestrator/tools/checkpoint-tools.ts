@@ -6,6 +6,9 @@
 
 import { tool } from '@opencode-ai/plugin';
 import { getCheckpointManager, CHECKPOINT_TEMPLATES } from '../checkpoint';
+import { createModuleLogger } from '../../utils/logger';
+
+const log = createModuleLogger('checkpoint-tools');
 
 export const checkpoint_request = tool({
   description: 'Request human approval for a critical decision',
@@ -32,8 +35,9 @@ export const checkpoint_request = tool({
         timeoutMs: args.timeout_ms,
       },
       async (result) => {
-        console.log(
-          `[Checkpoint] ${result.checkpointId}: ${result.approved ? 'Approved' : 'Rejected'}`
+        log.info(
+          { checkpointId: result.checkpointId, approved: result.approved },
+          'Checkpoint result'
         );
       }
     );

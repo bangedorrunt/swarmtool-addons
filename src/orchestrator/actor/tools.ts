@@ -12,6 +12,9 @@ import { tool } from '@opencode-ai/plugin';
 import { loadActorState, createInitialState, clearActorState } from './state';
 import { processMessage } from './core';
 import { getDurableStream } from '../../durable-stream';
+import { createModuleLogger } from '../../utils/logger';
+
+const log = createModuleLogger('ActorTools');
 
 /**
  * Create all actor-related tools
@@ -108,7 +111,7 @@ export function createActorTools() {
             const durableStream = getDurableStream();
             await durableStream.recursiveAbort(client, state, 'actor_abort', args.reason);
           } catch (e) {
-            console.error('[actor_abort] Failed to use Durable Stream:', e);
+            log.error({ err: e }, 'Failed to use Durable Stream');
           }
         }
 

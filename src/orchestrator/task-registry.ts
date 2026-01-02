@@ -15,6 +15,9 @@ import {
   Ledger,
   Task as LedgerTask,
 } from './ledger';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('task-registry');
 
 // ============================================================================
 // Types
@@ -89,7 +92,7 @@ export class TaskRegistry {
     };
 
     this.tasks.set(id, registryTask);
-    console.log(`[TaskRegistry] Registered task: ${id} → ${task.agentName}`);
+    log.info({ taskId: id, agent: task.agentName }, 'Registered task');
 
     return id;
   }
@@ -105,7 +108,7 @@ export class TaskRegistry {
   ): Promise<void> {
     const task = this.tasks.get(taskId);
     if (!task) {
-      console.warn(`[TaskRegistry] Task not found: ${taskId}`);
+      log.warn({ taskId }, 'Task not found');
       return;
     }
 
@@ -123,7 +126,7 @@ export class TaskRegistry {
       task.completedAt = Date.now();
     }
 
-    console.log(`[TaskRegistry] Task ${taskId}: ${previousStatus} → ${status}`);
+    log.info({ taskId, previousStatus, newStatus: status }, 'Task status updated');
 
     // Sync to LEDGER if enabled and task is linked
     if (this.syncToLedger && task.ledgerTaskId && this.ledgerPath) {
@@ -246,7 +249,7 @@ export class TaskRegistry {
     }
 
     if (cleaned > 0) {
-      console.log(`[TaskRegistry] Cleaned up ${cleaned} old tasks`);
+      log.info({ count: cleaned }, 'Cleaned up old tasks');
     }
 
     return cleaned;
@@ -289,9 +292,9 @@ export class TaskRegistry {
       updateLedgerTaskStatus(ledger, task.ledgerTaskId, ledgerStatus, task.result, task.error);
 
       await saveLedger(ledger, this.ledgerPath);
-      console.log(`[TaskRegistry] Synced task ${task.id} to LEDGER`);
+      log.info({ taskId: task.id }, 'Synced task to LEDGER');
     } catch (error) {
-      console.error(`[TaskRegistry] Failed to sync to LEDGER:`, error);
+      log.error({ error }, 'Failed to sync to LEDGER');
     }
   }
 
@@ -353,12 +356,12 @@ export class TaskRegistry {
       }
 
       if (loaded > 0) {
-        console.log(`[TaskRegistry] Loaded ${loaded} tasks from LEDGER`);
+        log.info({ count: loaded }, 'Loaded tasks from LEDGER');
       }
 
       return loaded;
     } catch (error) {
-      console.error(`[TaskRegistry] Failed to load from LEDGER:`, error);
+      log.error({ error }, 'Failed to load from LEDGER');
       return 0;
     }
   }

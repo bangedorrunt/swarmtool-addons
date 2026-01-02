@@ -15,6 +15,9 @@ import { WorkflowLoader, WorkflowProcessor } from './workflow-engine';
 import { getDurableStream } from '../durable-stream';
 import { getSessionMode, requiresContext, prepareChildSessionPrompt } from './session-strategy';
 import { emitProgress, emitPhaseStart } from './progress';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('Tools');
 
 interface AgentConfig {
   name: string;
@@ -79,7 +82,7 @@ export function createSkillAgentTools(client: PluginInput['client']) {
             }
           }
         } catch (e) {
-          console.error('[agent_yield] Failed to update ledger:', (e as Error).message);
+          log.error({ err: e }, 'Failed to update ledger');
         }
 
         // 2. Return Handoff Intent (Signal)

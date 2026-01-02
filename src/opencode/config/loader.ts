@@ -18,6 +18,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { createModuleLogger } from '../../utils/logger';
+
+const log = createModuleLogger('ConfigLoader');
 import {
   getDefaultConfig,
   parseConfig,
@@ -85,8 +88,7 @@ export function loadConfig(configPath?: string): SwarmToolAddonsConfig {
     // Warn about validation errors but still use config
     if (!validation.valid) {
       const errorMessage = validation.errors.join('\n');
-      // eslint-disable-next-line no-console
-      console.error(`[ERROR] Config validation failed for ${filePath}:\n${errorMessage}`);
+      log.warn({ filePath, errors: validation.errors }, 'Config validation failed');
     }
 
     // Merge with default config to ensure all default models are present
@@ -99,8 +101,7 @@ export function loadConfig(configPath?: string): SwarmToolAddonsConfig {
   } catch (error) {
     // Log error with [ERROR] prefix (no console.log errors)
     const errorMessage = error instanceof Error ? error.toString() : String(error);
-    // eslint-disable-next-line no-console
-    console.error(`[ERROR] Failed to load config from ${filePath}: ${errorMessage}`);
+    log.error({ filePath, error: errorMessage }, 'Failed to load config');
 
     // Return default config on any error
     return getDefaultConfig();

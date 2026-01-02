@@ -226,6 +226,10 @@ export {
   type AgentSessionConfig,
 } from './session-strategy';
 
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('orchestrator');
+
 // Import shutdown functions for graceful shutdown
 import { stopTaskObservation } from './observer';
 import { resetTaskRegistry } from './task-registry';
@@ -238,65 +242,65 @@ import { shutdownEventDrivenLedger } from './event-driven-ledger';
 // ============================================================================
 
 export async function shutdownAll(): Promise<void> {
-  console.log('[Orchestrator] Starting graceful shutdown...');
+  log.info('Starting graceful shutdown...');
 
   // Stop task observation first
   try {
     stopTaskObservation();
-    console.log('[Orchestrator] Task observer stopped');
+    log.info('Task observer stopped');
   } catch (err) {
-    console.error('[Orchestrator] Error stopping task observer:', err);
+    log.error({ err }, 'Error stopping task observer');
   }
 
   // Reset task registry
   try {
     resetTaskRegistry();
-    console.log('[Orchestrator] Task registry reset');
+    log.info('Task registry reset');
   } catch (err) {
-    console.error('[Orchestrator] Error resetting task registry:', err);
+    log.error({ err }, 'Error resetting task registry');
   }
 
   // Shutdown checkpoint manager
   try {
     await shutdownCheckpointManager();
-    console.log('[Orchestrator] Checkpoint manager shutdown');
+    log.info('Checkpoint manager shutdown');
   } catch (err) {
-    console.error('[Orchestrator] Error shutting down checkpoint manager:', err);
+    log.error({ err }, 'Error shutting down checkpoint manager');
   }
 
   // Shutdown learning extractor
   try {
     await shutdownLearningExtractor();
-    console.log('[Orchestrator] Learning extractor shutdown');
+    log.info('Learning extractor shutdown');
   } catch (err) {
-    console.error('[Orchestrator] Error shutting down learning extractor:', err);
+    log.error({ err }, 'Error shutting down learning extractor');
   }
 
   // Shutdown event-driven ledger
   try {
     await shutdownEventDrivenLedger();
-    console.log('[Orchestrator] Event-driven ledger shutdown');
+    log.info('Event-driven ledger shutdown');
   } catch (err) {
-    console.error('[Orchestrator] Error shutting down event-driven ledger:', err);
+    log.error({ err }, 'Error shutting down event-driven ledger');
   }
 
   // Shutdown durable stream (imported from durable-stream)
   try {
     const { shutdownDurableStream } = await import('../durable-stream');
     await shutdownDurableStream();
-    console.log('[Orchestrator] Durable stream shutdown');
+    log.info('Durable stream shutdown');
   } catch (err) {
-    console.error('[Orchestrator] Error shutting down durable stream:', err);
+    log.error({ err }, 'Error shutting down durable stream');
   }
 
   // Shutdown memory lane store (imported from memory-lane)
   try {
     const { resetMemoryLaneStore } = await import('../memory-lane');
     resetMemoryLaneStore();
-    console.log('[Orchestrator] Memory lane store reset');
+    log.info('Memory lane store reset');
   } catch (err) {
-    console.error('[Orchestrator] Error resetting memory lane store:', err);
+    log.error({ err }, 'Error resetting memory lane store');
   }
 
-  console.log('[Orchestrator] Graceful shutdown complete');
+  log.info('Graceful shutdown complete');
 }

@@ -8,6 +8,9 @@
 import { appendFile, mkdir, stat, rename, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { dirname, join } from 'path';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('ActivityLogger');
 
 export interface ActivityEntry {
   timestamp: string;
@@ -61,7 +64,7 @@ export class ActivityLogger {
     try {
       await appendFile(this.config.path, line);
     } catch (error) {
-      console.error(`[ActivityLogger] Failed to log: ${error}`);
+      log.error({ error }, 'Failed to log activity');
     }
   }
 
@@ -76,7 +79,7 @@ export class ActivityLogger {
       try {
         await rename(this.config.path, rotatedPath);
       } catch (e) {
-        console.error(`[ActivityLogger] Rotation failed: ${e}`);
+        log.error({ err: e }, 'Rotation failed');
       }
     }
     this.lastDate = new Date().toISOString().split('T')[0];

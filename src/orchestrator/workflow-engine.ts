@@ -14,6 +14,9 @@ import { existsSync } from 'node:fs';
 import { getEventDrivenLedger } from './event-driven-ledger';
 import { spawnChildAgent, SpawnResult } from './session-coordination';
 import { loadLedger, saveLedger, Ledger } from './ledger';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('workflow-engine');
 
 export interface WorkflowStep {
   agent: string;
@@ -157,7 +160,7 @@ export class WorkflowLoader {
         phases,
       };
     } catch (e) {
-      console.error(`[WorkflowLoader] Failed to parse ${filePath}:`, e);
+      log.error({ filePath, err: e }, 'Failed to parse workflow file');
       return null;
     }
   }
@@ -206,8 +209,13 @@ export class WorkflowProcessor {
         }
 
         // 2. Log Step
-        console.log(
-          `[Workflow] Phase ${this.state.current_phase_index + 1}, Step ${this.state.current_step_index + 1}: ${step.agent}`
+        log.info(
+          {
+            phase: this.state.current_phase_index + 1,
+            step: this.state.current_step_index + 1,
+            agent: step.agent,
+          },
+          'Executing workflow step'
         );
 
         // 3. Handle Checkpoint

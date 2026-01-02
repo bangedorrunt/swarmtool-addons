@@ -16,6 +16,9 @@ import { createClient, type Client } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 import type { LibSQLDatabase } from 'drizzle-orm/libsql';
 import { getDatabasePath } from '../utils/database-path';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('MemoryLaneStore');
 import {
   MemoryType,
   MemoryLaneMetadata,
@@ -67,16 +70,15 @@ export class MemoryLaneStore {
     this.client = createClient({ url: dbPath });
     this.db = drizzle(this.client);
 
-    console.log('[MemoryLaneStore] Initializing with database:', dbPath);
+    log.info('Initializing memory store');
 
     this.initializeSchema()
       .then(() => {
         this.schemaInitialized = true;
-        console.log('[MemoryLaneStore] Schema initialized successfully');
+        log.info('Schema initialized successfully');
       })
       .catch((err) => {
-        console.error('[MemoryLaneStore] CRITICAL: Schema initialization failed:', err);
-        console.error('[MemoryLaneStore] Database path:', dbPath);
+        log.error({ err }, 'CRITICAL: Schema initialization failed');
       });
   }
 
@@ -110,9 +112,9 @@ export class MemoryLaneStore {
           updated_at TEXT NOT NULL
         )
       `);
-      console.log('[MemoryLaneStore] Schema creation/check completed');
+      log.info('Schema creation/check completed');
     } catch (err) {
-      console.error('[MemoryLaneStore] Failed to create schema:', err);
+      log.error({ err }, 'Failed to create schema');
       throw err;
     }
   }
@@ -372,7 +374,7 @@ export class MemoryLaneStore {
       const data = await response.json();
       return data.data[0].embedding;
     } catch (err) {
-      console.error('[MemoryLaneStore] Embedding error:', err);
+      log.error({ err }, 'Embedding error');
       return new Array(1024).fill(0);
     }
   }

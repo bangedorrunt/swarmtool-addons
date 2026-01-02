@@ -373,6 +373,36 @@ For multi-turn Human-in-the-Loop interactions:
 | `ledger_clear_active_dialogue`  | Clear dialogue when completed             |
 | `ledger_get_active_dialogue`    | Get current active dialogue state         |
 
+### Logging Utilities (v7.0)
+
+Structured logging using Pino for better debugging and observability:
+
+```typescript
+import { createModuleLogger, logInfo, logWarn, logError, logDebug } from '../utils/logger';
+
+// Create module-specific logger
+const log = createModuleLogger('ModuleName');
+
+// Structured logging with data
+log.info({ key: value }, 'Message');
+log.warn({ path }, 'Warning message');
+log.error({ error }, 'Error message');
+log.debug({ detail }, 'Debug information');
+
+// Convenience functions
+logInfo('Information message');
+logWarn('Warning message', { context });
+logError('Error occurred', error);
+logDebug('Debug detail', { data });
+```
+
+**Benefits**:
+
+- JSON-structured output for easy parsing
+- Module-scoped loggers for filtering
+- Metadata attached to all log entries
+- Test mode auto-silencing
+
 ---
 
 ## 7. Multi-Turn Dialogue (v5.1)

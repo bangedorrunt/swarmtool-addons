@@ -1,5 +1,8 @@
 import { readdir, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('gc');
 
 export async function runGarbageCollection(
   snapshotDir: string = '.opencode/snapshots',
@@ -18,13 +21,13 @@ export async function runGarbageCollection(
 
       if (now - stats.mtimeMs > maxAgeMs) {
         await unlink(filePath);
-        console.log(`[GC] Deleted old snapshot: ${file}`);
+        log.info({ file }, 'Deleted old snapshot');
       }
     }
   } catch (error) {
     const err = error as { code?: string };
     if (err.code !== 'ENOENT') {
-      console.error('[GC] Error running garbage collection:', error);
+      log.error({ error }, 'Error running garbage collection');
     }
   }
 }

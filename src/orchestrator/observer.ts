@@ -13,6 +13,9 @@
 import { TaskRegistry, RegistryTask, getTaskRegistry } from './task-registry';
 import { loadLedger, saveLedger, addLearning } from './ledger';
 import { getDurableStream } from '../durable-stream';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('observer');
 
 // ============================================================================
 // Types
@@ -85,14 +88,14 @@ export class TaskObserver {
    */
   start(): void {
     if (this.isRunning) {
-      console.log('[Observer] Already running');
+      log.info('Already running');
       return;
     }
 
     this.isRunning = true;
     this.setupEventSubscriptions();
     this.scheduleNextCheck();
-    console.log('[Observer] Started task observation');
+    log.info('Started task observation');
   }
 
   /**
@@ -103,27 +106,31 @@ export class TaskObserver {
 
     this.unsubscribeAgentSpawned = durableStream.subscribe('agent.spawned', (event) => {
       if (this.config.verbose) {
-        console.log(
-          `[Observer] Agent spawned: ${(event.payload as any).agent} in session ${(event.payload as any).id}`
+        log.info(
+          { agent: (event.payload as any).agent, sessionId: (event.payload as any).id },
+          'Agent spawned'
         );
       }
     });
 
     this.unsubscribeAgentCompleted = durableStream.subscribe('agent.completed', (event) => {
       if (this.config.verbose) {
-        console.log(
-          `[Observer] Agent completed: ${event.actor} in session ${(event.payload as any).intent_id}`
+        log.info(
+          { agent: event.actor, sessionId: (event.payload as any).intent_id },
+          'Agent completed'
         );
       }
     });
 
     this.unsubscribeAgentFailed = durableStream.subscribe('agent.failed', (event) => {
-      console.warn(
-        `[Observer] Agent failed: ${event.actor} in session ${(event.payload as any).intent_id}`
+      log.warn(
+        {
+          agent: event.actor,
+          sessionId: (event.payload as any).intent_id,
+          error: (event.payload as any).error,
+        },
+        'Agent failed'
       );
-      if ((event.payload as any).error) {
-        console.warn(`[Observer] Error: ${JSON.stringify((event.payload as any).error)}`);
-      }
     });
   }
 
@@ -149,7 +156,7 @@ export class TaskObserver {
     this.unsubscribeAgentFailed = undefined;
 
     this.isRunning = false;
-    console.log('[Observer] Stopped task observation');
+    log.info('Stopped task observation');
   }
 
   /**
@@ -172,16 +179,16 @@ export class TaskObserver {
   async forceRetry(taskId: string): Promise<boolean> {
     const task = this.registry.getTask(taskId);
     if (!task) {
-      console.warn(`[Observer] Cannot force retry: Task ${taskId} not found`);
+      log.warn({ taskId }, 'Cannot force retry: Task not found');
       return false;
     }
 
     if (task.status !== 'failed' && task.status !== 'timeout') {
-      console.warn(`[Observer] Cannot force retry: Task ${taskId} is not in failed state`);
+      log.warn({ taskId, status: task.status }, 'Cannot force retry: Task is not in failed state');
       return false;
     }
 
-    console.log(`[Observer] Forcing retry for task ${taskId}`);
+    log.info({ taskId }, 'Forcing retry for task');
     await this.retryTask(task);
     return true;
   }
@@ -201,8 +208,8 @@ export class TaskObserver {
     this.intervalId = setTimeout(async () => {
       try {
         await this.observe();
-      } catch (error) {
-        console.error('[Observer] Error during observation check:', error);
+      } catch (err) {
+        log.error({ err }, 'Error during observation check');
       } finally {
         // Always reschedule if still running, even if there was an error
         this.scheduleNextCheck();
@@ -241,21 +248,19 @@ export class TaskObserver {
     this.stats.lastCheck = Date.now();
 
     if (this.config.verbose) {
-      console.log('[Observer] Running observation check...');
+      log.info('Running observation check...');
     }
 
     try {
-      // 1. Check for timed-out tasks
       const timedOut = this.registry.getTimedOutTasks();
       for (const task of timedOut) {
-        console.warn(`[Observer] Task ${task.id} timed out after ${task.timeoutMs}ms`);
+        log.warn({ taskId: task.id, timeoutMs: task.timeoutMs }, 'Task timed out');
         await this.handleTimeout(task);
       }
 
-      // 2. Check for stuck tasks (no heartbeat)
       const stuck = this.registry.getStuckTasks(this.config.stuckThresholdMs);
       for (const task of stuck) {
-        console.warn(`[Observer] Task ${task.id} appears stuck`);
+        log.warn({ taskId: task.id }, 'Task appears stuck');
         await this.handleStuck(task);
       }
 
@@ -265,10 +270,9 @@ export class TaskObserver {
         await this.checkTaskStatus(task);
       }
 
-      // 4. Cleanup old completed/failed tasks
       this.registry.cleanup();
-    } catch (error) {
-      console.error('[Observer] Error during observation:', error);
+    } catch (err) {
+      log.error({ err }, 'Error during observation');
     }
   }
 
@@ -277,14 +281,13 @@ export class TaskObserver {
    */
   private async handleTimeout(task: RegistryTask): Promise<void> {
     if (task.retryCount < task.maxRetries) {
-      // Retry the task
-      console.log(
-        `[Observer] Retrying task ${task.id} (attempt ${task.retryCount + 1}/${task.maxRetries})`
+      log.info(
+        { taskId: task.id, attempt: task.retryCount + 1, maxRetries: task.maxRetries },
+        'Retrying task'
       );
       await this.retryTask(task);
     } else {
-      // Mark as failed and cleanup
-      console.error(`[Observer] Task ${task.id} failed after ${task.maxRetries} retries`);
+      log.error({ taskId: task.id, maxRetries: task.maxRetries }, 'Task failed after max retries');
       await this.registry.updateStatus(
         task.id,
         'timeout',
@@ -293,7 +296,6 @@ export class TaskObserver {
       );
       this.stats.tasksFailed++;
 
-      // Add as anti-pattern to LEDGER
       await this.recordLearning(
         'antiPattern',
         `Task "${task.agentName}" timed out after ${task.maxRetries} retries`
@@ -311,19 +313,15 @@ export class TaskObserver {
     const isIdle = await this.isSessionIdle(task.sessionId);
 
     if (isIdle) {
-      // Session is idle but we never got the result - try to fetch it
-      console.log(`[Observer] Task ${task.id} session is idle, fetching result`);
+      log.info({ taskId: task.id }, 'Task session is idle, fetching result');
       await this.fetchTaskResult(task);
       return;
     }
 
-    // Session is running but no heartbeat - CoS Step-in required
-    console.warn(`[Observer] CoS Step-in: Task ${task.id} stuck. Pausing epic.`);
+    log.warn({ taskId: task.id }, 'CoS Step-in: Task stuck. Pausing epic.');
 
-    // 1. Mark task as stale
     await this.registry.updateStatus(task.id, 'stale', undefined, 'Task stuck (no heartbeat)');
 
-    // 2. Pause Epic in LEDGER
     if (this.config.ledgerPath) {
       try {
         const ledger = await loadLedger(this.config.ledgerPath);
@@ -334,18 +332,17 @@ export class TaskObserver {
             `[${new Date().toISOString()}] CoS Intervention: Task ${task.id} timed out (no heartbeat). Pausing epic.`
           );
           await saveLedger(ledger, this.config.ledgerPath);
-          console.log(`[Observer] Epic paused due to stuck task ${task.id}`);
+          log.info({ taskId: task.id }, 'Epic paused due to stuck task');
         }
       } catch (err) {
-        console.error('[Observer] Failed to pause epic in LEDGER:', err);
+        log.error({ err }, 'Failed to pause epic in LEDGER');
       }
     }
 
-    // 3. Emit human intervention event
     try {
       const stream = getDurableStream();
       await stream.append({
-        type: 'checkpoint.requested', // Map legacy human.intervention to checkpoint.requested? Or add custom type
+        type: 'checkpoint.requested',
         stream_id: task.sessionId,
         correlation_id: stream.getCorrelationId(),
         actor: 'observer',
@@ -357,7 +354,7 @@ export class TaskObserver {
         metadata: { sourceAgent: 'observer' },
       });
     } catch (err) {
-      console.error('[Observer] Failed to emit intervention event:', err);
+      log.error({ err }, 'Failed to emit intervention event');
     }
   }
 
@@ -397,10 +394,10 @@ export class TaskObserver {
         },
       });
 
-      console.log(`[Observer] Task ${task.id} retried with new session ${newSession.data.id}`);
+      log.info({ taskId: task.id, sessionId: newSession.data.id }, 'Task retried with new session');
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error(`[Observer] Retry failed for task ${task.id}:`, errorMessage);
+      log.error({ taskId: task.id, error: errorMessage }, 'Retry failed for task');
       await this.registry.updateStatus(
         task.id,
         'failed',
@@ -435,7 +432,7 @@ export class TaskObserver {
         await this.fetchTaskResult(task);
       }
     } catch (err: any) {
-      console.error(`[Observer] Error checking task ${task.id}:`, err.message);
+      log.error({ taskId: task.id, error: err.message }, 'Error checking task');
     }
   }
 
@@ -460,7 +457,7 @@ export class TaskObserver {
 
       await this.registry.updateStatus(task.id, 'completed', result);
       this.stats.tasksCompleted++;
-      console.log(`[Observer] Task ${task.id} completed`);
+      log.info({ taskId: task.id }, 'Task completed');
 
       // Record pattern if successful
       if (result && result.length > 0) {
@@ -470,7 +467,7 @@ export class TaskObserver {
       // Cleanup session after successful completion (v4.1 Physical Resource Management)
       await this.cleanupSession(task.sessionId);
     } catch (err: any) {
-      console.error(`[Observer] Failed to fetch result for task ${task.id}:`, err.message);
+      log.error({ taskId: task.id, error: err.message }, 'Failed to fetch result for task');
       await this.registry.updateStatus(
         task.id,
         'failed',
@@ -492,7 +489,7 @@ export class TaskObserver {
       addLearning(ledger, type, `[Observer] ${content}`);
       await saveLedger(ledger, this.config.ledgerPath);
     } catch (error) {
-      console.error('[Observer] Failed to record learning:', error);
+      log.error({ error }, 'Failed to record learning');
     }
   }
 
@@ -506,24 +503,21 @@ export class TaskObserver {
       const statusResult = await this.client.session.status();
       const sessionStatus = statusResult.data?.[sessionId];
 
-      // Skip if session is still actively running (busy)
       if (sessionStatus?.type === 'busy') {
-        console.warn(`[Observer] Session ${sessionId} is still active (busy), cannot cleanup`);
+        log.warn({ sessionId }, 'Session is still active (busy), cannot cleanup');
         return;
       }
 
-      // Skip if session no longer exists (already deleted)
       if (!sessionStatus) {
-        console.log(`[Observer] Session ${sessionId} not in status (already deleted), skipping`);
+        log.info({ sessionId }, 'Session not in status (already deleted), skipping');
         return;
       }
 
-      // Proceed with cleanup for idle sessions
       await this.client.session.delete({ path: { id: sessionId } });
-      console.log(`[Observer] Physically deleted session ${sessionId}`);
+      log.info({ sessionId }, 'Physically deleted session');
     } catch (error) {
-      console.error(`[Observer] Failed to delete session ${sessionId}:`, (error as Error).message);
-      console.log(`[Observer] Marked session ${sessionId} for cleanup (soft delete)`);
+      log.error({ sessionId, error }, 'Failed to delete session');
+      log.info({ sessionId }, 'Marked session for cleanup (soft delete)');
     }
   }
 }

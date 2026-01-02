@@ -873,6 +873,82 @@ await ledger.createHandoff('session_break', '/sdd continue auth', 'Summary here'
 
 ---
 
+## v7.0 Changes - Structured Logging with Pino (2026-01-02)
+
+### Summary
+
+Replaced all `console.log`, `console.error`, and `console.warn` statements with structured logging using [Pino](https://getpino.io/). This enables better log filtering, structured output, and improved debugging capabilities.
+
+### New Module: utils/logger.ts
+
+**Location**: `src/utils/logger.ts`
+
+**Features**:
+
+- Pino-based structured JSON logging
+- Module-scoped loggers with `createModuleLogger('ModuleName')`
+- Log levels: info, warn, error, debug
+- Test mode detection (silences logs during tests)
+- Consistent formatting with timestamp and service name
+
+**Usage**:
+
+```typescript
+import { createModuleLogger, logInfo, logWarn, logError, logDebug } from '../utils/logger';
+
+// Create module-specific logger
+const log = createModuleLogger('Ledger');
+
+// Structured logging with data
+log.info({ epicId, title }, 'Created epic');
+log.warn({ path }, 'File not found');
+log.error({ error }, 'Failed to save');
+
+// Convenience functions
+logInfo('Message');
+logWarn('Warning message');
+logError('Error message', error);
+logDebug('Debug info', { key: value });
+```
+
+### Files Updated
+
+| Category          | Files Updated                                              | Console Statements Replaced |
+| ----------------- | ---------------------------------------------------------- | --------------------------- |
+| Core Orchestrator | `ledger.ts`, `observer.ts`, `index.ts`, `task-registry.ts` | ~60                         |
+| File Ledger       | `file-ledger/index.ts`                                     | 14                          |
+| Hooks             | `ledger-hooks.ts`, `opencode-session-learning.ts`          | ~15                         |
+| Memory & Stream   | `memory-store.ts`, `durable-stream/orchestrator.ts`        | ~7                          |
+| Config & Utils    | `skill-loader.ts`, `loader.ts`, `activity-log.ts`          | ~15                         |
+| **Total**         | **25 files**                                               | **100+**                    |
+
+### Benefits
+
+| Before                                            | After                                  |
+| ------------------------------------------------- | -------------------------------------- |
+| `console.log('[Ledger] Created epic: ' + epicId)` | `log.info({ epicId }, 'Created epic')` |
+| Plain text output                                 | Structured JSON with metadata          |
+| No log levels                                     | info/warn/error/debug levels           |
+| Hard to filter                                    | Easy filtering by level/module         |
+| Secrets in logs                                   | Removed sensitive data exposure        |
+
+### Log Output Example
+
+```json
+{"level":"info","time":"2026-01-02T10:30:00.000Z","service":"opencode-addons","module":"Ledger","msg":"Created epic","epicId":"abc123","title":"Review code"}
+{"level":"warn","time":"2026-01-02T10:30:01.000Z","service":"opencode-addons","module":"SkillLoader","msg":"Agents directory not found","agentsDir":"/path/to/agents"}
+{"level":"error","time":"2026-01-02T10:30:02.000Z","service":"opencode-addons","module":"ActivityLogger","msg":"Failed to log activity","error":{"message":"Permission denied"}}
+```
+
+### Environment Variables
+
+| Variable    | Default | Description                       |
+| ----------- | ------- | --------------------------------- |
+| `LOG_LEVEL` | `info`  | Minimum log level to output       |
+| `NODE_ENV`  | -       | Set to `test` to silence all logs |
+
+---
+
 ## Related Documentation
 
 | Document                                               | Purpose                    |

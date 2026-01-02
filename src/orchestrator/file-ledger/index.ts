@@ -49,6 +49,9 @@ import {
   LEDGER_INDEX_TEMPLATE,
   renderTemplate,
 } from './templates';
+import { createModuleLogger } from '../../utils/logger';
+
+const log = createModuleLogger('file-ledger');
 
 // Helper functions
 function generateId(): string {
@@ -130,7 +133,7 @@ export class FileBasedLedger {
    * Initialize .opencode/ directory structure
    */
   async initialize(): Promise<void> {
-    console.log('[FileLedger] Initializing .opencode/ directory...');
+    log.info('Initializing .opencode/ directory...');
 
     // Create directories
     await mkdir(this.contextPath, { recursive: true });
@@ -179,7 +182,7 @@ export class FileBasedLedger {
       handoff: null,
     };
 
-    console.log('[FileLedger] Initialized at', this.opencodePath);
+    log.info({ path: this.opencodePath }, 'Initialized');
   }
 
   // LEDGER INDEX
@@ -209,7 +212,7 @@ export class FileBasedLedger {
     this.index.meta.lastUpdated = timestamp();
     const content = this.renderIndex();
     await writeFile(this.ledgerPath, content);
-    console.log('[FileLedger] Index saved');
+    log.info('Index saved');
   }
 
   private parseIndex(content: string): LedgerIndex {
@@ -371,7 +374,7 @@ export class FileBasedLedger {
     this.index!.meta.phase = 'CLARIFY';
     await this.saveIndex();
 
-    console.log(`[FileLedger] Created epic: ${epicId}`);
+    log.info({ epicId }, 'Created epic');
     return epicId;
   }
 
@@ -401,7 +404,7 @@ export class FileBasedLedger {
     Object.assign(metadata, updates, { updatedAt: timestamp() });
     await writeFile(metaPath, JSON.stringify(metadata, null, 2));
 
-    console.log(`[FileLedger] Updated epic metadata: ${epicId}`);
+    log.info({ epicId }, 'Updated epic metadata');
   }
 
   /**
@@ -433,7 +436,7 @@ export class FileBasedLedger {
     await this.loadIndex();
 
     if (!this.index!.activeEpic) {
-      console.log('[FileLedger] No active epic to archive');
+      log.info('No active epic to archive');
       return;
     }
 
@@ -470,7 +473,7 @@ export class FileBasedLedger {
     this.index!.meta.phase = 'CLARIFY';
     await this.saveIndex();
 
-    console.log(`[FileLedger] Archived epic: ${epicId}`);
+    log.info({ epicId }, 'Archived epic');
   }
 
   private determineOutcome(metadata: EpicMetadata): Outcome {
@@ -497,7 +500,7 @@ export class FileBasedLedger {
     const specPath = join(this.epicPath(epicId), 'spec.md');
     await writeFile(specPath, content);
     await this.updateEpicMetadata(epicId, { status: 'planning' });
-    console.log(`[FileLedger] Updated spec for: ${epicId}`);
+    log.info({ epicId }, 'Updated spec');
   }
 
   // PLAN OPERATIONS
@@ -516,7 +519,7 @@ export class FileBasedLedger {
   async writePlan(epicId: string, content: string): Promise<void> {
     const planPath = join(this.epicPath(epicId), 'plan.md');
     await writeFile(planPath, content);
-    console.log(`[FileLedger] Updated plan for: ${epicId}`);
+    log.info({ epicId }, 'Updated plan');
   }
 
   /**
@@ -546,7 +549,7 @@ export class FileBasedLedger {
       tasksSummary: { total, completed, failed },
     });
 
-    console.log(`[FileLedger] Task ${taskId} marked as ${status}`);
+    log.info({ epicId, taskId, status }, 'Task marked');
   }
 
   // LOG OPERATIONS
@@ -616,7 +619,7 @@ export class FileBasedLedger {
     this.index!.recentLearnings = this.index!.recentLearnings.slice(0, 5);
     await this.saveIndex();
 
-    console.log(`[FileLedger] Added ${type}: ${content.slice(0, 50)}`);
+    log.info({ type, content: content.slice(0, 50) }, 'Added learning');
   }
 
   /**
@@ -661,7 +664,7 @@ export class FileBasedLedger {
   async writeContext(type: 'product' | 'tech-stack' | 'workflow', content: string): Promise<void> {
     const filePath = join(this.contextPath, `${type}.md`);
     await writeFile(filePath, content);
-    console.log(`[FileLedger] Updated context: ${type}`);
+    log.info({ type }, 'Updated context');
   }
 
   // HANDOFF OPERATIONS
@@ -679,7 +682,7 @@ export class FileBasedLedger {
     this.index!.handoff = { reason, resumeCommand, summary };
     await this.saveIndex();
 
-    console.log(`[FileLedger] Created handoff: ${reason}`);
+    log.info({ reason }, 'Created handoff');
   }
 
   /**
@@ -691,7 +694,7 @@ export class FileBasedLedger {
     this.index!.handoff = null;
     await this.saveIndex();
 
-    console.log('[FileLedger] Cleared handoff');
+    log.info('Cleared handoff');
   }
 
   // STATUS

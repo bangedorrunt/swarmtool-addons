@@ -18,6 +18,9 @@ import { loadLocalAgents, loadSkillAgents, loadCommands } from './opencode';
 import { createSkillAgentTools, startTaskObservation, getTaskRegistry } from './orchestrator';
 import { getActivityLogger } from './orchestrator/activity-log';
 import { createOpenCodeSessionLearningHook } from './orchestrator/hooks';
+import { createModuleLogger } from './utils/logger';
+
+const log = createModuleLogger('Plugin');
 
 import { loadChiefOfStaffSkills } from './opencode/config/skill-loader';
 import { createAgentTools } from './agent-spawn';
@@ -160,8 +163,9 @@ export const SwarmToolAddons: Plugin = async (input) => {
   });
   const resumeResult = await durableStream.resume();
   if (resumeResult.pending_checkpoints.length > 0) {
-    console.log(
-      `[DurableStream] Resumed with ${resumeResult.pending_checkpoints.length} pending checkpoints`
+    log.info(
+      { pendingCheckpoints: resumeResult.pending_checkpoints.length },
+      'Resumed with pending checkpoints'
     );
   }
 
@@ -364,7 +368,7 @@ export const SwarmToolAddons: Plugin = async (input) => {
               }
             }
           } catch (e) {
-            console.error('[UPWARD_SIGNAL] Failed to process:', e);
+            log.error({ err: e }, 'Failed to process upward signal');
           }
           return; // Done with Upward Signal
         }
@@ -386,7 +390,7 @@ export const SwarmToolAddons: Plugin = async (input) => {
               });
             } catch (err) {
               const errorMessage = err instanceof Error ? err.toString() : String(err);
-              console.error('[ERROR] Handoff prompt failed:', errorMessage);
+              log.error({ error: errorMessage }, 'Handoff prompt failed');
             }
           }, 800);
         }
@@ -463,9 +467,7 @@ export const SwarmToolAddons: Plugin = async (input) => {
           if ((status as any).type === 'idle' && buffer.hasSignals(sessionId)) {
             const signals = buffer.flush(sessionId);
             for (const sig of signals) {
-              console.log(
-                `[SignalBuffer] Auto-flushing signal to ${sessionId}: ${sig.payload.reason}`
-              );
+              log.debug({ sessionId, reason: sig.payload.reason }, 'Auto-flushing signal');
               // Prompt the parent with user-friendly wake-up signal (v5.0)
               try {
                 const formattedSignal = formatYieldMessage(
@@ -487,8 +489,7 @@ export const SwarmToolAddons: Plugin = async (input) => {
                   },
                 });
               } catch (e) {
-                console.error(`[SignalBuffer] Failed to flush signal: ${(e as Error).message}`);
-                // Re-queue if critical? For now log and drop to avoid loop.
+                log.error({ err: e, sessionId }, 'Failed to flush signal');
               }
             }
           }

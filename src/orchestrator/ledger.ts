@@ -14,6 +14,9 @@ import { existsSync } from 'fs';
 import { dirname } from 'path';
 import { randomBytes } from 'crypto';
 import { lock } from 'proper-lockfile';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('Ledger');
 
 // ============================================================================
 // Types
@@ -842,16 +845,16 @@ function renderLedgerMarkdown(ledger: Ledger): string {
 export async function loadLedger(path: string = DEFAULT_LEDGER_PATH): Promise<Ledger> {
   try {
     if (!existsSync(path)) {
-      console.log(`[Ledger] No LEDGER found at ${path}, creating default`);
+      log.info('No LEDGER found, creating default');
       return createDefaultLedger();
     }
 
     const content = await readFile(path, 'utf-8');
     const ledger = parseLedgerMarkdown(content);
-    console.log(`[Ledger] Loaded from ${path}`);
+    log.info('Loaded ledger');
     return ledger;
   } catch (error) {
-    console.error(`[Ledger] Failed to load: ${error}`);
+    log.error({ error }, 'Failed to load ledger');
     return createDefaultLedger();
   }
 }
@@ -885,12 +888,12 @@ export async function saveLedger(
 
     try {
       await writeFile(path, content, 'utf-8');
-      console.log(`[Ledger] Saved to ${path}`);
+      log.info('Saved ledger');
     } finally {
       await release();
     }
   } catch (error) {
-    console.error(`[Ledger] Failed to save: ${error}`);
+    log.error({ error }, 'Failed to save ledger');
     throw error;
   }
 }
@@ -918,7 +921,7 @@ export function createEpic(ledger: Ledger, title: string, request: string): stri
   ledger.meta.phase = 'DECOMPOSITION';
   ledger.meta.tasksCompleted = '0/0';
 
-  console.log(`[Ledger] Created epic: ${epicId} - ${title}`);
+  log.info({ epicId, title }, 'Created epic');
   return epicId;
 }
 
@@ -955,7 +958,7 @@ export function createTask(
   ledger.meta.tasksCompleted = `0/${ledger.epic.tasks.length}`;
   ledger.epic.progressLog.push(`[${formatTimestamp()}] Task created: ${taskId} - ${title}`);
 
-  console.log(`[Ledger] Created task: ${taskId} - ${title}`);
+  log.info({ taskId, title }, 'Created task');
   return taskId;
 }
 
@@ -1014,7 +1017,7 @@ export function updateTaskStatus(
     ledger.meta.currentTask = undefined;
   }
 
-  console.log(`[Ledger] Task ${taskId} status: ${status}`);
+  log.info({ taskId, status }, 'Task status updated');
 }
 
 /**
@@ -1042,7 +1045,7 @@ export function addLearning(
       break;
   }
 
-  console.log(`[Ledger] Added ${type}: ${content}`);
+  log.info({ type }, 'Added learning');
 }
 
 /**
@@ -1054,7 +1057,7 @@ export function addContext(ledger: Ledger, context: string): void {
   }
 
   ledger.epic.context.push(context);
-  console.log(`[Ledger] Added context: ${context}`);
+  log.info({ context }, 'Added context');
 }
 
 /**
@@ -1070,7 +1073,7 @@ export function createHandoff(
   }
 ): void {
   if (!ledger.epic) {
-    console.log('[Ledger] No active epic, skipping handoff');
+    log.debug('No active epic, skipping handoff');
     return;
   }
 
@@ -1092,7 +1095,7 @@ export function createHandoff(
   };
 
   ledger.meta.status = 'handoff';
-  console.log(`[Ledger] Created handoff: ${reason}`);
+  log.info({ reason }, 'Created handoff');
 }
 
 /**
@@ -1100,7 +1103,7 @@ export function createHandoff(
  */
 export function archiveEpic(ledger: Ledger, outcome?: TaskOutcome): void {
   if (!ledger.epic) {
-    console.log('[Ledger] No active epic to archive');
+    log.debug('No active epic to archive');
     return;
   }
 
@@ -1148,7 +1151,7 @@ export function archiveEpic(ledger: Ledger, outcome?: TaskOutcome): void {
     ledger.handoff = null;
   }
 
-  console.log(`[Ledger] Archived epic: ${entry.epicId} - ${finalOutcome}`);
+  log.info({ epicId: entry.epicId, outcome: finalOutcome }, 'Archived epic');
 }
 
 /**
@@ -1237,7 +1240,7 @@ export function addDirective(ledger: Ledger, content: string, source: Directive[
     source,
     createdAt: Date.now(),
   });
-  console.log(`[Ledger] Added Directive: ${content}`);
+  log.info({ content }, 'Added directive');
 }
 
 /**
@@ -1256,7 +1259,7 @@ export function addAssumption(
     status: 'pending_review',
     createdAt: Date.now(),
   });
-  console.log(`[Ledger] Added Assumption: ${content}`);
+  log.info({ content }, 'Added assumption');
 }
 
 /**
@@ -1279,9 +1282,9 @@ export function reviewAssumption(
   if (status === 'approved' && promoteToDirective) {
     addDirective(ledger, assumption.content, 'user');
     ledger.governance.assumptions.splice(index, 1);
-    console.log(`[Ledger] Assumption promoted to Directive: ${assumption.content}`);
+    log.info({ content: assumption.content }, 'Assumption promoted to directive');
   } else {
-    console.log(`[Ledger] Assumption ${status}: ${assumption.content}`);
+    log.info({ status, content: assumption.content }, 'Assumption status updated');
   }
 }
 
@@ -1326,7 +1329,7 @@ export function setActiveDialogue(
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
-  console.log(`[Ledger] Started active dialogue: ${agent} via ${command}`);
+  log.info({ agent, command }, 'Started active dialogue');
 }
 
 /**
@@ -1346,7 +1349,7 @@ export function updateActiveDialogue(
   }
 ): void {
   if (!ledger.activeDialogue) {
-    console.log('[Ledger] No active dialogue to update');
+    log.debug('No active dialogue to update');
     return;
   }
 
@@ -1363,7 +1366,7 @@ export function updateActiveDialogue(
   if (updates.decisions) dir.decisions.push(...updates.decisions);
 
   ledger.activeDialogue.updatedAt = Date.now();
-  console.log(`[Ledger] Updated active dialogue: turn=${ledger.activeDialogue.turn}`);
+  log.info({ turn: ledger.activeDialogue.turn }, 'Updated active dialogue');
 }
 
 /**
@@ -1378,7 +1381,7 @@ export function getActiveDialogue(ledger: Ledger): ActiveDialogue | null {
  */
 export function clearActiveDialogue(ledger: Ledger): void {
   if (ledger.activeDialogue) {
-    console.log(`[Ledger] Cleared active dialogue: ${ledger.activeDialogue.agent}`);
+    log.info({ agent: ledger.activeDialogue.agent }, 'Cleared active dialogue');
   }
   ledger.activeDialogue = null;
 }

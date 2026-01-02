@@ -19,6 +19,9 @@ import {
   buildLineageTree,
   getDescendants,
 } from '../durable-stream/core';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('event-driven-ledger');
 
 export interface LedgerEventConfig {
   /** Enable automatic event emission for ledger operations */
@@ -103,8 +106,13 @@ export class EventDrivenLedger {
     this.eventHistory = this.stream.getEventHistory();
     this.lineageTree = buildLineageTree(this.eventHistory);
 
-    console.log(
-      `[EventLedger] Recovered ${result.events_replayed} events, ${result.pending_checkpoints.length} pending checkpoints, ${result.active_intents.length} active intents`
+    log.info(
+      {
+        eventsReplayed: result.events_replayed,
+        checkpoints: result.pending_checkpoints.length,
+        intents: result.active_intents.length,
+      },
+      'Recovered state'
     );
   }
 

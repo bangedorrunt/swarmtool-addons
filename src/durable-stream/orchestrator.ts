@@ -33,6 +33,9 @@ import {
   extractActiveIntents,
 } from './core';
 import { JsonlStore, getDefaultStore } from './store';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('DurableStream');
 
 export interface DurableStreamConfig {
   /** Custom store implementation (default: JsonlStore) */
@@ -500,7 +503,7 @@ export class DurableStream extends EventEmitter {
 
       return true;
     } catch (error) {
-      console.error(`[DurableStream] Failed to delete session ${sessionId}:`, error);
+      log.error({ sessionId, error }, 'Failed to delete session');
       return false;
     }
   }
@@ -539,7 +542,7 @@ export class DurableStream extends EventEmitter {
 
       return true;
     } catch (error) {
-      console.error(`[DurableStream] Failed to abort session ${sessionId}:`, error);
+      log.error({ sessionId, error }, 'Failed to abort session');
       return false;
     }
   }

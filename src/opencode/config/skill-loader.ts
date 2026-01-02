@@ -10,6 +10,9 @@
 import fs from 'node:fs';
 import path from 'path';
 import matter from 'gray-matter';
+import { createModuleLogger } from '../../utils/logger';
+
+const log = createModuleLogger('SkillLoader');
 
 export interface SkillDefinition {
   /** Hierarchical name (e.g., "chief-of-staff/architect") or flat name (e.g., "architect") */
@@ -62,7 +65,7 @@ export async function loadChiefOfStaffSkills(): Promise<SkillDefinition[]> {
   );
 
   if (!fs.existsSync(agentsDir)) {
-    console.warn(`[skill-loader] Agents directory not found: ${agentsDir}`);
+    log.warn({ agentsDir }, 'Agents directory not found');
     return skills;
   }
 
@@ -102,7 +105,7 @@ export async function loadChiefOfStaffSkills(): Promise<SkillDefinition[]> {
 
       skills.push(skill);
     } catch (error) {
-      console.error(`[skill-loader] Failed to load ${agentName}:`, error);
+      log.error({ agentName, error }, 'Failed to load agent skill');
     }
   }
 
