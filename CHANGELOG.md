@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Multi-turn dialogue continuation reliability**
+  - Treat empty `## Active Dialogue` sections as `null` (prevents ghost dialogues)
+  - Route replies only when `agent` + `command` are present, and auto-adopt session on mismatch
+  - Bind `ledger_set_active_dialogue` / `ledger_update_active_dialogue` to the parent/root session by default
+
 ## [5.1.1] - 2026-01-02
 
 ### Summary
