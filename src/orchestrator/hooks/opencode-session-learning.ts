@@ -299,6 +299,7 @@ export function createOpenCodeSessionLearningHook(
     type: MemoryType,
     entities?: string[]
   ): Promise<void> {
+    log.info({ information, type, entities }, 'Storing learning to Memory Lane');
     const adapter = await getAdapter();
     await adapter
       .store({
@@ -306,7 +307,9 @@ export function createOpenCodeSessionLearningHook(
         type,
         entities,
       })
-      .catch(() => {});
+      .catch((err: Error) => {
+        log.error({ err, information, type }, 'Failed to store learning to Memory Lane');
+      });
   }
 
   /**
@@ -324,16 +327,35 @@ export function createOpenCodeSessionLearningHook(
    * Capture learnings from session
    */
   async function captureLearnings(sessionID: string) {
+    log.info({ sessionID }, 'Capturing learnings from session');
+
     const userMessages = sessionUserMessages.get(sessionID) || [];
     const modifiedFiles = sessionModifiedFiles.get(sessionID) || [];
 
-    if (userMessages.length === 0) return;
+    log.info(
+      {
+        sessionID,
+        messageCount: userMessages.length,
+        fileCount: modifiedFiles.length,
+      },
+      'Session data for learning capture'
+    );
+
+    if (userMessages.length === 0) {
+      log.info({ sessionID }, 'No user messages to extract learnings from');
+      return;
+    }
 
     const extractor = getLearningExtractor();
     const ledger = getEventDrivenLedger();
 
     // 1. Extract learnings using the advanced extractor
     const transcript = userMessages.join('\n---\n');
+    log.info(
+      { sessionID, transcriptLength: transcript.length },
+      'Extracting learnings from transcript'
+    );
+
     const learnings = await extractor.extractFromEvents([
       {
         id: `session_${sessionID}_transcript`,
@@ -346,8 +368,14 @@ export function createOpenCodeSessionLearningHook(
       },
     ]);
 
+    log.info({ sessionID, learningCount: learnings.length }, 'Extracted learnings');
+
     // 2. Store extracted learnings to Memory Lane and Ledger Event Stream
     for (const learning of learnings) {
+      log.info(
+        { sessionID, learningType: learning.type, learningContent: learning.information },
+        'Storing extracted learning'
+      );
       await storeToMemoryLane(learning.information, learning.type as any, learning.entities);
       await ledger.emit('ledger.learning.extracted', {
         learningType: learning.type,
@@ -381,7 +409,7 @@ export function createOpenCodeSessionLearningHook(
           session_id: sessionID,
         },
       }).catch((e: any) => {
-        log.error({ err: e }, 'memory-catcher failed');
+        log.error({ err: e, sessionID }, 'memory-catcher failed');
       });
     }
   }
@@ -433,7 +461,7 @@ export function createOpenCodeSessionLearningHook(
     const sessionID = getSessionID();
 
     // Session created - initialize tracking
-    if (event.type === 'session.created' && sessionID) {
+    if (event.type === 'lifecycle.session.created' && sessionID) {
       sessionFirstMessages.set(sessionID, false);
       sessionUserMessages.set(sessionID, []);
       sessionModifiedFiles.set(sessionID, []);
@@ -441,7 +469,7 @@ export function createOpenCodeSessionLearningHook(
     }
 
     // Message created - check for first user message
-    if (event.type === 'message.created' && sessionID) {
+    if (event.type === 'message.updated' && sessionID) {
       const info = props?.info as Record<string, unknown> | undefined;
       const role = info?.role as string | undefined;
       const content = info?.content as string | undefined;
@@ -453,6 +481,8 @@ export function createOpenCodeSessionLearningHook(
         const messages = sessionUserMessages.get(sessionID) || [];
         messages.push(content);
         sessionUserMessages.set(sessionID, messages);
+
+        log.info({ sessionID, messageCount: messages.length, role }, 'Tracked user message');
 
         // First user message - inject learnings
         if (!sessionFirstMessages.get(sessionID)) {
@@ -498,7 +528,7 @@ export function createOpenCodeSessionLearningHook(
     }
 
     // Session idle - schedule learning capture
-    if (event.type === 'session.idle' && captureEnabled && sessionID) {
+    if (event.type === 'lifecycle.session.idle' && captureEnabled && sessionID) {
       // Cancel any existing pending capture
       const existing = pendingCaptures.get(sessionID);
       if (existing) {
@@ -516,7 +546,7 @@ export function createOpenCodeSessionLearningHook(
     }
 
     // Session deleted - cleanup
-    if (event.type === 'session.deleted' && sessionID) {
+    if (event.type === 'lifecycle.session.deleted' && sessionID) {
       // Final capture before cleanup
       if (captureEnabled) {
         await captureLearnings(sessionID);

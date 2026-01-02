@@ -298,13 +298,202 @@ Notes for Future Self
 
 Energy Check
 
-- Frustration: 😐
-- Satisfaction: 🙂
+- Frustration: 🙂
+- Satisfaction: 😄
 - Energy: 🔋
 
 ---
 
 Reflected: 2026-01-02
+
+---
+
+## Session 5
+
+Session Info
+
+- Date: 2026-01-03
+- Task/Feature: Memory Lane Recovery - Fix automatic extraction and manual tools
+- Duration: ~3h
+
+---
+
+What Was Built
+
+1. **Root Cause Analysis**: Identified that Memory Lane was broken due to event type mismatches
+   - Hook expected `session.created`, `session.idle`, `session.deleted`
+   - Durable Stream sends `lifecycle.session.created`, `lifecycle.session.idle`, `lifecycle.session.deleted`
+   - Event type checks never matched → extraction never triggered
+
+2. **Fixed Event Type Mismatches** in `src/orchestrator/hooks/opencode-session-learning.ts`:
+   - `session.created` → `lifecycle.session.created`
+   - `session.idle` → `lifecycle.session.idle`
+   - `session.deleted` → `lifecycle.session.deleted`
+   - `message.created` → `message.updated`
+
+3. **Added Comprehensive Logging**:
+   - Added `log.info()` throughout extraction flow
+   - Track session creation, message tracking, learning capture, and storage
+   - Removed silent `.catch(() => {})` error swallowing
+
+4. **Updated Documentation**:
+   - Fixed README.md (hooks.ts doesn't exist, functionality in opencode-session-learning.ts)
+   - Updated CHANGELOG.md with fix details
+
+5. **End-to-End Validation** (4/4 tests passed):
+   - Manual tools workflow: ✅ Store → Find (relevance score: 0.58)
+   - Automatic extraction: ✅ Session events → 1 new learning extracted
+   - Database persistence: ✅ Survives store.close()
+   - Entity filtering: ✅ Filter by entities works correctly
+
+---
+
+Technical Decisions
+
+| Decision                  | Rationale                                | Trade-offs                        |
+| ------------------------- | ---------------------------------------- | --------------------------------- |
+| Fix event type matching   | Event handlers were checking wrong types | Simple fix, high impact           |
+| Add logging before fixing | Needed visibility to understand the flow | More log output, better debugging |
+| Test before committing    | Created E2E validation script            | Extra work, but ensures fix works |
+
+### Root Cause Analysis
+
+```
+1. User reported: "Memory Lane is broken, didn't find or save memories"
+2. Investigation found:
+   - Database layer works (verified with manual tests)
+   - Manual tools work (store/find operations functional)
+   - Automatic extraction: NEVER TRIGGERED
+
+3. Root cause discovery:
+   - Hook code: if (event.type === 'session.idle' && ...)
+   - Durable Stream emits: type: 'lifecycle.session.idle'
+   - Types NEVER MATCHED → extraction never ran
+
+4. Secondary issue:
+   - Hook checked for 'message.created'
+   - Stream sends 'message.updated'
+   - User messages were never tracked either!
+```
+
+---
+
+PATTERNS Applied
+Patterns Used Successfully
+
+- Event type matching for correct handler invocation
+- Comprehensive logging for debugging visibility
+- End-to-end validation before declaring fix complete
+- Documentation-first approach (readme, changelog)
+
+Anti-Patterns Avoided
+
+- Silent error swallowing (removed `.catch(() => {})`)
+- Unverified fixes (created validation tests)
+- Documentation drift (updated README and CHANGELOG)
+
+---
+
+Problems Solved
+
+| Problem                                | Solution                                  | Pattern/Approach    |
+| -------------------------------------- | ----------------------------------------- | ------------------- |
+| Automatic extraction completely broken | Fix event type mismatches                 | Event type matching |
+| User messages not being tracked        | Fix `message.created` → `message.updated` | Event type matching |
+| No visibility into extraction flow     | Add comprehensive logging                 | Observability       |
+| Can't verify fixes work                | Create E2E validation script              | Testing             |
+
+---
+
+Code Quality
+
+- Refactoring done: Updated `opencode-session-learning.ts` event handlers; fixed README.md; updated CHANGELOG.md
+- Technical debt removed: None - this was a bug fix, not introducing new complexity
+- Maintainability rating: High - logging makes debugging easier; event types now correct
+- Note: Database layer was verified working from the start - issue was purely in the hook layer
+
+---
+
+Architecture Fit
+
+- Aligned with system design?: Yes - Memory Lane architecture is correct, just event types were wrong
+- Design changes needed?: None
+- Boundary issues: Clear separation between Memory Lane (storage/search) and session hooks (extraction trigger)
+
+---
+
+Wins & Regrets
+What I'm Proud Of
+
+- Systematic debugging approach (verified each layer independently)
+- Found root cause quickly by checking event type matching
+- Created comprehensive E2E validation to prove fix works
+- Updated documentation to prevent future confusion
+
+What Could Be Better
+
+- Should have checked event type matching earlier in the investigation
+- Could have caught this with unit tests for event handler registration
+
+---
+
+Blockers & Dependencies
+
+- External blockers: None
+- Waiting on: Nothing
+- Risks: None - fix is simple and well-tested
+
+---
+
+Senior Developer Checklist
+
+- ✅ Alternatives considered (manual tools vs hooks vs database)
+- ✅ Code is maintainable (logging added, clean fixes)
+- ✅ Decisions documented (in this reflection and CHANGELOG)
+- ✅ Future scale considered (event types follow Durable Stream conventions)
+- ✅ Solution is simple enough (4 event type changes + logging)
+- ✅ Patterns applied appropriately (event matching, testing)
+- ✅ Anti-patterns avoided (silent errors, unverified fixes)
+
+---
+
+Learning
+
+New insight: When a feature "never works", check if the code is even being executed first. Event type mismatches can silently break entire features without any errors.
+
+Pattern to remember: When debugging broken integrations, verify that event handlers are actually being called (check event type matching) before diving into complex logic.
+
+Skill practiced: Systematic debugging across multiple layers; event-driven system debugging; documentation-driven bug fixing.
+
+---
+
+Next Actions
+
+1. None - Memory Lane is now fully operational
+
+---
+
+Notes for Future Self
+
+```
+- If Memory Lane breaks again: check event types first
+- Hook expects: session.created, session.idle, session.deleted, message.created
+- Stream sends: lifecycle.session.created, lifecycle.session.idle, lifecycle.session.deleted, message.updated
+- Durable Stream types are in src/durable-stream/types.ts
+- Hook handlers are in src/orchestrator/hooks/opencode-session-learning.ts
+```
+
+---
+
+Energy Check
+
+- Frustration: 😐 (annoying that event types didn't match)
+- Satisfaction: 😄 (satisfied with systematic debugging approach)
+- Energy: 🔋
+
+---
+
+Reflected: 2026-01-03
 
 ---
 
@@ -523,7 +712,7 @@ Technical Decisions
 
 1. **Observed failure mode**: The `/sdd` command was running sequentially through phases without pausing for user approval, despite documentation saying it was HITL.
 2. **Root cause**: The prompt didn't have "hard gates". Agents would interpret "ask for approval" as a suggestion rather than a blocking requirement.
-3. **Pattern selection**: Multi-turn gating via Ledger markers. 
+3. **Pattern selection**: Multi-turn gating via Ledger markers.
    - Step 1: Check for `SDD_SPEC_APPROVED`. If missing, call interviewer + `ledger_update_active_dialogue` + STOP.
    - Step 2: Only when marker exists, proceed to PLAN.
 4. **Reliability**: Using the `ActiveDialogue` decisions array ensures the state persists even if the session context is trimmed.
@@ -531,6 +720,7 @@ Technical Decisions
 ---
 
 ## PATTERNS Applied
+
 Patterns Used Successfully
 
 - Approval-gated workflow orchestration
@@ -546,12 +736,13 @@ Anti-Patterns Avoided
 ---
 
 ## Problems Solved
-| Problem | Solution | Pattern/Approach |
-|---------|----------|------------------|
-| Redundant progress messages | Deleted progress notification pipeline | Deletion / Simplification |
-| Broken `/sdd` HITL flow | Implemented strict approval gates via Ledger markers | Gated Orchestration |
-| Metadata inconsistency | Updated all SKILL.md files to match restored inline strategy | Configuration alignment |
-| Workaround leftovers | Removed `intendedMode` and `canUseInlineMode` | Technical debt cleanup |
+
+| Problem                     | Solution                                                     | Pattern/Approach          |
+| --------------------------- | ------------------------------------------------------------ | ------------------------- |
+| Redundant progress messages | Deleted progress notification pipeline                       | Deletion / Simplification |
+| Broken `/sdd` HITL flow     | Implemented strict approval gates via Ledger markers         | Gated Orchestration       |
+| Metadata inconsistency      | Updated all SKILL.md files to match restored inline strategy | Configuration alignment   |
+| Workaround leftovers        | Removed `intendedMode` and `canUseInlineMode`                | Technical debt cleanup    |
 
 ---
 
@@ -571,6 +762,7 @@ Anti-Patterns Avoided
 ---
 
 ## Wins & Regrets
+
 What I'm Proud Of
 
 - Aggressively removed redundant code once the underlying deadlock was fixed properly.
@@ -603,6 +795,7 @@ What Could Be Better
 ---
 
 ## Learning
+
 New insight: Workarounds for platform limitations (like deadlock) should be fully purged once a structural fix is implemented to avoid "feature creep" and metadata rot.
 
 Pattern to remember: Approval-gated commands should check for explicit "passed" markers in durable state before transitioning phases.
@@ -631,4 +824,3 @@ Pattern to remember: Approval-gated commands should check for explicit "passed" 
 - Frustration: 🙂
 - Satisfaction: 😄
 - Energy: 🔋
-

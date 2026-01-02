@@ -210,7 +210,7 @@ const config = getAgentConfig('executor');
 
 #### Deferred Inline Prompts (Deadlock Avoidance)
 
-Inline agents run in the **parent session** for visibility, but tools must **never** call `session.prompt()` synchronously on the *same* session (can deadlock). Instead:
+Inline agents run in the **parent session** for visibility, but tools must **never** call `session.prompt()` synchronously on the _same_ session (can deadlock). Instead:
 
 1. The tool returns `status: "HANDOFF_INTENT"` (with Durable Stream intent/message IDs for correlation)
 2. The plugin schedules `session.promptAsync()` from the outer hook loop (`tool.execute.after`)
@@ -564,6 +564,95 @@ status: needs_input
 
 - Added tool access for active dialogue functions
 - Continues to return `dialogue_state` for ROOT agent parsing
+
+---
+
+## v5.2.0 Changes - Memory Lane Recovery (2026-01-03)
+
+### Summary
+
+Fixed critical bug where automatic learning extraction was completely broken due to event type mismatches between the session learning hook and the Durable Stream event emitter.
+
+### Root Cause
+
+The session learning hook in `src/orchestrator/hooks/opencode-session-learning.ts` was checking for event types:
+
+- `session.created`
+- `session.idle`
+- `session.deleted`
+- `message.created`
+
+But the Durable Stream was emitting:
+
+- `lifecycle.session.created`
+- `lifecycle.session.idle`
+- `lifecycle.session.deleted`
+- `message.updated`
+
+Since the event types never matched, the learning extraction logic was never triggered.
+
+### Changes Made
+
+**Event Type Fixes** (`src/orchestrator/hooks/opencode-session-learning.ts`):
+
+| Line | Before                             | After                                        |
+| ---- | ---------------------------------- | -------------------------------------------- |
+| 464  | `event.type === 'session.created'` | `event.type === 'lifecycle.session.created'` |
+| 529  | `event.type === 'session.idle'`    | `event.type === 'lifecycle.session.idle'`    |
+| 547  | `event.type === 'session.deleted'` | `event.type === 'lifecycle.session.deleted'` |
+| 472  | `event.type === 'message.created'` | `event.type === 'message.updated'`           |
+
+**Logging Improvements**:
+
+- Added comprehensive `log.info()` throughout extraction flow
+- Removed silent error swallowing (`.catch(() => {})` → `.catch((err) => { log.error(...) })`)
+- Logs now track: session creation, message tracking, learning capture, and storage
+
+**Documentation Fixes**:
+
+- Updated `src/memory-lane/README.md` to reflect correct file structure (hooks.ts doesn't exist, functionality is in `opencode-session-learning.ts`)
+- Updated `CHANGELOG.md` with fix details
+
+### Verification
+
+End-to-end validation (4/4 tests passed):
+
+1. ✅ Manual tools workflow (store → find)
+2. ✅ Automatic extraction (session events → learning)
+3. ✅ Database persistence
+4. ✅ Entity filtering
+
+### Event Flow (After Fix)
+
+```
+User Message
+     │
+     ▼
+lifecycle.session.created ──→ Initialize session tracking
+     │
+     ▼
+message.updated (role: user) ──→ Track user messages
+     │
+     ▼
+lifecycle.session.idle ──→ Schedule captureLearnings (2s delay)
+     │
+     ▼
+captureLearnings() ──→ Extract learnings from transcript
+     │
+     ▼
+storeToMemoryLane() ──→ Store to SQLite database
+     │
+     ▼
+Database: ~/.opencode/memories.db
+```
+
+### Files Changed
+
+| File                                                  | Change                                   |
+| ----------------------------------------------------- | ---------------------------------------- |
+| `src/orchestrator/hooks/opencode-session-learning.ts` | Event type fixes + comprehensive logging |
+| `src/memory-lane/README.md`                           | Fixed documentation (hooks.ts location)  |
+| `CHANGELOG.md`                                        | Added v5.2.0 entry                       |
 
 ---
 

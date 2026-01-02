@@ -66,11 +66,12 @@ memory_lane_find({
 src/memory-lane/
 ├── tools.ts               # OpenCode tools (find, store, feedback)
 ├── memory-store.ts        # Standalone Memory DB operations (Drizzle)
-├── hooks.ts               # Extraction trigger via tool hooks
 ├── resolver.ts            # EntityResolver for entity operations
 ├── taxonomy.ts            # Memory types, priorities, and schemas
 └── index.ts               # Module exports
 ```
+
+**Note**: Session lifecycle hooks for automatic extraction are implemented in `src/orchestrator/hooks/opencode-session-learning.ts` (not in this directory).
 
 ## Key Components
 
@@ -111,26 +112,27 @@ Memory Lane is a sidecar to OpenCode, providing a persistent knowledge layer for
 │  │  Memory Lane    │           │  Orchestrator│                 │
 │  │  (Sidecar)      │           │  (Core)      │                 │
 │  │  ┌───────────┐  │           │              │                 │
-│  │  │   Hooks   │◄─┴───────────┤   Lifecycle  │                 │
-│  │  │ (Session) │              │   System     │                 │
+│  │  │   Tools   │◄─┴───────────┤   Lifecycle  │                 │
+│  │  │ (store/find)│           │   System     │                 │
 │  │  └───────────┘              └──────────────┘                 │
 │  │                                                         ││
-│  │  Session Events trigger:                                    ││
-│  │  ┌─────────────────┐                                     ││
-│  │  │ memory-catcher│  ← Spawned via skill_agent               ││
-│  │  │ Subagent      │                                     ││
-│  │  └─────────────────┘                                     ││
+│  │  Session Events trigger:                                   ││
+│  │  ┌─────────────────────────────────────────────────────┐  ││
+│  │  │  src/orchestrator/hooks/opencode-session-learning │  ││
+│  │  │  (Handles: lifecycle.session.created,              │  ││
+│  │  │   lifecycle.session.idle, lifecycle.session.deleted) │  ││
+│  │  └─────────────────────────────────────────────────────┘  ││
 │  │           │                                              ││
 │  │           ▼                                              ││
 │  │  ┌─────────────────┐                                     ││
-│  │  │  memory_lane_  │  Extract, classify, store             ││
+│  │  │  memory_lane_   │  Extract, classify, store             ││
 │  │  │  store Tool    │                                     ││
 │  │  └─────────────────┘                                     ││
 │  │                                                         ││
 │  │  ┌─────────────────┐                                     ││
 │  │  │  Memory Store  │  Independent SQLite database          ││
 │  │  │  (Drizzle)     │  ~/.opencode/memories.db              ││
-│  │  │  └─────────────────┘                                     ││
+│  │  └─────────────────┘                                     ││
 │  └─────────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────┘
 

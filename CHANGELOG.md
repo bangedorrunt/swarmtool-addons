@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Memory Lane automatic extraction**: Fixed critical bug where automatic learning extraction was completely broken due to event type mismatch.
+  - Root cause: Hook expected `session.created`, `session.idle`, `session.deleted` but durable stream sends `lifecycle.session.created`, `lifecycle.session.idle`, `lifecycle.session.deleted`
+  - Also fixed `message.created` → `message.updated` event type mismatch
+  - Added comprehensive logging for visibility
+  - Removed silent error swallowing (`.catch(() => {})`)
+
 - **/sdd HITL gating**: Updated the `/sdd` command contract to be approval-gated (spec + plan) using multi-turn Active Dialogue.
 
 ### Changed
@@ -43,18 +49,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Files Changed (Deferred Inline Prompts & Durable Stream Telemetry)
 
-| File | Change |
-| --- | --- |
-| `src/orchestrator/session-strategy.ts` | Re-enabled inline modes for planning agents |
-| `src/orchestrator/tools.ts` | Inline tools now return `HANDOFF_INTENT` (no synchronous `session.prompt()` on same session) |
-| `src/index.ts` | `tool.execute.after` schedules `promptAsync`; flushes buffered prompts; triggers ledger projection on `session.idle` |
-| `src/orchestrator/prompt-buffer.ts` | **New**: queue + flush + retry for deferred prompts |
-| `src/durable-stream/types.ts` | Added `execution.*` telemetry event types |
-| `src/durable-stream/orchestrator.ts` | Captures `message.updated` + `message.part.updated` deltas/snapshots into Durable Stream |
-| `src/orchestrator/tools/ledger-tools.ts` | `ledger_get_history` queries Durable Stream instead of `activity.jsonl` |
-| `src/orchestrator/ledger-projector.ts` | **New**: projects learnings from Durable Stream into `.opencode/LEDGER.md` |
-| `src/memory-lane/memory-store.ts` | Improved LM Studio embedding model handling (server start + model load + identifier selection) |
-| `src/orchestrator/session-strategy.test.ts` | Updated expectations for restored hybrid session modes |
+| File                                        | Change                                                                                                               |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `src/orchestrator/session-strategy.ts`      | Re-enabled inline modes for planning agents                                                                          |
+| `src/orchestrator/tools.ts`                 | Inline tools now return `HANDOFF_INTENT` (no synchronous `session.prompt()` on same session)                         |
+| `src/index.ts`                              | `tool.execute.after` schedules `promptAsync`; flushes buffered prompts; triggers ledger projection on `session.idle` |
+| `src/orchestrator/prompt-buffer.ts`         | **New**: queue + flush + retry for deferred prompts                                                                  |
+| `src/durable-stream/types.ts`               | Added `execution.*` telemetry event types                                                                            |
+| `src/durable-stream/orchestrator.ts`        | Captures `message.updated` + `message.part.updated` deltas/snapshots into Durable Stream                             |
+| `src/orchestrator/tools/ledger-tools.ts`    | `ledger_get_history` queries Durable Stream instead of `activity.jsonl`                                              |
+| `src/orchestrator/ledger-projector.ts`      | **New**: projects learnings from Durable Stream into `.opencode/LEDGER.md`                                           |
+| `src/memory-lane/memory-store.ts`           | Improved LM Studio embedding model handling (server start + model load + identifier selection)                       |
+| `src/orchestrator/session-strategy.test.ts` | Updated expectations for restored hybrid session modes                                                               |
 
 ### Changed
 
