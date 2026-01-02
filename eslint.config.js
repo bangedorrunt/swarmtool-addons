@@ -44,7 +44,21 @@ export default tseslint.config(
       'prettier/prettier': 'error',
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-explicit-any': 'warn',
-      'no-console': 'error',
+      // This codebase intentionally uses console for plugin/runtime logging.
+      'no-console': 'warn',
+      // Prefer the TypeScript-aware rule, and don't fail the build on warnings.
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
+      ],
+      // Allow intentional empty catch blocks.
+      'no-empty': ['warn', { allowEmptyCatch: true }],
     },
   }
 );

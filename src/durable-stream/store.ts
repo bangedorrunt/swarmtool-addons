@@ -40,7 +40,7 @@ export class JsonlStore implements IStreamStore {
 
   constructor(config?: Partial<JsonlStoreConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
-    this.maxCacheSize = 100000;
+    this.maxCacheSize = 500000;
   }
 
   /**

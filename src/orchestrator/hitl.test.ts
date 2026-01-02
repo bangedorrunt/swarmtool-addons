@@ -4,7 +4,7 @@
  * Tests for poll formatting and user response parsing.
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 import {
   formatPoll,
   formatConfirmation,

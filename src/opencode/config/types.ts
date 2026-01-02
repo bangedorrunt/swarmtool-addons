@@ -79,15 +79,14 @@ export interface ConfigValidationResult {
 export const DEFAULT_MODELS = {
   // Primary agent (user-facing)
   'chief-of-staff': 'google/gemini-3-pro-low',
-  'architect': 'google/gemini-3-flash',
-  'interviewer': 'google/gemini-3-flash',
-  'executor': 'google/gemini-3-pro-low',
-  'validator': 'google/gemini-3-flash',
-  'reviewer': 'google/gemini-3-pro-high',
-  'debugger': 'google/gemini-3-flash',
-  'explore': 'opencode/grok-code',
-  'librarian': 'opencode/grok-code',
-
+  architect: 'google/gemini-3-flash',
+  interviewer: 'google/gemini-3-flash',
+  executor: 'google/gemini-3-pro-low',
+  validator: 'google/gemini-3-flash',
+  reviewer: 'google/gemini-3-pro-high',
+  debugger: 'google/gemini-3-flash',
+  explore: 'opencode/grok-code',
+  librarian: 'opencode/grok-code',
 } as const;
 
 /**
@@ -189,15 +188,14 @@ export function getDefaultConfig(): SwarmToolAddonsConfig {
     models: {
       // Primary agent
       'chief-of-staff': { model: DEFAULT_MODELS['chief-of-staff'] },
-      'architect': { model: DEFAULT_MODELS['architect'] },
-      'interviewer': { model: DEFAULT_MODELS['interviewer'] },
-      'reviewer': { model: DEFAULT_MODELS['reviewer'] },
-      'executor': { model: DEFAULT_MODELS['executor'] },
-      'validator': { model: DEFAULT_MODELS['validator'] },
-      'debugger': { model: DEFAULT_MODELS['debugger'] },
-      'explore': { model: DEFAULT_MODELS['explore'] },
-      'librarian': { model: DEFAULT_MODELS['librarian'] },
-
+      architect: { model: DEFAULT_MODELS.architect },
+      interviewer: { model: DEFAULT_MODELS.interviewer },
+      reviewer: { model: DEFAULT_MODELS.reviewer },
+      executor: { model: DEFAULT_MODELS.executor },
+      validator: { model: DEFAULT_MODELS.validator },
+      debugger: { model: DEFAULT_MODELS.debugger },
+      explore: { model: DEFAULT_MODELS.explore },
+      librarian: { model: DEFAULT_MODELS.librarian },
     },
     debug: false,
     logLevel: 'info',

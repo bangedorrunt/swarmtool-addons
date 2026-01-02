@@ -1,46 +1,36 @@
-import { evalite } from 'evalite';
+import { evalite, createScorer } from 'evalite';
 import { cachedInference, loadSkillContent } from './utils';
 
-evalite('Oracle Agent: Real LLM Reasoning (v4.1)', {
+evalite('Architect Agent: Real LLM Decomposition (v5.0)', {
   data: () => [
     {
-      input: {
-        text: 'Add a login page with Google Auth and a user profile settings page',
-        expectedMode: 'parallel',
-      },
+      input: 'Add a login page with Google Auth and a user profile settings page',
+      expected: 'parallel',
     },
     {
-      input: {
-        text: 'Refactor the database schema for orders and update all existing queries to match',
-        expectedMode: 'sequential',
-      },
+      input: 'Refactor the database schema for orders and update all existing queries to match',
+      expected: 'sequential',
     },
   ],
-  task: async (input: any) => {
-    const system = loadSkillContent('oracle');
+  task: async (input: string) => {
+    const system = loadSkillContent('architect');
     const result = await cachedInference({
       system,
-      prompt: `Decompose this request: "${input.text}"`,
-      tag: 'oracle',
+      prompt: `Decompose this request: "${input}"`,
+      tag: 'architect',
       model: 'nvidia/nemotron-3-nano',
     });
 
     return result.parsed || result;
   },
   scorers: [
-    // @ts-ignore
-    (result, ctx) => {
-      const mode = result?.execution_strategy?.mode;
-      const expected = ctx?.input?.expectedMode;
+    createScorer('strategy-mode', ({ output, expected }) => {
+      const mode = output?.execution_strategy?.mode;
       return mode === expected ? 1 : 0;
-    },
-    // @ts-ignore
-    (result) => {
-      const tasks = result && typeof result === 'object' ? (result as any).tasks : null;
-      if (tasks && Array.isArray(tasks) && tasks.length <= 3) {
-        return 1;
-      }
-      return 0;
-    },
+    }),
+    createScorer('task-count', ({ output }) => {
+      const tasks = output && typeof output === 'object' ? (output as any).tasks : null;
+      return tasks && Array.isArray(tasks) && tasks.length <= 3 ? 1 : 0;
+    }),
   ],
 });

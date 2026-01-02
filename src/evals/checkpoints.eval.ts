@@ -1,4 +1,4 @@
-import { evalite } from 'evalite';
+import { evalite, createScorer } from 'evalite';
 import { CHECKPOINT_TEMPLATES, type CheckpointDefinition } from '../orchestrator/checkpoint';
 
 // Wrap templates for testing
@@ -13,34 +13,26 @@ const generateTemplate = (type: string, args: any[]): CheckpointDefinition | nul
 };
 
 evalite('Checkpoint Templates', {
-  data: [
+  data: () => [
     {
-      type: 'codeReview',
-      args: [['src/index.ts', 'package.json']],
-      expectedOptions: ['approve', 'request_changes', 'reject'],
+      input: { type: 'codeReview', args: [['src/index.ts', 'package.json']] },
+      expected: ['approve', 'request_changes', 'reject'],
     },
     {
-      type: 'dangerousOperation',
-      args: ['DELETE * FROM prod', 'Data loss'],
-      expectedOptions: ['confirm', 'cancel'],
+      input: { type: 'dangerousOperation', args: ['DELETE * FROM prod', 'Data loss'] },
+      expected: ['confirm', 'cancel'],
     },
   ],
-  task: async (input) => {
+  task: async (input: { type: string; args: any[] }) => {
     return generateTemplate(input.type, input.args);
   },
   scorers: [
-    // Verify Output is not null
-    // @ts-ignore
-    (result) => {
-      return result ? 1 : 0;
-    },
-    // Verify Option IDs
-    // @ts-ignore
-    (result, { expectedOptions }) => {
-      if (!result) return 0;
-      const ids = result.options.map((o) => o.id);
-      const allFound = expectedOptions.every((opt) => ids.includes(opt));
+    createScorer('not-null', ({ output }) => (output ? 1 : 0)),
+    createScorer('option-ids', ({ output, expected }) => {
+      if (!output) return 0;
+      const ids = output.options.map((o) => o.id);
+      const allFound = (expected || []).every((opt) => ids.includes(opt));
       return allFound ? 1 : 0;
-    },
+    }),
   ],
 });

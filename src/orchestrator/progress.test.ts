@@ -4,7 +4,7 @@
  * Tests for progress events and status line formatting.
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 import { formatStatusLine, AGENT_PHASES, type AgentName } from './progress';
 import type { ProgressPayload } from '../durable-stream/types';
 
@@ -79,31 +79,31 @@ describe('Progress Notifications', () => {
 
   describe('AGENT_PHASES', () => {
     it('should have interviewer phases array', () => {
-      expect(AGENT_PHASES.interviewer).toBeArray();
+      expect(Array.isArray(AGENT_PHASES.interviewer)).toBe(true);
       expect(AGENT_PHASES.interviewer).toContain('CLARIFYING');
       expect(AGENT_PHASES.interviewer).toContain('AWAITING_APPROVAL');
     });
 
     it('should have architect phases array', () => {
-      expect(AGENT_PHASES.architect).toBeArray();
+      expect(Array.isArray(AGENT_PHASES.architect)).toBe(true);
       expect(AGENT_PHASES.architect).toContain('DECOMPOSING');
       expect(AGENT_PHASES.architect).toContain('PLANNING');
     });
 
     it('should have executor phases array', () => {
-      expect(AGENT_PHASES.executor).toBeArray();
+      expect(Array.isArray(AGENT_PHASES.executor)).toBe(true);
       expect(AGENT_PHASES.executor).toContain('TESTING');
       expect(AGENT_PHASES.executor).toContain('IMPLEMENTING');
     });
 
     it('should have reviewer phases array', () => {
-      expect(AGENT_PHASES.reviewer).toBeArray();
+      expect(Array.isArray(AGENT_PHASES.reviewer)).toBe(true);
       expect(AGENT_PHASES.reviewer).toContain('STAGE1_SPEC');
       expect(AGENT_PHASES.reviewer).toContain('STAGE2_QUALITY');
     });
 
     it('should have validator phases array', () => {
-      expect(AGENT_PHASES.validator).toBeArray();
+      expect(Array.isArray(AGENT_PHASES.validator)).toBe(true);
       expect(AGENT_PHASES.validator).toContain('VERIFYING');
     });
 
@@ -121,8 +121,7 @@ describe('Progress Notifications', () => {
       ];
 
       for (const agent of agents) {
-        expect(AGENT_PHASES[agent]).toBeDefined();
-        expect(AGENT_PHASES[agent]).toBeArray();
+        expect(Array.isArray(AGENT_PHASES[agent])).toBe(true);
         expect(AGENT_PHASES[agent].length).toBeGreaterThan(0);
       }
     });

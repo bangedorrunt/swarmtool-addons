@@ -4,7 +4,7 @@
  * Tests for hybrid session mode: inline vs child sessions.
  */
 
-import { describe, expect, it, beforeEach, afterEach, mock } from 'bun:test';
+import { describe, expect, it, vi } from 'vitest';
 import {
   getSessionMode,
   requiresContext,
@@ -14,7 +14,7 @@ import {
 } from './session-strategy';
 
 // Mock ledger module
-mock.module('./ledger', () => ({
+vi.mock('./ledger', () => ({
   loadLedger: async () => ({
     governance: {
       directives: [{ content: 'Database: PostgreSQL' }, { content: 'Auth: JWT' }],
@@ -35,7 +35,7 @@ mock.module('./ledger', () => ({
 }));
 
 // Mock progress module
-mock.module('./progress', () => ({
+vi.mock('./progress', () => ({
   emitContextHandoff: async () => {},
 }));
 

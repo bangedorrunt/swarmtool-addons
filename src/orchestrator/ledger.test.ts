@@ -44,6 +44,7 @@ function createTestLedger(): Ledger {
     },
     handoff: null,
     archive: [],
+    activeDialogue: null,
   };
 }
 

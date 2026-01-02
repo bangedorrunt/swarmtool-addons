@@ -2,7 +2,7 @@
  * File-Based Ledger Tests (v6.0)
  */
 
-import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { FileBasedLedger, resetFileLedger } from './index';
 import { rm, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
@@ -77,9 +77,9 @@ describe('FileBasedLedger', () => {
     it('should prevent creating epic when one exists', async () => {
       await ledger.createEpic('First', 'First request');
 
-      expect(async () => {
-        await ledger.createEpic('Second', 'Second request');
-      }).toThrow();
+      await expect(ledger.createEpic('Second', 'Second request')).rejects.toThrow(
+        'Cannot create epic: An active epic already exists. Archive it first.'
+      );
     });
 
     it('should update epic status', async () => {

@@ -22,6 +22,8 @@ The system uses a hierarchical pattern to discover and load specialized agents.
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+Note: This repo also includes developer helper skills under `src/opencode/skill/` (not part of OpenCode’s default discovery paths).
+
 ## 2. Configuration & Model Overrides
 
 The system allows overriding models for **any agent** via `swarmtool-addons.json`.

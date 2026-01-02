@@ -65,7 +65,7 @@ export class DurableStream extends EventEmitter {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.store = config?.store ?? getDefaultStore({ path: this.config.storePath });
     this.correlationId = generateCorrelationId();
-    this.maxEventHistory = 100000; // ~100MB-200MB for events, supports 1GB memory
+    this.maxEventHistory = 500000;
   }
 
   // ==========================================================================

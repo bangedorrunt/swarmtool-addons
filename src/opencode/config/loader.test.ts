@@ -43,16 +43,16 @@ describe('loadConfig', () => {
 
     expect(config).toBeDefined();
     expect(config.models['chief-of-staff'].model).toBe('google/gemini-3-pro-low');
-    expect(config.models['chief-of-staff/oracle'].model).toBe('google/gemini-3-flash');
-    expect(config.models['chief-of-staff/planner'].model).toBe('google/gemini-3-flash');
+    expect(config.models.architect.model).toBe('google/gemini-3-flash');
+    expect(config.models.interviewer.model).toBe('google/gemini-3-flash');
   });
 
   it('should load and parse valid config file', () => {
     const validConfig = {
       models: {
-        'chief-of-staff/planner': { model: 'opencode/custom-planner', temperature: 0.8 },
-        'chief-of-staff/executor': { model: 'opencode/custom-executor' },
-        'chief-of-staff/oracle': { model: 'opencode/custom-oracle', temperature: 0.3 },
+        architect: { model: 'opencode/custom-architect', temperature: 0.8 },
+        executor: { model: 'opencode/custom-executor' },
+        interviewer: { model: 'opencode/custom-interviewer', temperature: 0.3 },
       },
       debug: true,
       logLevel: 'debug' as const,
@@ -62,11 +62,11 @@ describe('loadConfig', () => {
 
     const config = loadConfig(testConfigPath);
 
-    expect(config.models['chief-of-staff/planner'].model).toBe('opencode/custom-planner');
-    expect(config.models['chief-of-staff/planner'].temperature).toBe(0.8);
-    expect(config.models['chief-of-staff/executor'].model).toBe('opencode/custom-executor');
-    expect(config.models['chief-of-staff/oracle'].model).toBe('opencode/custom-oracle');
-    expect(config.models['chief-of-staff/oracle'].temperature).toBe(0.3);
+    expect(config.models.architect.model).toBe('opencode/custom-architect');
+    expect(config.models.architect.temperature).toBe(0.8);
+    expect(config.models.executor.model).toBe('opencode/custom-executor');
+    expect(config.models.interviewer.model).toBe('opencode/custom-interviewer');
+    expect(config.models.interviewer.temperature).toBe(0.3);
     expect(config.debug).toBe(true);
     expect(config.logLevel).toBe('debug');
   });
@@ -137,12 +137,12 @@ describe('loadConfig', () => {
   it('should preserve disable and forcedSkills fields from config file', () => {
     const validConfig = {
       models: {
-        'chief-of-staff/planner': {
-          model: 'opencode/planner',
+        architect: {
+          model: 'opencode/architect',
           disable: true,
           forcedSkills: ['system-design', 'swarm-coordination'],
         },
-        'chief-of-staff/executor': {
+        executor: {
           model: 'opencode/executor',
           disable: false,
           forcedSkills: [],
@@ -154,15 +154,12 @@ describe('loadConfig', () => {
 
     const config = loadConfig(testConfigPath);
 
-    expect(config.models['chief-of-staff/planner'].disable).toBe(true);
-    expect(config.models['chief-of-staff/planner'].forcedSkills).toEqual([
-      'system-design',
-      'swarm-coordination',
-    ]);
-    expect(config.models['chief-of-staff/executor'].disable).toBe(false);
-    expect(config.models['chief-of-staff/executor'].forcedSkills).toEqual([]);
-    expect(config.models['chief-of-staff/oracle'].model).toBe('google/gemini-3-flash');
-    expect(config.models['chief-of-staff/oracle'].forcedSkills).toBeUndefined();
+    expect(config.models.architect.disable).toBe(true);
+    expect(config.models.architect.forcedSkills).toEqual(['system-design', 'swarm-coordination']);
+    expect(config.models.executor.disable).toBe(false);
+    expect(config.models.executor.forcedSkills).toEqual([]);
+    expect(config.models.interviewer.model).toBe('google/gemini-3-flash');
+    expect(config.models.interviewer.forcedSkills).toBeUndefined();
   });
 });
 
@@ -178,9 +175,9 @@ describe('saveConfig', () => {
   it('should save config to file', () => {
     const configToSave = {
       models: {
-        'chief-of-staff/planner': { model: 'saved/planner' },
-        'chief-of-staff/executor': { model: 'saved/executor' },
-        'chief-of-staff/oracle': { model: 'saved/oracle' },
+        architect: { model: 'saved/architect' },
+        executor: { model: 'saved/executor' },
+        interviewer: { model: 'saved/interviewer' },
       },
       debug: true,
     };
@@ -190,7 +187,7 @@ describe('saveConfig', () => {
     expect(existsSync(testConfigPath)).toBe(true);
 
     const loaded = JSON.parse(readFileSync(testConfigPath, 'utf-8'));
-    expect(loaded.models['chief-of-staff/planner'].model).toBe('saved/planner');
+    expect(loaded.models.architect.model).toBe('saved/architect');
     expect(loaded.debug).toBe(true);
   });
 
@@ -198,8 +195,8 @@ describe('saveConfig', () => {
     const nestedPath = join(process.cwd(), 'test-nested', 'dir', 'config.json');
     const configToSave = {
       models: {
-        'chief-of-staff/planner': { model: 'model' },
-        'chief-of-staff/executor': { model: 'model' },
+        architect: { model: 'model' },
+        executor: { model: 'model' },
       },
     };
 
@@ -213,7 +210,7 @@ describe('saveConfig', () => {
   it('should throw on invalid config', () => {
     const invalidConfig = {
       models: {
-        'chief-of-staff/planner': { model: 'model', temperature: 5.0 },
+        architect: { model: 'model', temperature: 5.0 },
       },
     };
 
@@ -257,9 +254,9 @@ describe('loadConfigWithValidation', () => {
   it('should return config and validation result', () => {
     const configToSave = {
       models: {
-        'chief-of-staff/planner': { model: 'model' },
-        'chief-of-staff/executor': { model: 'model' },
-        'chief-of-staff/oracle': { model: 'model' },
+        architect: { model: 'model' },
+        executor: { model: 'model' },
+        interviewer: { model: 'model' },
       },
     };
 
@@ -276,8 +273,8 @@ describe('loadConfigWithValidation', () => {
   it('should return validation errors for invalid config', () => {
     const configToSave = {
       models: {
-        'chief-of-staff/planner': { model: 'model', temperature: 3.0 },
-        'chief-of-staff/executor': { model: 'model' },
+        architect: { model: 'model', temperature: 3.0 },
+        executor: { model: 'model' },
       },
     };
 

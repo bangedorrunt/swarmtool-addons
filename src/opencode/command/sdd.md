@@ -1,263 +1,41 @@
 ---
 description: Spec-Driven Development workflow with Multi-Turn Dialogue (v5.1)
 model: google/gemini-2.5-pro
+agent: chief-of-staff
 ---
 
-# SDD (Spec-Driven Development) - Multi-Turn Dialogue v5.1
+# SDD (/sdd) — Spec‑Driven Development (v5.1)
 
-**Measure twice, code once.**
+Execute SDD for: **$ARGUMENTS**.
 
-SDD is a structured workflow inspired by [Conductor](https://github.com/gemini-cli-extensions/conductor) that ensures every feature follows: **Context -> Spec & Plan -> Implement -> Review** with multi-turn dialogue support.
+## Multi-turn contract
 
-## v5.1 CHANGES
+- Track interactive checkpoints in `LEDGER.md` under **Active Dialogue**.
+- The user replies **normally in chat** (e.g. `yes`, `no`, or requested changes). A plugin hook will route replies back to you while `activeDialogue` is present.
 
-- **Multi-Turn Support**: ROOT agent handles dialogue continuation
-- **LEDGER Integration**: Active dialogue state persisted across turns
-- **Natural Flow**: User approves specs and plans in same session
+## Required behavior
 
----
+1. If there is no active dialogue for `/sdd`, call:
+   - `ledger_set_active_dialogue({ agent: 'chief-of-staff', command: '/sdd' })`
 
-## Philosophy
+2. Run the workflow:
+   - **CLARIFY** via `skill_agent` (interviewer)
+   - **PLAN** via `skill_agent` (architect)
+   - **EXECUTE** via `skill_agent` (executor)
+   - **REVIEW** via `skill_agent` (reviewer)
+   - **COMPLETE** via `ledger_archive_epic` + learnings
 
-Control your code. By treating context as a managed artifact alongside your code, you transform your repository into a single source of truth that drives every agent interaction.
+3. Checkpoints (multi-turn):
+   - After **CLARIFY**: ask the user to approve the spec.
+   - After **PLAN**: ask the user to approve the plan.
+   - When you are waiting for approval, call:
+     - `ledger_update_active_dialogue({ status: 'needs_approval', pendingQuestions: [...] })`
+     - Respond with the spec/plan summary + the exact question.
+     - Say: **“Reply directly in chat (don’t re-run /sdd).”**
 
----
-
-## Your Task
-
-Delegate the SDD process to the **Chief-of-Staff** for: **$ARGUMENTS**
-
-The Chief-of-Staff orchestrates the complete lifecycle with multi-turn dialogue:
-
-1. **CLARIFY**: Generate specification via `interviewer` agent (may require multiple polls)
-2. **PLAN**: Decompose into Epic/Tasks via `architect` agent
-3. **EXECUTE**: Implement via `executor` agent(s)
-4. **REVIEW**: Verify via `reviewer` agent
-5. **COMPLETE**: Archive and extract learnings
-
----
-
-## Multi-Turn Execution Flow
-
-### Step 1: Check for Active Dialogue
-
-First, check LEDGER for an existing active dialogue:
-
-```javascript
-const ledger = await ledger_status({});
-
-if (ledger.activeDialogue && ledger.activeDialogue.command === '/sdd') {
-  // CONTINUATION: User is responding to a previous poll/checkpoint
-  // The user's message ($ARGUMENTS) is their response
-  goto Step 3;
-}
-```
-
-### Step 2: Start New SDD Workflow
-
-If no active dialogue, start the full SDD workflow:
-
-```javascript
-// Store dialogue state in LEDGER
-await ledger_set_active_dialogue({
-  agent: 'chief-of-staff',
-  command: '/sdd',
-});
-
-// Begin SDD with Chief-of-Staff
-const result = await skill_agent({
-  agent_name: 'chief-of-staff',
-  prompt: `Execute SDD Workflow for: $ARGUMENTS
-
-MODE: CONSULTATIVE (Human-in-the-Loop)
-
-## PHASE 1: CLARIFY (interviewer)
-- Generate structured specification
-- Use Strategic Polls for clarification
-- Return dialogue_state.status = 'needs_input' for more questions
-- Return dialogue_state.status = 'approved' when spec confirmed
-
-## PHASE 2: PLAN (architect)
-- Decompose into Epic with max 5 Tasks
-- Analyze execution strategy (parallel/sequential)
-- Return dialogue_state.status = 'needs_input' for plan approval
-- Return dialogue_state.status = 'approved' when plan confirmed
-
-## PHASE 3: EXECUTE (executor)
-- Follow TDD: Red -> Green -> Refactor
-- Track files modified for conflict detection
-- Report progress via heartbeats
-
-## PHASE 4: REVIEW (reviewer)
-- Phase 1: Spec compliance (nothing extra, nothing missing)
-- Phase 2: Code quality check
-
-## PHASE 5: COMPLETE
-- Archive Epic with outcome
-- Extract learnings to LEDGER and Memory Lane
-
-CHECKPOINTS REQUIRED:
-- After CLARIFY: User must approve specification
-- After PLAN: User must approve implementation plan`,
-  async: false,
-  timeout_ms: 600000,
-  complexity: 'high',
-});
-
-goto Step 4;
-```
-
-### Step 3: Continue Existing Dialogue
-
-If active dialogue exists, continue it:
-
-```javascript
-const result = await skill_agent({
-  agent_name: 'chief-of-staff',
-  prompt: `SDD Continuation
-
-User responded: $ARGUMENTS
-
-Active Dialogue Context:
-- Turn: ${ledger.activeDialogue.turn + 1}
-- Phase: ${ledger.activeDialogue.status}
-- Previous decisions: ${JSON.stringify(ledger.activeDialogue.accumulatedDirection.decisions)}
-
-Instructions:
-1. Process user's response (approval, rejection, or modification)
-2. If approval received and phase is CLARIFY:
-   - Proceed to PHASE 2: PLAN
-3. If approval received and phase is PLAN:
-   - Proceed to PHASE 3: EXECUTE
-4. If rejection/modification:
-   - Revise spec/plan and return dialogue_state.status = 'needs_input'
-5. Update LEDGER with new state`,
-  async: false,
-  timeout_ms: 600000,
-  complexity: 'high',
-});
-```
-
-### Step 4: Handle Result
-
-```javascript
-// Extract dialogue state from result
-const dialogue_state = extractDialogueState(result);
-
-if (dialogue_state.status === 'needs_input') {
-  // Update LEDGER with new state
-  await ledger_update_active_dialogue({
-    turn: dialogue_state.turn,
-    status: dialogue_state.status,
-    decisions: dialogue_state.accumulated_direction?.decisions,
-    pendingQuestions: dialogue_state.pending_questions,
-  });
-
-  // Display poll/checkpoint to user
-  displayToUser(dialogue_state.message_to_user);
-} else if (dialogue_state.status === 'approved') {
-  // Clear active dialogue only when entire SDD is complete
-  // (NOT when spec or plan is approved - those are checkpoints)
-  if (dialogue_state.turn === 5) {
-    // Phase 5: COMPLETE
-    await ledger_clear_active_dialogue({});
-  }
-
-  // Display final response
-  displayToUser(dialogue_state.message_to_user);
-}
-```
-
----
-
-## Multi-Turn Flow Example
-
-```
-SESSION TURN 1:
-  User: /sdd Build a user authentication system
-
-  [ROOT checks LEDGER - no active dialogue]
-  [ROOT calls skill_agent(chief-of-staff)]
-  [Chief-of-Staff calls interviewer, generates spec]
-  [Chief-of-Staff returns: dialogue_state.status = 'needs_input']
-  [ROOT saves to LEDGER.activeDialogue]
-
-  Bot: SPECIFICATION SUMMARY
-
-   Title: User Authentication System
-   Version: 1.0.0
-
-   FUNCTIONAL REQUIREMENTS
-   • FR-001: User can register with email/password
-   • FR-002: User can login and receive JWT token
-
-   Ready to proceed with this specification?
-   Reply "yes" to confirm, or describe changes.
-
-SESSION TURN 2:
-  User: yes, but add password reset feature
-
-  [ROOT checks LEDGER - active dialogue exists for /sdd]
-  [ROOT calls skill_agent with continuation context]
-  [Chief-of-Staff updates spec with password reset]
-  [Chief-of-Staff returns: dialogue_state.status = 'needs_input']
-
-  Bot: SPECIFICATION UPDATED
-
-   FUNCTIONAL REQUIREMENTS
-   • FR-001: User can register with email/password
-   • FR-002: User can login and receive JWT token
-   • FR-003: User can reset password via email
-
-   Ready to proceed with this specification?
-   Reply "yes" to confirm.
-
-SESSION TURN 3:
-  User: yes
-
-  [Chief-of-Staff proceeds to PHASE 2: PLAN]
-  [Chief-of-Staff generates implementation plan]
-  [Chief-of-Staff returns: dialogue_state.status = 'needs_input']
-
-  Bot: IMPLEMENTATION PLAN
-
-   Epic ID: auth_20260102
-
-   Task 1: Create User model with bcrypt
-   Task 2: Add database migration
-   Task 3: Implement POST /auth/register
-   Task 4: Implement POST /auth/login
-   Task 5: Create JWT validation middleware
-
-   Execution Strategy: sequential
-
-   Ready to proceed with implementation?
-   Reply "yes" to confirm.
-
-SESSION TURN 4:
-  User: yes
-
-  [Chief-of-Staff proceeds to PHASE 3: EXECUTE]
-  [Chief-of-Staff clears active dialogue (execution doesn't need HITL)]
-  [executor runs with progress updates]
-
-  Bot: [TASK 1.1] Create User model with bcrypt
-       Status: completed ✅
-
-       [TASK 1.2] Add database migration
-       Status: in_progress...
-```
-
----
-
-## Generated Artifacts
-
-| Artifact      | Location                      | Purpose                              |
-| ------------- | ----------------------------- | ------------------------------------ |
-| Specification | LEDGER.md -> Epic -> Context  | Requirements and acceptance criteria |
-| Plan          | LEDGER.md -> Epic -> Tasks    | Implementation roadmap               |
-| Progress Log  | LEDGER.md -> Epic -> Progress | Execution tracking                   |
-| Learnings     | LEDGER.md -> Learnings        | Patterns and anti-patterns           |
+4. When the user approves the plan and you proceed to execution:
+   - Call `ledger_clear_active_dialogue({})`.
+   - Begin execution and stream progress as usual.
 
 ---
 

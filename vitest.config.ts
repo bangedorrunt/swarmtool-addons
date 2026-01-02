@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['src/**/*.test.ts', 'src/evals/**/*.eval.ts'],
+    include: ['src/**/*.test.ts'],
     exclude: ['node_modules', 'dist'],
     testTimeout: 60000,
     reporters: ['default', 'json'],

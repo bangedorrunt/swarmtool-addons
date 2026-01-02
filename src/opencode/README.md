@@ -78,6 +78,14 @@ ama "Should I use PostgreSQL or MongoDB for analytics?"
 **Use when:**
 
 - Need quick technical decision
+
+---
+
+## Repo-provided helper skills
+
+This repo includes developer helper skills under `src/opencode/skill/` (for authoring prompts and commands in this plugin).
+
+- `src/opencode/skill/opencode-command-creator/SKILL.md`: creates/updates OpenCode command markdown files under `src/opencode/command/`.
 - Comparing technologies/libraries
 - Getting architecture advice
 - Code review recommendations

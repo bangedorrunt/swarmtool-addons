@@ -228,7 +228,8 @@ export async function loadSkillAgents(): Promise<ParsedAgent[]> {
                 // Use name from frontmatter or constructed name
                 const finalName = frontmatter.name ? String(frontmatter.name) : fullName;
 
-                if (frontmatter.agent && !agents.some((a) => a.name === finalName)) {
+                // Nested agents are treated as agents by virtue of being in agent/ or agents/.
+                if (!agents.some((a) => a.name === finalName)) {
                   const config = parseAgentMarkdown(content, finalName);
                   agents.push({ name: finalName, config });
                 }
@@ -241,7 +242,7 @@ export async function loadSkillAgents(): Promise<ParsedAgent[]> {
               const { frontmatter } = parseFrontmatter(content);
               const finalName = frontmatter.name ? String(frontmatter.name) : fullAgentName;
 
-              if (frontmatter.agent && !agents.some((a) => a.name === finalName)) {
+              if (!agents.some((a) => a.name === finalName)) {
                 const config = parseAgentMarkdown(content, finalName);
                 agents.push({ name: finalName, config });
               }

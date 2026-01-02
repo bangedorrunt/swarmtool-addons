@@ -19,6 +19,9 @@ import {
   getProgress,
   getReadyTasks,
   surfaceLearnings,
+  setActiveDialogue,
+  updateActiveDialogue,
+  clearActiveDialogue,
   DEFAULT_LEDGER_PATH,
   type Handoff,
 } from '../ledger';
@@ -187,6 +190,20 @@ export function createLedgerTools() {
               tasksCompleted: ledger.meta.tasksCompleted,
               currentTask: ledger.meta.currentTask,
             },
+            activeDialogue: ledger.activeDialogue
+              ? {
+                  agent: ledger.activeDialogue.agent,
+                  command: ledger.activeDialogue.command,
+                  turn: ledger.activeDialogue.turn,
+                  status: ledger.activeDialogue.status,
+                  sessionId: ledger.activeDialogue.sessionId,
+                  accumulatedDirection: ledger.activeDialogue.accumulatedDirection,
+                  pendingQuestions: ledger.activeDialogue.pendingQuestions,
+                  lastPollMessage: ledger.activeDialogue.lastPollMessage,
+                  createdAt: ledger.activeDialogue.createdAt,
+                  updatedAt: ledger.activeDialogue.updatedAt,
+                }
+              : null,
             epic: ledger.epic
               ? {
                   id: ledger.epic.id,
@@ -219,6 +236,97 @@ export function createLedgerTools() {
           null,
           2
         );
+      },
+    }),
+
+    ledger_set_active_dialogue: tool({
+      description:
+        'Start a multi-turn active dialogue (stored in LEDGER.md). Used for /ama and /sdd continuation.',
+      args: {
+        agent: tool.schema.string().describe('Owning agent (e.g., "chief-of-staff")'),
+        command: tool.schema.string().describe('Command to resume (e.g., "/ama", "/sdd")'),
+        session_id: tool.schema
+          .string()
+          .optional()
+          .describe('Root session ID to bind continuation to (defaults to current session)'),
+        pendingQuestions: tool.schema
+          .array(tool.schema.string())
+          .optional()
+          .describe('Optional initial pending questions'),
+        lastPollMessage: tool.schema.string().optional().describe('Optional last poll message'),
+      },
+      async execute(args, execContext) {
+        const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
+        const sessionId = args.session_id || (execContext as any)?.sessionID;
+
+        setActiveDialogue(ledger, args.agent, args.command, {
+          sessionId,
+          pendingQuestions: args.pendingQuestions,
+          lastPollMessage: args.lastPollMessage,
+        });
+        await saveLedger(ledger, DEFAULT_LEDGER_PATH);
+
+        return JSON.stringify(
+          {
+            success: true,
+            activeDialogue: ledger.activeDialogue,
+          },
+          null,
+          2
+        );
+      },
+    }),
+
+    ledger_update_active_dialogue: tool({
+      description: 'Update the current active dialogue in LEDGER.md (append-only for direction).',
+      args: {
+        turn: tool.schema.number().optional().describe('Turn number'),
+        status: tool.schema
+          .enum(['needs_input', 'needs_approval', 'needs_verification'])
+          .optional()
+          .describe('Dialogue blocking status'),
+        goals: tool.schema.array(tool.schema.string()).optional(),
+        constraints: tool.schema.array(tool.schema.string()).optional(),
+        preferences: tool.schema.array(tool.schema.string()).optional(),
+        decisions: tool.schema.array(tool.schema.string()).optional(),
+        pendingQuestions: tool.schema.array(tool.schema.string()).optional(),
+        lastPollMessage: tool.schema.string().optional(),
+      },
+      async execute(args) {
+        const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
+
+        updateActiveDialogue(ledger, {
+          turn: args.turn,
+          status: args.status as any,
+          goals: args.goals,
+          constraints: args.constraints,
+          preferences: args.preferences,
+          decisions: args.decisions,
+          pendingQuestions: args.pendingQuestions,
+          lastPollMessage: args.lastPollMessage,
+        });
+
+        await saveLedger(ledger, DEFAULT_LEDGER_PATH);
+
+        return JSON.stringify(
+          {
+            success: true,
+            activeDialogue: ledger.activeDialogue,
+          },
+          null,
+          2
+        );
+      },
+    }),
+
+    ledger_clear_active_dialogue: tool({
+      description: 'Clear the current active dialogue in LEDGER.md (when completed or cancelled).',
+      args: {},
+      async execute() {
+        const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
+        clearActiveDialogue(ledger);
+        await saveLedger(ledger, DEFAULT_LEDGER_PATH);
+        return JSON.stringify({ success: true });
       },
     }),
 

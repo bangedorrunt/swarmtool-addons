@@ -1,9 +1,7 @@
-import { evalite } from 'evalite';
-import fs from 'node:fs';
-import path from 'node:path';
+import { evalite, createScorer } from 'evalite';
 
-// Mock Oracle Agent Logic (to simulate actual agent)
-const mockOracleAgent = (input: string) => {
+// Mock Architect Agent Logic (to simulate actual agent)
+const mockArchitectAgent = (input: string) => {
   // Logic from ADR 004:
   // If request implies refactoring or dependencies -> Sequential
   // If request implies distinct features with no overlap -> Parallel
@@ -12,7 +10,7 @@ const mockOracleAgent = (input: string) => {
     return {
       epic: { title: 'Refactor Task', request: input },
       tasks: [
-        { title: 'Analysis', agent: 'oracle', description: 'Analyze deps' },
+        { title: 'Analysis', agent: 'architect', description: 'Analyze deps' },
         { title: 'Execution', agent: 'executor', description: 'Apply changes' },
       ],
       execution_strategy: {
@@ -37,7 +35,7 @@ const mockOracleAgent = (input: string) => {
   }
 };
 
-evalite('SDD Workflow: Oracle Decomposition', {
+evalite('SDD Workflow: Architect Decomposition', {
   data: () => [
     {
       input: 'Refactor the authentication module and update the database schema',
@@ -53,22 +51,17 @@ evalite('SDD Workflow: Oracle Decomposition', {
     },
   ],
   task: async (input: string) => {
-    return mockOracleAgent(input);
+    return mockArchitectAgent(input);
   },
   scorers: [
-    // 1. Verify Strategy Mode
-    // @ts-ignore
-    (result, { expected }) => {
-      return result.execution_strategy.mode === expected ? 1 : 0;
-    },
-    // 2. Verify Task Structure
-    // @ts-ignore
-    (result) => {
-      // Must have tasks and execution_strategy
-      if (!result || typeof result !== 'object') return 0;
-      if (!result.tasks || !Array.isArray(result.tasks)) return 0;
-      if (!result.execution_strategy) return 0;
+    createScorer('strategy-mode', ({ output, expected }) => {
+      return output.execution_strategy.mode === expected ? 1 : 0;
+    }),
+    createScorer('has-structure', ({ output }) => {
+      if (!output || typeof output !== 'object') return 0;
+      if (!('tasks' in output) || !Array.isArray((output as any).tasks)) return 0;
+      if (!('execution_strategy' in output)) return 0;
       return 1;
-    },
+    }),
   ],
 });
