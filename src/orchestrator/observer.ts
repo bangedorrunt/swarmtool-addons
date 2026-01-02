@@ -452,6 +452,9 @@ export class TaskObserver {
       if (result && result.length > 0) {
         await this.recordLearning('pattern', `${task.agentName}: Task completed successfully`);
       }
+
+      // Cleanup session after successful completion (v4.1 Physical Resource Management)
+      await this.cleanupSession(task.sessionId);
     } catch (err: any) {
       console.error(`[Observer] Failed to fetch result for task ${task.id}:`, err.message);
       await this.registry.updateStatus(
@@ -480,13 +483,17 @@ export class TaskObserver {
   }
 
   /**
-   * Cleanup a session (mark as abandoned)
+   * Cleanup a session (mark as abandoned and physically delete)
    */
   private async cleanupSession(sessionId: string): Promise<void> {
-    // OpenCode SDK doesn't have session.delete()
-    // We just log it for now
-    console.log(`[Observer] Marked session ${sessionId} for cleanup`);
-    // Future: If SDK adds session.delete(), call it here
+    try {
+      // Call SDK to physically delete the session
+      await this.client.session.delete({ path: { id: sessionId } });
+      console.log(`[Observer] Physically deleted session ${sessionId}`);
+    } catch (error) {
+      console.error(`[Observer] Failed to delete session ${sessionId}:`, (error as Error).message);
+      console.log(`[Observer] Marked session ${sessionId} for cleanup (soft delete)`);
+    }
   }
 }
 

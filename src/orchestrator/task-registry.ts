@@ -172,6 +172,13 @@ export class TaskRegistry {
   }
 
   /**
+   * Get a task by session ID (v4.1)
+   */
+  getTaskBySessionId(sessionId: string): RegistryTask | undefined {
+    return Array.from(this.tasks.values()).find((t) => t.sessionId === sessionId);
+  }
+
+  /**
    * Get all tasks with a specific status
    */
   getTasksByStatus(status: RegistryTaskStatus): RegistryTask[] {

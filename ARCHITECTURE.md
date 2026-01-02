@@ -1,150 +1,187 @@
-# ARCHITECTURE & DESIGN PATTERNS
+# ARCHITECTURE & DESIGN PATTERNS (v4.1)
 
 This document outlines the core architectural principles, design patterns, and workflows implemented in the `opencode-agent-addons` plugin.
 
-## 1. Design Philosophy: Skill-Based Subagents
+## 1. DESIGN PHILOSOPHY: GOVERNANCE-FIRST ORCHESTRATION
 
-Instead of a single monolithic agent, this system utilizes a **Skill-Based Subagent** architecture. This represents a paradigm shift where domain expertise is packaged into reusable, on-demand workers.
+The system utilizes a **Skill-Based Subagent** architecture coordinated by the **Chief-of-Staff (The Governor)**. The fundamental principle is **Governance-First**: every action must be grounded in **User Directives (The Law)**. When directives are missing, agents must log **Assumptions (The Debt)** or halt for **Strategic Polling**.
 
-### Monolithic vs Skill-Based (The Hybrid Delegator)
+### Core Pillars
 
-```ascii
+• **Actor Model Isolation**: Each agent is a stateless worker communicating via structured messages. No shared memory exists between spawns; only the LEDGER and Durable Stream persist state.
+• **Event-Sourcing (Durable Stream)**: Every lifecycle event is an immutable log entry. State is a projection of these events, enabling perfect crash recovery and auditability.
+• **Physical Resource Management**: v4.1 adds `session.delete()` and `session.abort()` integration to prevent memory leaks in long-running sessions.
+• **Dual-Source Learning**: Local session wisdom (LEDGER.md) is combined with cross-session semantic memory (Memory Lane).
+
+## 2. CORE ARCHITECTURE FLOW (ASCII)
+
+```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   MONOLITHIC VS SKILL-BASED                     │
-│─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  [ Monolithic Approach ]       [ Skill-Based System ]           │
-│  ┌───────────────────┐         ┌───────────────────┐            │
-│  │   Single Agent    │         │  Chief-of-Staff   │            │
-│  │   (128k Context)  │         │  (Coordinator)    │            │
-│  └─────────┬─────────┘         └─────────┬─────────┘            │
-│            │                             │                      │
-│      (Context Mix)            ┌──────────┼──────────┐           │
-│      [Code][Tests]            ▼          ▼          ▼           │
-│      [Docs][Auth]        ┌─────────┐┌─────────┐┌─────────┐      │
-│      [Logic][UI]         │ Planner ││ Executor││Validator│      │
-│                          │ (8k ctx)││ (8k ctx)││ (8k ctx)│      │
-│    -> High Noise         └─────────┘└─────────┘└─────────┘      │
-│    -> 16x more tokens    -> 16x reduction in context            │
-│    -> High Dilution      -> Zero Expertise Dilution             │
-│                          -> Parallel Execution Capable          │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### The Hybrid Delegator Architecture
-
-The system implements a two-layer design:
-
-1.  **Discovery Layer**: Dynamically scans `~/.config/opencode/skill/` for Markdown (`.md`) or TypeScript (`.ts`) subagent definitions.
-2.  **Spawning Layer**: Uses the `skill_agent` tool to invoke OpenCode's native `task` or `background_task` APIs, creating isolated Actor sessions.
-
-## 2. Core Design Patterns
-
-### I. Actor Model (Isolation)
-
-Treats each agent as a **Stateless Actor**. Communication occurs via structured JSON results, and no chat history is passed between spawns to preserve context purity.
-
-### II. Event-Sourced Persistence (Durable Stream)
-
-Ensures continuity and auditability. The `Durable Stream` acts as an append-only event log, while `LEDGER.md` serves as the primary project state view.
-
-### III. Universal Memory (Semantic Sidecar)
-
-A standalone vector database (Memory Lane) that works with **all agents**. It automatically captures learnings when sessions go idle and injects relevant context at session start.
-
-## 3. Workflow Patterns
-
-These patterns emphasize human-in-the-loop checkpoints and autonomous governance.
-
-### I. Pattern 1: Strategic Polling (Chief-Led)
-
-Used when a request is ambiguous or requires critical choices.
-• **Detection**: Chief-of-Staff identifies missing Directives.
-• **Polling**: Presents structured options (A/B/C) to the user.
-• **Enforcement**: Once selected, the option becomes an immutable Directive for all subagents.
-
-### II. Pattern 2: Spec-Driven Development (SDD)
-
-Phased execution for new features or complex tasks.
-• **Phase 1: Clarification**: (Interviewer) ⭐ needs_input
-• **Phase 2: Specification**: (Spec-Writer) ⭐ needs_approval
-• **Phase 3: Strategy**: (Oracle) Automated task decomposition.
-• **Phase 4: Planning**: (Planner) ⭐ needs_approval
-• **Phase 5: Execution**: (Executor) Supervised implementation.
-• **Phase 6: Validation**: (Validator) QA against specifications.
-
-### III. Pattern 3: Autonomous Tracking (Auto-Ledger)
-
-Works with native OpenCode agents (Code, Build).
-• **Hook**: Listens for file modifications across any tool.
-• **Logging**: Automatically updates `LEDGER.md` progress logs.
-• **Continuity**: Ensures custom subagents can see what native agents have done.
-
-## 4. LEDGER.md: Single Source of Truth
-
-The `.opencode/LEDGER.md` file persists project state across sessions and context clears.
-
-### Structure
-
-```
-┌─────────────────────────────────────────┐
-│            LEDGER.md Structure          │
-├─────────────────────────────────────────┤
-│ ## Governance                           │
-│   Directives (Law) & Assumptions (Debt) │
-│                                         │
-│ ## Epic: [Current Project]              │
-│   - Task 1: executor → completed ✓      │
-│   - Task 2: Code Agent → auto-tracked   │
-│                                         │
-│ ## Learnings                            │
-│   - Patterns and Anti-patterns          │
-│                                         │
-│ ## Progress Log                         │
-│   - Real-time audit of all actions      │
-└─────────────────────────────────────────┘
-```
-
-## 5. SELF-LEARNING WORKFLOW (v4.1)
-
-The system builds cross-session wisdom through autonomous hooks and event-driven extraction:
-
-```ascii
-┌─────────────────────────────────────────────────────────────────┐
-│              UNIVERSAL SELF-LEARNING LOOP                       │
+│                    CORE ARCHITECTURE FLOW                       │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  (Start) Message Received ─────▶ (Work) Any Agent (Native/Custom)│
-│       ▲  ├─ Inject relevant memory      │ (Tool Usage)           │
-│       │  └─ Load Ledger state           ▼                        │
-│       │                                                          │
-│  (Next) Repeat Success    ◀──── (End) Session Idle/Exit          │
-│         Avoid Mistakes            ├─ Auto-Extract Learnings      │
-│                                   └─ Log to Durable Stream       │
+│  User Request ────────▶ Chief-of-Staff ────────▶ Context        │
+│      │                  (The Governor)           Hydration      │
+│      │                        │                      │          │
+│      ▼                        ▼                      ▼          │
+│  [ Learning ] ◀──────── [ Validation ] ◀──────── [ Governance ] │
+│  [ Extraction]          [  & Review  ]          [   Audit    ] │
+│      │                        │                      │          │
+│      │                        ▼                      ▼          │
+│  Memory Lane ◀──────── [ Execution ] ◀──────── [ Planning ]     │
+│  (Vector DB)           (Executor/TDD)           (Oracle/Spec)   │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-• **Extraction**: Uses `LearningExtractor` to analyze transcripts for corrections, decisions, and patterns.
-• **Persistence**: Stored in Memory Lane (Vector DB) and emitted as events to the Durable Stream.
+## 3. MODULE DEPENDENCY MAP
 
-## 6. DIRECTORY STRUCTURE & NAMING
+| Module                   | Primary Responsibility       | Depends On                                          |
+| :----------------------- | :--------------------------- | :-------------------------------------------------- |
+| **Orchestrator**         | Governance & Task Delegation | Durable Stream, Memory Lane, Actor Model            |
+| **Chief-of-Staff**       | Supervisory Logic & HITL     | Orchestrator, Ledger Tools, Checkpoint System       |
+| **Durable Stream**       | Event-Sourced Persistence    | Bun File API (JSONL), Proper-Lockfile, OpenCode SDK |
+| **Memory Lane**          | Semantic Memory & Patterns   | SQLite, Ollama Embeddings, Taxonomy                 |
+| **Actor Model**          | Stateless Message Processing | Durable Stream (for correlation)                    |
+| **Opencode Integration** | Load Skill & SDK Hooks       | Orchestrator, Configuration Loader                  |
 
-Agents follow a standardized layout for discovery:
-• **Global Path**: `~/.config/opencode/skill/<skill-name>/agents/<agent-name>/SKILL.md`
-• **Naming**: `kebab-case` for both skills and agents.
-• **Invocation**: `skill_agent({ skill_name: "code-reviewer", agent_name: "security-auditor" })`
+## 4. DATA SCHEMAS (v4.1)
 
-## 7. PROJECT VISION & SPECS
+### 4.1 Actor State (`src/orchestrator/actor/state.ts`)
+
+```typescript
+interface ActorState {
+  phase: 'INIT' | 'PLANNING' | 'VALIDATING' | 'EXECUTING' | 'COMPLETED' | 'FAILED';
+  sessionId: string;
+  parentSessionId: string;
+  rootSessionId: string;
+  executionStack: string[]; // Recursion guard
+  direction: { goals: string[]; constraints: string[]; decisions: string[] };
+  assumptions: TrackedAssumption[];
+  subAgents: Record<string, SubAgentState>; // Child session tracking
+  eventOffset: number;
+  lastUpdated: string;
+}
+```
+
+### 4.2 LEDGER Models (`src/orchestrator/ledger.ts`)
+
+```typescript
+interface Epic {
+  id: string; // Format: abc123
+  title: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'paused';
+  tasks: Task[];
+  progressLog: string[];
+}
+
+interface Task {
+  id: string; // Format: abc123.1
+  title: string;
+  agent: string;
+  status: TaskStatus;
+  sessionId?: string; // Links to Durable Stream session
+  yieldReason?: string; // For background HITL
+  conflictInfo?: { type: string; resolution: string };
+}
+```
+
+### 4.3 Memory Lane Schema (`src/memory-lane/taxonomy.ts`)
+
+```typescript
+interface MemoryLaneMetadata {
+  memory_type: 'correction' | 'decision' | 'pattern' | 'antiPattern';
+  confidence_score: number; // 0-100
+  decay_factor: number; // 0-1 (temporal decay)
+  entity_slugs: string[];
+  feedback_score: number; // Helpful/Harmful signal
+  valid_from?: string;
+  valid_until?: string;
+}
+```
+
+### 4.4 Durable Stream Events (`src/durable-stream/types.ts`)
+
+```typescript
+type EventType =
+  | 'lifecycle.session.created'
+  | 'lifecycle.session.idle'
+  | 'lifecycle.session.deleted' // NEW: Physical cleanup
+  | 'lifecycle.session.aborted' // NEW: Emergency stop
+  | 'agent.spawned'
+  | 'agent.completed'
+  | 'checkpoint.requested';
+```
+
+## 5. PHYSICAL RESOURCE MANAGEMENT (v4.1)
+
+The system now manages session lifecycle to prevent memory leaks:
+
+### 5.1 Resource Lifecycle
+
+1. **Spawn**: Create session, register with Durable Stream.
+2. **Execute**: Agent runs, logging events.
+3. **Complete/Abort**: Emit lifecycle event, extract learnings.
+4. **Delete**: Call `session.delete()` to free server memory.
+5. **Cleanup**: Remove from TaskRegistry and in-memory projections.
+
+### 5.2 Recursive Abort
+
+When aborting a parent agent, all child sessions are terminated:
+
+```
+actor_abort(parent)
+  └─▶ For each subSessionId in executionStack (reverse order)
+        └─▶ durableStream.abortSession(subSessionId)
+  └─▶ durableStream.abortSession(parent)
+  └─▶ Update ActorState to FAILED
+```
+
+### 5.3 Auto-Cleanup Triggers
+
+| Trigger                    | Action                                        |
+| :------------------------- | :-------------------------------------------- |
+| Task timeout (max retries) | Mark failed, emit event, delete session       |
+| Stuck task (no heartbeat)  | Mark stale, pause epic, request intervention  |
+| Session idle > threshold   | Extract learnings, archive, optionally delete |
+
+## 6. SYSTEM PIPELINE (REQUEST TO COMPLETION)
+
+1. **Context Hydration & Discovery**: Read `LEDGER.md`, query `Memory Lane`.
+2. **Governance Audit**: Check Directives, trigger Strategic Polling if missing.
+3. **Strategic Decomposition**: `Oracle` creates Epic with Tasks.
+4. **Supervised Execution**: `Executor` implements with TDD, emits events.
+5. **Multi-Stage Validation**: Spec Review → Code Quality Review.
+6. **Resource Cleanup**: `Memory-Catcher` extracts learnings, `TaskObserver` deletes sessions.
+
+## 7. DIRECTORY STRUCTURE
+
+```
+src/
+  orchestrator/          # Governance Engine
+    actor/               # Actor Model State
+    chief-of-staff/      # Agent Definitions
+    tools/               # Tools (skill_agent, actor_*, etc.)
+  durable-stream/        # Event Sourcing Layer
+  memory-lane/           # Vector DB for Semantic Memory
+  opencode/              # SDK Integration & Config
+```
+
+## 8. PROJECT SPECS & DOCUMENTATION
 
 • **[ROADMAP.md](ROADMAP.md)**: Vision and planned enhancements.
-• **[Agent Interaction Patterns](.gemini/antigravity/brain/.../agent_interaction_patterns.md)**: Detailed sequence diagrams.
-• **Module Specifications**:
-• [Orchestrator Spec](src/orchestrator/SPEC.md): Technical details of coordination and supervision.
-• [Memory Lane Spec](src/memory-lane/SPEC.md): Semantic storage and learning extraction.
-• [OpenCode Integration](src/opencode/SPEC.md): Loader mechanism and runtime hooks.
+• **[Orchestrator Spec](src/orchestrator/SPEC.md)**: Technical details of coordination and supervision.
+• **[Memory Lane Spec](src/memory-lane/SPEC.md)**: Semantic storage and learning extraction.
+• **[Durable Stream Spec](src/durable-stream/SPEC.md)**: Event sourcing and persistence details.
+
+## 9. GAPS & ASSUMPTIONS (REVIEW REQUIRED)
+
+• **Tool Consolidation**: Merge redundant ledger tool definitions between `src/orchestrator/ledger-tools.ts` and `src/orchestrator/tools/ledger-tools.ts`.
+• **Concurrency Specification**: Document multi-process file locking via `proper-lockfile`.
+• **Conflict Resolution**: Expand documentation on `Oracle` re-decomposition triggers.
+• **UI Asset Protocol**: Define placeholder strategy for the `frontend-ui-ux-engineer`.
+• **Event Schema Versioning**: Define migration strategies for long-term event logs.
 
 ---
 
-_Last Updated: 2025-12-31_
+_Last Updated: 2026-01-02_

@@ -1,170 +1,296 @@
-# Durable Stream: Architecture & API Specification (v2)
+# Durable Stream: Architecture & API Specification (v4.1)
 
-> **Status**: Living Document | **Last Reviewed**: 2026-01-01
+> **Status**: Living Document | **Last Updated**: 2026-01-02
 
 ## 1. Architectural Vision
 
 The **Durable Stream** serves as the "hippocampus" (long-term episodic memory) and "brainstem" (autonomic orchestration) for OpenCode agents. It is designed as a **thin, non-invasive layer** on top of the native OpenCode SDK, not a replacement.
 
-### 1.1 The Problem (`Gap Analysis`)
+### 1.1 Core Capabilities
 
-The native OpenCode SDK provides excellent **real-time, event-driven primitives**. However, it lacks:
-| Gap | Native SDK State | Durable Stream Solution |
-| :--- | :--- | :--- |
-| **State Amnesia** | Process state is ephemeral. | Persist events to `.jsonl`. Replay on startup. |
-| **HITL Workflow** | No native "pause and wait for approval". | `checkpoint.requested` / `checkpoint.approved` events. |
-| **Multi-session Lineage** | `session.children` exists but querying is limited. | Unified `stream_id` (Trace ID) across all sub-sessions. |
-
-### 1.2 Design Principles
-
-1.  **Leverage, Don't Replace**: The SDK's `session.todo`, `session.diff`, `StepPart` are native. The Durable Stream *observes* them, not replicates.
-2.  **Event Sourcing**: The log is the single source of truth. State is derived.
-3.  **Pluggable Storage**: Start with `jsonl`, graduate to SQLite or libSQL.
+| Capability              | Description                                                                   |
+| :---------------------- | :---------------------------------------------------------------------------- |
+| **Event Sourcing**      | Persists all lifecycle events to `.jsonl` for perfect crash recovery.         |
+| **Lineage Tracking**    | Maps `stream_id` (Trace ID) across parent-child sessions.                     |
+| **HITL Workflows**      | `checkpoint.requested` / `checkpoint.approved` events for human approval.     |
+| **Resource Management** | `session.delete()` and `session.abort()` integration for memory optimization. |
 
 ---
 
 ## 2. SDK Primitives We Leverage
 
-The latest `@opencode-ai/sdk` has powerful, underutilized primitives. Our Durable Stream strategy is to **observe and extend them**, not bypass them.
-
-### 2.1 Session Management
-| SDK API | Purpose | Durable Stream Usage |
-| :--- | :--- | :--- |
-| `session.create({ parentID })` | Lineage | Map to `stream_id` (Trace) and `causation_id` (Parent). |
-| `session.children()` | List child sessions | Query children; map to our "Span" concept. |
-| `session.abort()` | Cancel sub-agent | Emit `agent.aborted` event upon interception. |
-| `session.summarize()` | Native summary | Use for context compaction before handoff. |
-| `session.diff()` | Get file changes | Log `files.changed` event with delta payload. |
-| `session.todo()` | Native task list | **Critical**: Replace our custom task tracking with this! |
-
-### 2.2 Message Parts (Granular Steps)
-The SDK exposes `StepStartPart` and `StepFinishPart` within message parts. This is the **native "execution step" primitive**.
-| Part Type | Payload | Durable Stream Event Mapping |
-| :--- | :--- | :--- |
-| `step-start` | `{ snapshot? }` | `execution.step_start` |
-| `step-finish` | `{ reason, cost, tokens }` | `execution.step_finish` |
-| `tool` | `{ state: ToolState }` | `execution.tool_use` |
-| `compaction` | `{ auto }` | `lifecycle.compacted` |
-| `patch` | `{ hash, files }` | `files.patched` |
-
-### 2.3 Plugin Hooks
-The `@opencode-ai/plugin` Hooks interface is our primary ingestion point.
-| Hook | Trigger | Durable Stream Action |
-| :--- | :--- | :--- |
-| `event` (global) | All SDK events | **The Bridge**: Forward relevant events to `IStreamStore.append()`. |
-| `chat.message` | New user message | Log `user.input` for learning/replay. |
-| `tool.execute.after` | Tool completes | Log `execution.tool_result`. |
-| `permission.ask` | Permission requested | Log `checkpoint.requested` (HITL). |
+| SDK API                        | Purpose                 | Durable Stream Usage                                 |
+| :----------------------------- | :---------------------- | :--------------------------------------------------- |
+| `session.create({ parentID })` | Lineage                 | Map to `stream_id` and `causation_id`.               |
+| `session.children()`           | List children           | Query lineage tree.                                  |
+| `session.abort()`              | **Cancel sub-agent**    | Emit `agent.aborted`; clean up projections.          |
+| `session.delete()`             | **Hard delete session** | Emit `lifecycle.session.deleted`; purge from memory. |
+| `session.summarize()`          | Native summary          | Use for context compaction.                          |
+| `session.diff()`               | Get file changes        | Log `files.changed` event.                           |
 
 ---
 
-## 3. Core API Design (Revised)
+## 3. Data Schemas (v4.1)
 
-### 3.1 The Event Envelope (`StreamEvent`)
+### 3.1 Event Envelope (`StreamEvent`)
+
+```typescript
+interface StreamEvent<T = unknown> {
+  /** ULID - Sortable unique identifier */
+  id: string;
+  /** Event type from the EventType union */
+  type: EventType;
+  /** Root Session ID - acts as Trace ID */
+  stream_id: string;
+  /** Parent Event ID - for causation tracking */
+  causation_id?: string;
+  /** Workflow Run ID - groups related events */
+  correlation_id: string;
+  /** Actor: "user" or agent name (e.g., "chief-of-staff/oracle") */
+  actor: string;
+  /** Unix timestamp in milliseconds */
+  timestamp: number;
+  /** Event-specific payload */
+  payload: T;
+  /** Optional metadata */
+  metadata?: Record<string, unknown>;
+}
+```
+
+### 3.2 Event Types (`EventType`)
 
 ```typescript
 type EventType =
-  // Lifecycle (Maps to SDK events)
+  // Lifecycle (Maps directly to SDK events)
   | 'lifecycle.session.created'
   | 'lifecycle.session.idle'
   | 'lifecycle.session.compacted'
-  // Execution (Maps to SDK StepPart / ToolPart)
+  | 'lifecycle.session.error'
+  | 'lifecycle.session.deleted' // NEW: Physical resource freed
+  | 'lifecycle.session.aborted' // NEW: Emergency stop
+  // Execution
   | 'execution.step_start'
   | 'execution.step_finish'
-  | 'execution.tool_use'
-  // Agent (Our orchestration layer)
+  | 'execution.tool_start'
+  | 'execution.tool_finish'
+  // Agent
   | 'agent.spawned'
   | 'agent.completed'
+  | 'agent.failed'
   | 'agent.aborted'
   | 'agent.handoff'
-  // HITL (Human-in-the-Loop)
+  | 'agent.yield'
+  | 'agent.resumed'
+  // HITL
   | 'checkpoint.requested'
   | 'checkpoint.approved'
   | 'checkpoint.rejected'
   // Files
   | 'files.changed'
-  | 'files.patched';
+  | 'files.patched'
+  // Ledger
+  | 'ledger.epic.created'
+  | 'ledger.task.completed'
+  | 'ledger.governance.directive_added';
+```
 
-interface StreamEvent<T = unknown> {
-  id: string;             // ULID
-  type: EventType;
-  stream_id: string;      // Root SessionID = Trace ID
-  causation_id?: string;  // Parent Event ID
-  correlation_id: string; // Workflow Run ID
-  actor: string;          // "user" | agent name
-  timestamp: number;
-  payload: T;
-  metadata?: Record<string, unknown>;
+### 3.3 Intent Model (Workflow Registration)
+
+```typescript
+interface IntentSpec {
+  description: string; // Human-readable description
+  agent: string; // Target agent to execute
+  prompt: string; // Prompt for the agent
+  parent_session_id?: string;
+  timeout_ms?: number;
+}
+
+interface Intent extends IntentSpec {
+  id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'aborted';
+  created_at: number;
+  started_at?: number;
+  completed_at?: number;
+  result?: string;
+  error?: string;
 }
 ```
 
-### 3.2 The Orchestrator API (`DurableStream`)
+### 3.4 Checkpoint Model (HITL)
+
+```typescript
+interface Checkpoint {
+  id: string;
+  decision_point: string;
+  options: Array<{ id: string; label: string; description?: string }>;
+  requested_by: string;
+  requested_at: number;
+  approved_by?: string;
+  approved_at?: number;
+  selected_option?: string;
+  expires_at?: number;
+}
+```
+
+---
+
+## 4. Physical Resource Management (v4.1)
+
+The Durable Stream now manages the full lifecycle of sessions, including hard delete and emergency abort.
+
+### 4.1 Session Deletion (`session.delete`)
+
+When a task completes or is no longer needed, the system can physically delete the session to free memory:
 
 ```typescript
 class DurableStream {
-  // Called at plugin startup. Wires SDK hooks to the stream.
-  observe(client: OpencodeClient, hooks: Hooks): void;
+  /**
+   * Delete a session and emit lifecycle event for audit trail.
+   */
+  async deleteSession(client: OpencodeClient, sessionId: string, actor: string): Promise<void> {
+    // 1. Call SDK to physically delete
+    await client.session.delete({ path: { id: sessionId } });
 
-  // Create an Intent (survives crashes)
-  async createIntent(spec: IntentSpec): Promise<string>;
+    // 2. Emit event for audit trail and projection cleanup
+    await this.append({
+      type: 'lifecycle.session.deleted',
+      stream_id: sessionId,
+      correlation_id: this.correlationId,
+      actor,
+      payload: { deleted_at: Date.now() },
+    });
 
-  // Request HITL approval
-  async requestCheckpoint(decision: string, options: CheckpointOption[]): Promise<string>;
-
-  // Resume state from disk (on plugin restart)
-  async resume(): Promise<ResumeResult>;
-
-  // Query the stream (for debugging, analytics)
-  async query(filter: StreamFilter): Promise<StreamEvent[]>;
+    // 3. Auto-cleanup: Remove associated Intents/Checkpoints from memory
+    this.cleanupProjections(sessionId);
+  }
 }
+```
+
+### 4.2 Session Abort (`session.abort`)
+
+For emergency stops or recursive cancellation:
+
+```typescript
+class DurableStream {
+  /**
+   * Abort a running session and emit lifecycle event.
+   */
+  async abortSession(
+    client: OpencodeClient,
+    sessionId: string,
+    actor: string,
+    reason?: string
+  ): Promise<void> {
+    // 1. Call SDK to abort execution
+    await client.session.abort({ path: { id: sessionId } });
+
+    // 2. Emit event for audit trail
+    await this.append({
+      type: 'lifecycle.session.aborted',
+      stream_id: sessionId,
+      correlation_id: this.correlationId,
+      actor,
+      payload: { reason, aborted_at: Date.now() },
+    });
+
+    // 3. Update associated Intent status
+    this.updateIntentStatus(sessionId, 'aborted');
+  }
+}
+```
+
+### 4.3 Recursive Cleanup Algorithm
+
+When aborting a parent agent, all child sessions must be cleaned up:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              RECURSIVE ABORT FLOWCHART                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  [actor_abort called]                                           │
+│         │                                                       │
+│         ▼                                                       │
+│  [Get ActorState.subAgents]                                     │
+│         │                                                       │
+│         ▼                                                       │
+│  ┌──────────────────────────────────────────────────────┐       │
+│  │  For each subSessionId in executionStack (reverse):  │       │
+│  │  1. Call stream.abortSession(subSessionId)           │       │
+│  │  2. Remove from activeIntents Map                    │       │
+│  │  3. Delete from SDK (optional)                       │       │
+│  └──────────────────────────────────────────────────────┘       │
+│         │                                                       │
+│         ▼                                                       │
+│  [Update ActorState to FAILED phase]                            │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 3. Integration with OpenCode SDK
+## 5. Integration with OpenCode SDK
 
-The magic happens in how we interpret SDK primitives.
+### 5.1 Event Bridging
 
-### 3.1 "The Session is the Stream"
-We map OpenCode `SessionID` to Durable Stream `StreamID`.
-*   **Root Session** = **Trace ID**.
-*   **Child Session** = **Span ID**.
+| SDK Event              | Durable Stream Event        | Purpose                   |
+| :--------------------- | :-------------------------- | :------------------------ |
+| `session.created`      | `lifecycle.session.created` | Initialize lineage        |
+| `session.idle`         | `lifecycle.session.idle`    | Task completion detection |
+| `session.deleted`      | `lifecycle.session.deleted` | Resource cleanup trigger  |
+| `session.error`        | `lifecycle.session.error`   | Error tracking            |
+| `tool.execute.after`   | `execution.tool_finish`     | Audit logging             |
+| `checkpoint.requested` | `checkpoint.requested`      | Human approval workflow   |
 
-### 3.2 Bridging Hooks
-We use the `@opencode-ai/plugin` hooks to automatically capture state changes.
+### 5.2 The "Phantom" Session
 
-| OpenCode Hook | Durable Stream Event | Purpose |
-| :--- | :--- | :--- |
-| `session.created` | `lifecycle.session.created` | Initialize lineage tracking |
-| `tool.execute.after` | `execution.step` | Record actions/outcomes (Audit Log) |
-| `chat.message` (User) | `human.input` | Capture human feedback (Learning) |
+For long-running background tasks:
 
-### 3.3 The "Phantom" Session
-To handle long-running async tasks without blocking the UI, we utilize **Phantom Sessions**.
-*   The Orchestrator creates a session *without* attaching it to the current UI thread.
-*   It operates in the background, logging to Durable Stream.
-*   When it needs user input, it uses `notify_user` to "phone home" to the main session.
+1. **Spawn**: Create session with `parentID` but don't attach to UI.
+2. **Operate**: Execute in background, logging to Durable Stream.
+3. **Signal**: Use `agent_yield` + `checkpoint_request` to "phone home" to parent.
+4. **Resume**: Parent calls `agent_resume` to continue background task.
 
 ---
 
-## 4. Future Proofing
+## 6. Query API
 
-### 4.1 Time Travel Debugging
-By having a deterministic log of `execution.step`, we can build a UI that lets users "replay" the agent's thought process, step-by-step, to understand *why* it made a mistake.
+### 6.1 StreamFilter
 
-### 4.2 Collaborative Agents
-Since the State is decoupled from the Process, multiple agents (running in different processes/machines) could theoretically share the same Durable Stream (using a networked backend like Redis/Postgres in v2) to coordinate without direct communication.
+```typescript
+interface StreamFilter {
+  stream_id?: string;
+  type?: EventType | EventType[];
+  actor?: string;
+  since?: number;
+  until?: number;
+  limit?: number;
+}
+```
 
-### 4.3 Auto-Correction (Self-Healing)
-We can run a background "Gardener" agent that reads the Stream API:
-*   `stream.query({ type: 'agent.error' })`
-*   If error rate > threshold -> Trigger 'chief-of-staff/debugger'.
-This enables autonomous loop correction.
+### 6.2 Usage Examples
+
+```typescript
+// Get all events for a session
+const events = await stream.getStreamEvents('sess_abc123');
+
+// Query all aborted agents
+const aborted = await stream.query({
+  type: ['lifecycle.session.aborted', 'agent.aborted'],
+});
+
+// Get pending checkpoints
+const checkpoints = stream.getPendingCheckpoints();
+```
 
 ---
 
-## 5. Refactor Roadmap
+## 7. Future Roadmap
 
-1.  **Formalize `src/durable-stream`**: Implement the strict types and Store abstraction.
-2.  **Implement the Bridge**: Wire `src/index.ts` to push into `IStreamStore`.
-3.  **Migrate Tools**: Update `agent_spawn` to use `DurableStream.registerIntent`.
+- **Distributed Stream**: Support networked backends (Redis/Postgres) for multi-agent coordination.
+- **Time Travel Debugging**: Replay execution steps for error investigation.
+- **Auto-Correction Gardener**: Background agent that reads error patterns and triggers debugger.
+
+---
+
+_Module Version: 4.1.0_

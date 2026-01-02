@@ -255,7 +255,7 @@ src/
 
 ---
 
-## 6. Leveraging the Durable Stream API
+## 6. Leveraging the Durable Stream API (v4.1)
 
 ### Event Types
 
@@ -265,7 +265,10 @@ The Durable Stream supports the following event categories:
 
 - `lifecycle.session.created` - New session started
 - `lifecycle.session.idle` - Session became idle
+- `lifecycle.session.compacted` - Session context compacted
 - `lifecycle.session.error` - Session error occurred
+- `lifecycle.session.deleted` - Session physically deleted (NEW: Resource cleanup)
+- `lifecycle.session.aborted` - Session emergency stopped (NEW: Resource cleanup)
 
 **Execution Events**
 
@@ -365,6 +368,54 @@ if (status.hasPendingCheckpoints || status.activeIntentCount > 0) {
 }
 ```
 
+### Physical Resource Management (v4.1)
+
+The system now supports explicit session cleanup to prevent memory leaks:
+
+```typescript
+import { getDurableStream } from './durable-stream';
+
+const stream = getDurableStream();
+
+// Delete a completed session (frees server memory)
+await stream.deleteSession(client, sessionId, 'executor');
+
+// Abort a running session (emergency stop)
+await stream.abortSession(client, sessionId, 'actor_abort', 'User requested cancellation');
+```
+
+#### Resource Lifecycle Flow
+
+```
+[SPAWNED] → [RUNNING] → [COMPLETED/ABORTED] → [DELETED] → [Memory Freed]
+                                      │
+                                      ├──→ Extract learnings to Memory Lane
+                                      ├──→ Emit lifecycle event
+                                      └──→ Call session.delete()
+```
+
+#### Recursive Abort Pattern
+
+When aborting a parent agent, all child sessions are terminated:
+
+```typescript
+async function recursiveAbort(sessionId: string, actor: string) {
+  const state = await loadActorState();
+
+  // Abort children first (reverse order)
+  const subSessionIds = Object.keys(state.subAgents);
+  for (const subId of subSessionIds.reverse()) {
+    await stream.abortSession(client, subId, actor, 'Recursive abort');
+  }
+
+  // Abort parent
+  await stream.abortSession(client, sessionId, actor, 'Recursive abort');
+
+  // Update state
+  await saveActorState({ ...state, phase: 'FAILED' });
+}
+```
+
 ---
 
 ## Project Context
@@ -376,4 +427,4 @@ if (status.hasPendingCheckpoints || status.activeIntentCount > 0) {
 
 ---
 
-_Last Updated: 2026-01-01_
+_Last Updated: 2026-01-02_

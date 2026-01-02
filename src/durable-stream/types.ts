@@ -19,6 +19,8 @@ export type EventType =
   | 'lifecycle.session.idle'
   | 'lifecycle.session.compacted'
   | 'lifecycle.session.error'
+  | 'lifecycle.session.deleted'
+  | 'lifecycle.session.aborted'
   // Execution (Maps to SDK StepPart / ToolPart)
   | 'execution.step_start'
   | 'execution.step_finish'
@@ -189,4 +191,27 @@ export interface ResumeResult {
   active_intents: Intent[];
   /** Last event timestamp */
   last_event_at?: number;
+}
+
+// ============================================================================
+// Resource Management (v4.1)
+// ============================================================================
+
+export interface SessionDeletedPayload {
+  deleted_at: number;
+  reason?: string;
+  actor: string;
+}
+
+export interface SessionAbortedPayload {
+  aborted_at: number;
+  reason?: string;
+  actor: string;
+}
+
+export interface OpenCodeClient {
+  session: {
+    delete(options: { path: { id: string } }): Promise<{ error?: unknown }>;
+    abort(options: { path: { id: string } }): Promise<{ error?: unknown }>;
+  };
 }

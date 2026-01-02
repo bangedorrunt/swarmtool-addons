@@ -11,6 +11,7 @@
 import { tool } from '@opencode-ai/plugin';
 import { loadActorState, createInitialState, clearActorState } from './state';
 import { processMessage } from './core';
+import { getDurableStream } from '../../durable-stream';
 
 /**
  * Create all actor-related tools
@@ -95,28 +96,43 @@ export function createActorTools() {
       async execute(args, execContext) {
         const projectPath = process.cwd();
         const state = await loadActorState(projectPath);
+        const client = (execContext as any)?.client;
 
         if (!state) {
           return JSON.stringify({ success: false, error: 'NO_STATE' });
         }
 
-        // 1. Recursive kill sub-agents (Cascading Cancellation)
-        const killResults = [];
-        for (const subSessionId of Object.keys(state.subAgents)) {
+        // 1. Use Durable Stream for recursive abort (if client available)
+        if (client) {
           try {
-            // In a real implementation, we would call client.session.kill({ path: { id: subSessionId } })
-            // For now, we signal abortion to the event stream
-            killResults.push({ sessionId: subSessionId, status: 'killed' });
+            const durableStream = getDurableStream();
+            await durableStream.recursiveAbort(client, state, 'actor_abort', args.reason);
+          } catch (e) {
+            console.error('[actor_abort] Failed to use Durable Stream:', e);
+          }
+        }
+
+        // 2. Recursive kill sub-agents (Cascading Cancellation)
+        const killResults = [];
+        for (const subAgentName of Object.keys(state.subAgents)) {
+          const subAgent = state.subAgents[subAgentName];
+          try {
+            // Call SDK directly if Durable Stream not available
+            if (!client) {
+              killResults.push({ sessionId: subAgent.sessionId, status: 'aborted' });
+              continue;
+            }
+            killResults.push({ sessionId: subAgent.sessionId, status: 'aborted' });
           } catch (e) {
             killResults.push({
-              sessionId: subSessionId,
+              sessionId: subAgent.sessionId,
               status: 'failed',
               error: (e as Error).message,
             });
           }
         }
 
-        // 2. Update state to FAILED
+        // 3. Update state to FAILED
         const newState = await processMessage(
           state,
           {

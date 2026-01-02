@@ -22,6 +22,9 @@ import type {
   Intent,
   IntentSpec,
   ResumeResult,
+  OpenCodeClient,
+  SessionDeletedPayload,
+  SessionAbortedPayload,
 } from './types';
 import {
   createEvent,
@@ -450,6 +453,144 @@ export class DurableStream extends EventEmitter {
    */
   getPendingCheckpoints(): Checkpoint[] {
     return Array.from(this.pendingCheckpoints.values());
+  }
+
+  // ==========================================================================
+  // Resource Management (v4.1)
+  // ==========================================================================
+
+  /**
+   * Delete a session and emit lifecycle event for audit trail.
+   * Frees server memory by physically removing the session.
+   */
+  async deleteSession(
+    client: OpenCodeClient,
+    sessionId: string,
+    actor: string,
+    reason?: string
+  ): Promise<boolean> {
+    try {
+      // 1. Call SDK to physically delete
+      const deleteResult = await client.session.delete({ path: { id: sessionId } });
+      if (deleteResult.error) {
+        throw deleteResult.error;
+      }
+
+      // 2. Emit event for audit trail and projection cleanup
+      await this.append({
+        type: 'lifecycle.session.deleted',
+        stream_id: sessionId,
+        correlation_id: this.correlationId,
+        actor,
+        payload: {
+          deleted_at: Date.now(),
+          reason,
+        } as SessionDeletedPayload,
+      });
+
+      // 3. Auto-cleanup: Remove associated Intents/Checkpoints from memory
+      this.cleanupProjections(sessionId);
+
+      return true;
+    } catch (error) {
+      console.error(`[DurableStream] Failed to delete session ${sessionId}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Abort a running session and emit lifecycle event.
+   * Used for emergency stops or recursive cancellation.
+   */
+  async abortSession(
+    client: OpenCodeClient,
+    sessionId: string,
+    actor: string,
+    reason?: string
+  ): Promise<boolean> {
+    try {
+      // 1. Call SDK to abort execution
+      const abortResult = await client.session.abort({ path: { id: sessionId } });
+      if (abortResult.error) {
+        throw abortResult.error;
+      }
+
+      // 2. Emit event for audit trail
+      await this.append({
+        type: 'lifecycle.session.aborted',
+        stream_id: sessionId,
+        correlation_id: this.correlationId,
+        actor,
+        payload: {
+          aborted_at: Date.now(),
+          reason,
+        } as SessionAbortedPayload,
+      });
+
+      // 3. Update associated Intent status
+      this.updateIntentStatus(sessionId, 'aborted');
+
+      return true;
+    } catch (error) {
+      console.error(`[DurableStream] Failed to abort session ${sessionId}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Recursive abort: Abort a parent session and all its children.
+   * Called by actor_abort tool for cascading cancellation.
+   */
+  async recursiveAbort(
+    client: OpenCodeClient,
+    state: { subAgents: Record<string, { sessionId: string; status: string }> },
+    actor: string,
+    reason: string
+  ): Promise<void> {
+    // 1. Abort children first (reverse order)
+    const subSessionIds = Object.keys(state.subAgents).reverse();
+    for (const subSessionId of subSessionIds) {
+      const subAgent = state.subAgents[subSessionId];
+      if (subAgent.status !== 'completed' && subAgent.status !== 'failed') {
+        await this.abortSession(client, subAgent.sessionId, actor, `Recursive abort: ${reason}`);
+      }
+    }
+
+    // 2. Abort parent - will be handled by the caller with the parent sessionId
+  }
+
+  /**
+   * Cleanup projections (Intents, Checkpoints) associated with a session.
+   * Called after session deletion.
+   */
+  private cleanupProjections(sessionId: string): void {
+    // Remove associated intents
+    for (const [intentId, intent] of this.activeIntents.entries()) {
+      if (intent.parent_session_id === sessionId || intent.description.includes(sessionId)) {
+        this.activeIntents.delete(intentId);
+      }
+    }
+
+    // Remove pending checkpoints for this session
+    for (const [checkpointId, checkpoint] of this.pendingCheckpoints.entries()) {
+      if (checkpoint.requested_by === sessionId) {
+        this.pendingCheckpoints.delete(checkpointId);
+      }
+    }
+  }
+
+  /**
+   * Update intent status when session is aborted.
+   */
+  private updateIntentStatus(sessionId: string, status: 'aborted' | 'failed'): void {
+    for (const [, intent] of this.activeIntents.entries()) {
+      if (intent.id === sessionId || intent.parent_session_id === sessionId) {
+        intent.status = status;
+        if (status === 'aborted') {
+          intent.error = 'Session aborted by orchestrator';
+        }
+      }
+    }
   }
 
   // ==========================================================================

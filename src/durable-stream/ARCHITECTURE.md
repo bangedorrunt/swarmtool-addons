@@ -1,76 +1,51 @@
-# Durable Stream Architecture
+# Durable Stream Architecture (v4.1)
 
-**Status**: v2.0 (Modular)
+**Status**: v4.1 (Event-Sourced Persistence)
 **Pattern**: Functional Core, Imperative Shell (Façade)
 
 ## 🏗️ High-Level Design
 
-The Durable Stream module is designed to be the "source of truth" for agent orchestration. It eschews complex database schemas in favor of an **Event Sourcing** model where state is derived from an append-only log of immutable events.
+The Durable Stream module is the "source of truth" for agent orchestration. It implements an **Event Sourcing** model where the system state is derived from an append-only log of immutable events.
 
-```mermaid
-graph TD
-    SDK[OpenCode SDK] -->|Hooks| Bridge[SDK Bridge]
-    Bridge -->|Events| Facade[DurableStream Class]
-    Agent[Agent Logic] -->|Intents| Facade
-    Facade -->|Append| Store[JSONL Store]
-    Store -->|Replay| Projections[In-Memory Projections]
-    Projections -->|State| API[Public API]
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    DURABLE STREAM DATA FLOW                     │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  [ OpenCode SDK ] ──▶ [ SDK Bridge ] ──▶ [ DurableStream ]      │
+│     (Hooks/Events)        (Parsing)         (Facade)            │
+│                                                │                │
+│                                                ▼                │
+│  [ API/State ] ◀─── [ Projections ] ◀─── [ JSONL Store ]        │
+│    (Checkpoints)     (In-Memory)        (Append-Only)           │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ## 🧩 Components
 
 ### 1. Functional Core (`core.ts`)
-- **Pure Functions**: No side effects, no external dependencies.
-- **Responsibilities**:
-  - Event creation & validation
-  - ID generation (deterministic where possible)
-  - Filtering logic
-  - Lineage tree construction
-  - Checkpoint extraction
+
+• **Pure Functions**: Logic without side effects for event validation and transformation.
+• **Responsibilities**:
+• Event creation and deterministic ID generation.
+• Lineage tree construction for tracing agent parents/children.
+• Checkpoint extraction from the event stream.
 
 ### 2. Storage Layer (`store.ts`)
-- **Interface**: `IStreamStore`
-- **Implementation**: `JsonlStore`
-- **Mechanism**: Append-only writing to a `.jsonl` file.
-- **Concurrency**: Uses `proper-lockfile` to ensure atomic writes in multi-process environments (OpenCode plugins may spawn multiple processes).
+
+• **Implementation**: `JsonlStore`.
+• **Mechanism**: Append-only persistence to `.jsonl` files.
+• **Concurrency**: Uses `proper-lockfile` to ensure atomic writes across multiple plugin processes.
 
 ### 3. Orchestrator Façade (`orchestrator.ts`)
-- **Role**: The "Shell" that manages side effects and state.
-- **Responsibilities**:
-  - Managing the `IStreamStore` lifecycle.
-  - Maintaining in-memory **Projections** (e.g., `pendingCheckpoints` map).
-  - Bridging OpenCode SDK events (`session.created`, `message.created`) into the stream.
-  - Providing the `EventEmitter` interface for real-time reactivity.
-  - **Legacy Compatibility**: Exposes methods like `subscribe` and `spawnAgent` to support older consumers.
 
-## 🔄 Event Flow
+• **Role**: The stateful shell managing the Store lifecycle and real-time projections.
+• **Projections**:
+• **Pending Checkpoints**: Map of active human-in-the-loop approvals.
+• **Active Intents**: Tracking of long-running workflow goals.
 
-1.  **Ingestion**: An event (from SDK or internal logic) is passed to `stream.append()`.
-2.  **Persistence**: The event is written to the underlying Store (disk).
-3.  **Projection**: The in-memory state (e.g., list of active Checkpoints) is updated immediately.
-4.  **Emission**: The event is emitted via `EventEmitter` to notify listeners (e.g., `Observer`).
+## 🛡️ Resilience & Recovery
 
-## 💾 Data Model
-
-### Stream Event
-```typescript
-interface StreamEvent<T = unknown> {
-    id: string;           // Global unique ID
-    type: EventType;      // e.g., 'agent.spawned', 'checkpoint.requested'
-    stream_id: string;    // Session ID or aggregate root ID
-    correlation_id: string; // Trace ID
-    timestamp: number;
-    actor: string;        // Who performed the action
-    payload: T;           // Domain data
-}
-```
-
-### Projections
-We maintain two primary projections in memory:
-1.  **Pending Checkpoints**: Map of `checkpoint_id` -> `Checkpoint`. Rehydrated on startup.
-2.  **Active Intents**: Map of `intent_id` -> `Intent`. Used to track long-running workflows.
-
-## 🛡️ Resilience Strategy
-
-- **Crash Recovery**: On startup (`resume()`), the system reads the entire JSONL log. It reconstructs the `pendingCheckpoints` map by replaying events (adding on `requested`, removing on `approved`/`rejected`).
-- **Atomic Writes**: File locking prevents corrupted logs during partial writes or concurrent access.
+• **Crash Recovery**: On startup, the system replays the entire JSONL log to reconstruct the active state (pending checkpoints, active tasks).
+• **Auditability**: Every tool call and agent spawn is preserved, providing a permanent audit trail of the Governance Loop.

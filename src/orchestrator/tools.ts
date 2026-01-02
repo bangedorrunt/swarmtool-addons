@@ -12,6 +12,7 @@ import { loadLedger, saveLedger, updateTaskStatus } from './ledger';
 import { getActivityLogger } from './activity-log';
 import { getTaskRegistry } from './task-registry';
 import { WorkflowLoader, WorkflowProcessor } from './workflow-engine';
+import { getDurableStream } from '../durable-stream';
 
 interface AgentConfig {
   name: string;
@@ -436,6 +437,63 @@ export function createSkillAgentTools(client: PluginInput['client']) {
         const registry = getTaskRegistry();
         registry.heartbeat(task_id);
         return JSON.stringify({ success: true, message: 'Heartbeat recorded' });
+      },
+    }),
+
+    /**
+     * skill_cleanup - Physically delete a session to free memory (v4.1)
+     * Use this after a sync task completes and you no longer need the session.
+     */
+    skill_cleanup: tool({
+      description:
+        'Physically delete a session to free server memory. Use after sync task completes.',
+      args: {
+        session_id: tool.schema.string().describe('Session ID to delete'),
+        reason: tool.schema.string().optional().describe('Reason for cleanup'),
+      },
+      async execute(args) {
+        const { session_id, reason } = args;
+
+        if (!session_id) {
+          return JSON.stringify({
+            success: false,
+            error: 'MISSING_ARGUMENT',
+            message: "Missing 'session_id' parameter",
+          });
+        }
+
+        try {
+          // Use Durable Stream for proper event tracking
+          const durableStream = getDurableStream();
+          const deleted = await durableStream.deleteSession(
+            client,
+            session_id,
+            'skill_cleanup',
+            reason || 'Manual cleanup'
+          );
+
+          if (deleted) {
+            // Also cleanup from TaskRegistry if exists
+            const registry = getTaskRegistry();
+            const task = registry.getTaskBySessionId(session_id);
+            if (task) {
+              registry.updateStatus(task.id, 'completed', undefined, 'Session cleaned up');
+            }
+          }
+
+          return JSON.stringify({
+            success: deleted,
+            session_id,
+            message: deleted ? 'Session deleted successfully' : 'Failed to delete session',
+          });
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          return JSON.stringify({
+            success: false,
+            error: 'CLEANUP_FAILED',
+            message: errorMessage,
+          });
+        }
       },
     }),
 
