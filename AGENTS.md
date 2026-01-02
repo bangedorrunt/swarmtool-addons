@@ -388,10 +388,11 @@ await stream.abortSession(client, sessionId, 'actor_abort', 'User requested canc
 
 ```
 [SPAWNED] → [RUNNING] → [COMPLETED/ABORTED] → [DELETED] → [Memory Freed]
-                                      │
-                                      ├──→ Extract learnings to Memory Lane
-                                      ├──→ Emit lifecycle event
-                                      └──→ Call session.delete()
+                                  │
+                                  ├──→ Extract learnings to Memory Lane
+                                  ├──→ Emit lifecycle event
+                                  ├──→ Call session.delete()
+                                  └──→ Remove from TaskRegistry
 ```
 
 #### Recursive Abort Pattern
