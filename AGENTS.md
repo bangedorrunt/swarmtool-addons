@@ -197,7 +197,7 @@ src/
     checkpoint.ts             # Human-in-the-Loop workflows (v4.1)
     crash-recovery.ts         # State reconstruction (v4.1)
     tools/
-      ledger-tools.ts         # Ledger tool definitions
+      ledger-tools.ts         # Unified LEDGER tools (direct + event-driven) ⭐ MERGED
       checkpoint-tools.ts     # Checkpoint tool definitions
     hooks/
       opencode-session-learning.ts # Universal hook implementation
@@ -211,6 +211,20 @@ src/
 ---
 
 ## 5. New Tools (v4.1)
+
+### Unified Ledger Tools (v4.1.1)
+
+| Tool                    | Description                              |
+| ----------------------- | ---------------------------------------- |
+| `ledger_status`         | Get current LEDGER.md status             |
+| `ledger_create_epic`    | Create a new epic in LEDGER.md           |
+| `ledger_create_task`    | Create a task within the current epic    |
+| `ledger_update_task`    | Update task status                       |
+| `ledger_add_learning`   | Add a learning entry to LEDGER.md        |
+| `ledger_get_learnings`  | Get recent learnings from LEDGER.md      |
+| `ledger_add_context`    | Add context to current epic              |
+| `ledger_create_handoff` | Create handoff section for session break |
+| `ledger_archive_epic`   | Archive the current epic                 |
 
 ### Event-Driven Ledger Tools
 
@@ -271,6 +285,7 @@ The Durable Stream supports the following event categories:
 **Ledger Events (v4.1)**
 
 - `ledger.epic.created/started/completed/failed` - Epic lifecycle
+- `ledger.handoff.created/resumed` - Handoff lifecycle (v4.2) ⭐ NEW
 - `ledger.task.created/started/completed/failed/yielded` - Task lifecycle
 - `ledger.governance.directive_added` - New directive created
 - `ledger.governance.assumption_added` - New assumption recorded

@@ -10,7 +10,7 @@
  * - Learnings captured
  */
 
-import type { Ledger, Task, Epic, LedgerPhase } from './ledger';
+import type { Ledger, Task, Epic, LedgerPhase, Handoff } from './ledger';
 import type {
   StreamEvent,
   Checkpoint,
@@ -52,6 +52,8 @@ const LEDGER_EVENT_TYPES: EventType[] = [
   'ledger.epic.created',
   'ledger.epic.started',
   'ledger.epic.completed',
+  'ledger.handoff.created',
+  'ledger.handoff.resumed',
   'ledger.task.created',
   'ledger.task.started',
   'ledger.task.completed',
@@ -101,6 +103,15 @@ export class CrashRecoverySystem {
         }
       }
 
+      if (recoveredState.handoff) {
+        if (!this.dryRun) {
+          const existingLedger = await loadLedger(this.ledgerPath);
+          existingLedger.handoff = recoveredState.handoff;
+          existingLedger.meta.status = 'handoff';
+          await saveLedger(existingLedger, this.ledgerPath);
+        }
+      }
+
       report.success = true;
     } catch (error) {
       report.errors.push(`Recovery failed: ${error}`);
@@ -113,6 +124,7 @@ export class CrashRecoverySystem {
     epic: Epic | null;
     phase: LedgerPhase;
     tasks: Task[];
+    handoff: Handoff | null;
   } {
     const taskEvents = events.filter(
       (e) => LEDGER_EVENT_TYPES.includes(e.type) && e.type.startsWith('ledger.task')
@@ -122,9 +134,14 @@ export class CrashRecoverySystem {
       (e) => LEDGER_EVENT_TYPES.includes(e.type) && e.type.startsWith('ledger.epic')
     );
 
+    const handoffEvents = events.filter(
+      (e) => LEDGER_EVENT_TYPES.includes(e.type) && e.type.startsWith('ledger.handoff')
+    );
+
     let epic: Epic | null = null;
     let currentPhase: LedgerPhase = 'CLARIFICATION';
     const taskMap = new Map<string, Task>();
+    let handoff: Handoff | null = null;
 
     for (const event of epicEvents) {
       const payload = event.payload as any;
@@ -204,6 +221,22 @@ export class CrashRecoverySystem {
       }
     }
 
+    for (const event of handoffEvents) {
+      const payload = event.payload as any;
+      if (event.type === 'ledger.handoff.created') {
+        handoff = {
+          created: new Date(event.timestamp).toISOString(),
+          reason: (payload.handoffReason as Handoff['reason']) || 'session_break',
+          resumeCommand: payload.handoffCommand || '',
+          whatsDone: payload.handoffWhatsDone || [],
+          whatsNext: payload.handoffWhatsNext || [],
+          keyContext: payload.handoffKeyContext || [],
+          filesModified: payload.handoffFilesModified || [],
+          learningsThisSession: [],
+        };
+      }
+    }
+
     if (epic) {
       epic.tasks = Array.from(taskMap.values());
       const completed = epic.tasks.filter((t) => t.status === 'completed').length;
@@ -218,7 +251,7 @@ export class CrashRecoverySystem {
       }
     }
 
-    return { epic, phase: currentPhase, tasks: Array.from(taskMap.values()) };
+    return { epic, phase: currentPhase, tasks: Array.from(taskMap.values()), handoff };
   }
 
   async checkPendingCheckpoints(): Promise<Checkpoint[]> {

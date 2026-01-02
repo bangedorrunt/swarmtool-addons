@@ -23,8 +23,10 @@ import { loadChiefOfStaffSkills } from './opencode/config/skill-loader';
 import { createAgentTools } from './agent-spawn';
 import { createEventLogTools } from './event-log';
 import { initializeDurableStream, getDurableStream } from './durable-stream';
-import { ledgerEventTools } from './orchestrator/tools/ledger-tools';
+import { ledgerTools, ledgerEventTools } from './orchestrator/tools/ledger-tools';
 import { checkpointTools } from './orchestrator/tools/checkpoint-tools';
+
+const activeAgentCalls = new Map<string, string>();
 
 type OpenCodeClient = PluginInput['client'];
 
@@ -178,6 +180,7 @@ export const SwarmToolAddons: Plugin = async (input) => {
       ...skillAgentTools,
       ...agentTools,
       ...eventLogTools,
+      ...ledgerTools,
       ...ledgerEventTools,
       ...checkpointTools,
     },
@@ -185,8 +188,18 @@ export const SwarmToolAddons: Plugin = async (input) => {
     // 2. OpenCode Hooks (must be flat on this object)
 
     // Synchronous context injection
-    'tool.execute.before': async () => {
+    'tool.execute.before': async (
+      input: { tool: string; callID: string },
+      output: { args: any }
+    ) => {
       // Logic for context injection or logging before tool starts
+      // Capture agent name for title setting
+      if (input.tool === 'skill_agent' || input.tool === 'agent_spawn') {
+        const agentName = output.args?.agent_name || output.args?.agent;
+        if (agentName) {
+          activeAgentCalls.set(input.callID, agentName);
+        }
+      }
     },
 
     // Post-tool execution hooks - CRITICAL for Lifecycle Handoff 2.0
@@ -194,6 +207,13 @@ export const SwarmToolAddons: Plugin = async (input) => {
       hookInput: { tool: string; sessionID: string; callID: string },
       hookOutput: { title: string; output: string; metadata: any }
     ) => {
+      // 1. Set Display Title (UI Polish)
+      const initialAgentName = activeAgentCalls.get(hookInput.callID);
+      if (initialAgentName) {
+        hookOutput.title = initialAgentName;
+        activeAgentCalls.delete(hookInput.callID);
+      }
+
       // Agent Lifecycle Handoff 2.0 (Detected via metadata or output)
       let handoffData = null;
       let isHandoffIntent = false;

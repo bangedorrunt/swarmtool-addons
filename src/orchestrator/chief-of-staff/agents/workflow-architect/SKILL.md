@@ -103,7 +103,9 @@ src/orchestrator/
 ├── tools.ts                         # Core skill_agent tools
 ├── ledger.ts                        # LEDGER.md utilities ⭐ NEW
 ├── ledger-hooks.ts                  # Session lifecycle hooks ⭐ NEW
-├── ledger-tools.ts                  # LEDGER tools for agents ⭐ NEW
+├── tools/
+│   ├── ledger-tools.ts              # Unified LEDGER tools ⭐ MERGED
+│   └── checkpoint-tools.ts          # Checkpoint tool definitions
 ├── task-registry.ts                 # Task tracking ⭐ NEW
 ├── observer.ts                    # Task observation ⭐ NEW
 ├── resilience-tools.ts              # Resilience tools ⭐ NEW

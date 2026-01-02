@@ -47,6 +47,8 @@ export type EventType =
   | 'ledger.epic.completed'
   | 'ledger.epic.failed'
   | 'ledger.epic.archived'
+  | 'ledger.handoff.created'
+  | 'ledger.handoff.resumed'
   | 'ledger.task.created'
   | 'ledger.task.started'
   | 'ledger.task.completed'

@@ -112,8 +112,8 @@ export {
   type SessionEndResult,
 } from './ledger-hooks';
 
-// Export LEDGER tools for agents
-export { createLedgerTools, ledgerTools } from './ledger-tools';
+// Export LEDGER tools for agents (consolidated in tools/ directory)
+export { createLedgerTools, ledgerTools, ledgerEventTools } from './tools/ledger-tools';
 
 // Export Resilient Orchestration - Task Registry
 export {

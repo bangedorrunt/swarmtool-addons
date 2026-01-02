@@ -41,6 +41,8 @@ export type LedgerEventType =
   | 'ledger.epic.completed'
   | 'ledger.epic.failed'
   | 'ledger.epic.archived'
+  | 'ledger.handoff.created'
+  | 'ledger.handoff.resumed'
   | 'ledger.task.created'
   | 'ledger.task.started'
   | 'ledger.task.completed'
@@ -65,6 +67,12 @@ export interface LedgerEventPayload {
   assumptionRationale?: string;
   learningType?: string;
   learningContent?: string;
+  handoffReason?: string;
+  handoffCommand?: string;
+  handoffFilesModified?: string[];
+  handoffWhatsDone?: string[];
+  handoffWhatsNext?: string[];
+  handoffKeyContext?: string[];
 }
 
 export class EventDrivenLedger {
@@ -220,6 +228,30 @@ export function createLedgerEventHandlers(ledger: EventDrivenLedger) {
       ledger.emit('ledger.epic.archived', {
         epicId,
         result: outcome,
+      }),
+
+    onHandoffCreated: (
+      epicId: string,
+      reason: string,
+      command: string,
+      filesModified: string[],
+      whatsDone: string[],
+      whatsNext: string[],
+      keyContext: string[]
+    ) =>
+      ledger.emit('ledger.handoff.created', {
+        epicId,
+        handoffReason: reason,
+        handoffCommand: command,
+        handoffFilesModified: filesModified,
+        handoffWhatsDone: whatsDone,
+        handoffWhatsNext: whatsNext,
+        handoffKeyContext: keyContext,
+      }),
+
+    onHandoffResumed: (epicId: string) =>
+      ledger.emit('ledger.handoff.resumed', {
+        epicId,
       }),
 
     onTaskCreated: (task: Task, epic: Epic) =>
