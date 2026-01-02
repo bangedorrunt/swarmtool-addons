@@ -131,6 +131,10 @@ export class TaskObserver {
    * Stop the observation loop
    */
   stop(): void {
+    if (!this.isRunning) {
+      return;
+    }
+
     if (this.intervalId) {
       clearTimeout(this.intervalId);
       this.intervalId = undefined;
@@ -139,6 +143,10 @@ export class TaskObserver {
     this.unsubscribeAgentSpawned?.();
     this.unsubscribeAgentCompleted?.();
     this.unsubscribeAgentFailed?.();
+
+    this.unsubscribeAgentSpawned = undefined;
+    this.unsubscribeAgentCompleted = undefined;
+    this.unsubscribeAgentFailed = undefined;
 
     this.isRunning = false;
     console.log('[Observer] Stopped task observation');
@@ -191,8 +199,14 @@ export class TaskObserver {
     const interval = this.calculateAdaptiveInterval();
 
     this.intervalId = setTimeout(async () => {
-      await this.observe();
-      this.scheduleNextCheck();
+      try {
+        await this.observe();
+      } catch (error) {
+        console.error('[Observer] Error during observation check:', error);
+      } finally {
+        // Always reschedule if still running, even if there was an error
+        this.scheduleNextCheck();
+      }
     }, interval);
   }
 

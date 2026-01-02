@@ -53,7 +53,8 @@ export class DurableStream extends EventEmitter {
   private config: Required<Omit<DurableStreamConfig, 'store'>>;
   private correlationId: string;
   private initialized = false;
-  private eventHistory: StreamEvent[] = []; // In-memory cache for fast lookups
+  private eventHistory: StreamEvent[] = [];
+  private readonly maxEventHistory: number;
 
   // In-memory projections (derived from events)
   private pendingCheckpoints: Map<string, Checkpoint> = new Map();
@@ -64,6 +65,7 @@ export class DurableStream extends EventEmitter {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.store = config?.store ?? getDefaultStore({ path: this.config.storePath });
     this.correlationId = generateCorrelationId();
+    this.maxEventHistory = 100000; // ~100MB-200MB for events, supports 1GB memory
   }
 
   // ==========================================================================
@@ -166,6 +168,11 @@ export class DurableStream extends EventEmitter {
    */
   private updateProjections(event: StreamEvent): void {
     this.eventHistory.push(event); // Add to cache
+
+    // Limit event history to prevent unbounded memory growth
+    if (this.eventHistory.length > this.maxEventHistory) {
+      this.eventHistory.shift();
+    }
 
     // Emit for real-time subscribers
     this.emit(event.type, event);

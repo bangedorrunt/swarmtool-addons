@@ -533,6 +533,23 @@ export function createOpenCodeSessionLearningHook(
 
       return;
     }
+
+    // Plugin shutdown - cleanup all pending captures
+    if (event.type === 'plugin.shutdown' || event.type === 'session.end') {
+      // Clear all pending timers
+      for (const [sessionId, timer] of pendingCaptures) {
+        clearTimeout(timer);
+      }
+      pendingCaptures.clear();
+
+      // Clear all session state
+      sessionFirstMessages.clear();
+      sessionInjectedContent.clear();
+      sessionUserMessages.clear();
+      sessionModifiedFiles.clear();
+
+      return;
+    }
   };
 }
 

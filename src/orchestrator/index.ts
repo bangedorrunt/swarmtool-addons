@@ -225,3 +225,78 @@ export {
   type SessionMode,
   type AgentSessionConfig,
 } from './session-strategy';
+
+// Import shutdown functions for graceful shutdown
+import { stopTaskObservation } from './observer';
+import { resetTaskRegistry } from './task-registry';
+import { shutdownCheckpointManager } from './checkpoint';
+import { shutdownLearningExtractor } from './learning-extractor';
+import { shutdownEventDrivenLedger } from './event-driven-ledger';
+
+// ============================================================================
+// Graceful Shutdown (v5.1)
+// ============================================================================
+
+export async function shutdownAll(): Promise<void> {
+  console.log('[Orchestrator] Starting graceful shutdown...');
+
+  // Stop task observation first
+  try {
+    stopTaskObservation();
+    console.log('[Orchestrator] Task observer stopped');
+  } catch (err) {
+    console.error('[Orchestrator] Error stopping task observer:', err);
+  }
+
+  // Reset task registry
+  try {
+    resetTaskRegistry();
+    console.log('[Orchestrator] Task registry reset');
+  } catch (err) {
+    console.error('[Orchestrator] Error resetting task registry:', err);
+  }
+
+  // Shutdown checkpoint manager
+  try {
+    await shutdownCheckpointManager();
+    console.log('[Orchestrator] Checkpoint manager shutdown');
+  } catch (err) {
+    console.error('[Orchestrator] Error shutting down checkpoint manager:', err);
+  }
+
+  // Shutdown learning extractor
+  try {
+    await shutdownLearningExtractor();
+    console.log('[Orchestrator] Learning extractor shutdown');
+  } catch (err) {
+    console.error('[Orchestrator] Error shutting down learning extractor:', err);
+  }
+
+  // Shutdown event-driven ledger
+  try {
+    await shutdownEventDrivenLedger();
+    console.log('[Orchestrator] Event-driven ledger shutdown');
+  } catch (err) {
+    console.error('[Orchestrator] Error shutting down event-driven ledger:', err);
+  }
+
+  // Shutdown durable stream (imported from durable-stream)
+  try {
+    const { shutdownDurableStream } = await import('../durable-stream');
+    await shutdownDurableStream();
+    console.log('[Orchestrator] Durable stream shutdown');
+  } catch (err) {
+    console.error('[Orchestrator] Error shutting down durable stream:', err);
+  }
+
+  // Shutdown memory lane store (imported from memory-lane)
+  try {
+    const { resetMemoryLaneStore } = await import('../memory-lane');
+    resetMemoryLaneStore();
+    console.log('[Orchestrator] Memory lane store reset');
+  } catch (err) {
+    console.error('[Orchestrator] Error resetting memory lane store:', err);
+  }
+
+  console.log('[Orchestrator] Graceful shutdown complete');
+}

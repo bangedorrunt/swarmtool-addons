@@ -36,9 +36,11 @@ export class JsonlStore implements IStreamStore {
   private cacheLoaded = false;
   private offset = 0;
   private lastDate: string = new Date().toISOString().split('T')[0];
+  private readonly maxCacheSize: number;
 
   constructor(config?: Partial<JsonlStoreConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.maxCacheSize = 100000;
   }
 
   /**
@@ -125,6 +127,11 @@ export class JsonlStore implements IStreamStore {
     // Update cache
     this.eventCache.push(event);
     this.offset++;
+
+    // Limit cache size to prevent unbounded memory growth
+    if (this.eventCache.length > this.maxCacheSize) {
+      this.eventCache.shift();
+    }
   }
 
   async readStream(streamId: string, fromOffset?: number): Promise<StreamEvent[]> {

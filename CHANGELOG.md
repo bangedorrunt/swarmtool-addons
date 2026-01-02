@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.1.1] - 2026-01-02
+
+### Summary
+
+Memory Management Fixes for Long-Running Sessions. Addresses unbounded memory growth in event history, caches, and timer references.
+
+### Fixed
+
+- **Event History Unbounded Growth** (`src/durable-stream/orchestrator.ts`)
+  - Added `maxEventHistory = 100000` limit
+  - Oldest events are removed when limit reached
+  - Estimated memory: 100-200 MB
+
+- **Event Cache Unbounded Growth** (`src/durable-stream/store.ts`)
+  - Added `maxCacheSize = 50000` limit
+  - Oldest cache entries removed when limit reached
+  - Estimated memory: 50-100 MB
+
+- **Pending Captures Timer Leak** (`src/orchestrator/hooks/opencode-session-learning.ts`)
+  - Added cleanup handler for `plugin.shutdown` and `session.end` events
+  - All pending timers cleared on shutdown
+  - Session state maps cleared on shutdown
+
+- **Observer Recursive Loop Protection** (`src/orchestrator/observer.ts`)
+  - Added try-catch in `scheduleNextCheck()` to prevent loop interruption
+  - Added `isRunning` guard before stop() to prevent double cleanup
+  - Unsubscribe functions set to undefined after cleanup
+
+### Added
+
+- **Graceful Shutdown** (`src/orchestrator/index.ts`)
+  - New `shutdownAll()` function for comprehensive cleanup
+  - Shuts down in order: TaskObserver → TaskRegistry → CheckpointManager → LearningExtractor → EventDrivenLedger → DurableStream → MemoryLaneStore
+
+- **Memory Documentation** (`docs/MEMORY.md`)
+  - Memory limits and estimates
+  - Cleanup mechanisms
+  - Configuration options
+  - Troubleshooting guide
+
+### Technical Details
+
+**Memory Limits** (for 1GB memory systems):
+
+| Component     | Limit          | Estimated Memory |
+| ------------- | -------------- | ---------------- |
+| Event History | 100,000 events | 100-200 MB       |
+| Event Cache   | 50,000 events  | 50-100 MB        |
+
+**Graceful Shutdown Order**:
+
+```
+shutdownAll()
+  1. stopTaskObservation() - Task Observer
+  2. resetTaskRegistry() - Task Registry
+  3. shutdownCheckpointManager() - Checkpoint Manager
+  4. shutdownLearningExtractor() - Learning Extractor
+  5. shutdownEventDrivenLedger() - Event-Driven Ledger
+  6. shutdownDurableStream() - Durable Stream
+  7. resetMemoryLaneStore() - Memory Lane Store
+```
+
 ## [5.1.0] - 2026-01-02
 
 ### Summary
@@ -383,9 +445,10 @@ await fileLedger.appendLog(epicId, 'Started implementation');
 
 ## Version History
 
-| Version | Date       | Codename                     | Highlights                                |
-| ------- | ---------- | ---------------------------- | ----------------------------------------- |
-| 6.0.0   | 2026-01-02 | File-Based Ledger            | Conductor-inspired, git-friendly epics    |
-| 5.0.0   | 2026-01-02 | Governance-First             | Agent consolidation (16→8), HITL, polling |
-| 4.1.0   | 2025-12-XX | Physical Resource Management | Parallel execution, conflict detection    |
-| 4.0.0   | 2025-12-XX | Skill-Based Architecture     | Subagent system, CoS orchestrator         |
+| Version | Date       | Codename                     | Highlights                                 |
+| ------- | ---------- | ---------------------------- | ------------------------------------------ |
+| 5.1.1   | 2026-01-02 | Memory Management            | Fixed unbounded event history/cache growth |
+| 6.0.0   | 2026-01-02 | File-Based Ledger            | Conductor-inspired, git-friendly epics     |
+| 5.0.0   | 2026-01-02 | Governance-First             | Agent consolidation (16→8), HITL, polling  |
+| 4.1.0   | 2025-12-XX | Physical Resource Management | Parallel execution, conflict detection     |
+| 4.0.0   | 2025-12-XX | Skill-Based Architecture     | Subagent system, CoS orchestrator          |
