@@ -13,6 +13,8 @@ import { getActivityLogger } from './activity-log';
 import { getTaskRegistry } from './task-registry';
 import { WorkflowLoader, WorkflowProcessor } from './workflow-engine';
 import { getDurableStream } from '../durable-stream';
+import { getSessionMode, requiresContext, prepareChildSessionPrompt } from './session-strategy';
+import { emitProgress, emitPhaseStart } from './progress';
 
 interface AgentConfig {
   name: string;
@@ -264,6 +266,71 @@ export function createSkillAgentTools(client: PluginInput['client']) {
 
         // 2. Synchronous Pattern - Uses spawnChildAgent with proper coordination
         if (!isAsync) {
+          // v5.0: Check session strategy for hybrid mode
+          const sessionMode = getSessionMode(targetAgentName);
+          const needsContext = requiresContext(targetAgentName);
+
+          // Emit progress for visibility
+          await emitPhaseStart(
+            targetAgentName,
+            'STARTING',
+            `Starting ${targetAgentName}...`,
+            execContext?.sessionID
+          );
+
+          // INLINE MODE: Run in current session (visible thinking)
+          if (sessionMode === 'inline' && execContext?.sessionID) {
+            try {
+              // Prepare prompt with context if needed
+              let inlinePrompt = finalPrompt;
+              if (needsContext) {
+                inlinePrompt = await prepareChildSessionPrompt(
+                  finalPrompt,
+                  (execContext as unknown as ToolContext)?.agent || 'chief-of-staff',
+                  execContext.sessionID,
+                  targetAgentName
+                );
+              }
+
+              // Prompt current session with different agent (visible thinking)
+              await client.session.prompt({
+                path: { id: execContext.sessionID },
+                body: {
+                  agent: targetAgentName,
+                  parts: [{ type: 'text', text: inlinePrompt }],
+                },
+              });
+
+              // Fetch result from current session
+              const result = await fetchSessionResult(
+                client,
+                execContext.sessionID,
+                targetAgentName
+              );
+
+              return JSON.stringify(
+                {
+                  success: true,
+                  agent: targetAgentName,
+                  session_id: execContext.sessionID,
+                  mode: 'inline',
+                  result: result.result,
+                  dialogue_state: extractDialogueState(result.result || ''),
+                },
+                null,
+                2
+              );
+            } catch (err: any) {
+              return JSON.stringify({
+                success: false,
+                error: 'INLINE_EXECUTION_FAILED',
+                message: err.message,
+                mode: 'inline',
+              });
+            }
+          }
+
+          // CHILD MODE: Create child session (original behavior)
           const registry = getTaskRegistry();
           const taskId = await registry.register({
             sessionId: '',
@@ -302,13 +369,24 @@ export function createSkillAgentTools(client: PluginInput['client']) {
 
           registry.updateSessionId(taskId, targetSessionId);
 
+          // v5.0: Prepare prompt with context handoff for child session
+          let childPrompt = finalPrompt;
+          if (needsContext && execContext?.sessionID) {
+            childPrompt = await prepareChildSessionPrompt(
+              finalPrompt,
+              (execContext as unknown as ToolContext)?.agent || 'chief-of-staff',
+              execContext.sessionID,
+              targetAgentName
+            );
+          }
+
           // Send prompt to session
           try {
             await client.session.prompt({
               path: { id: targetSessionId },
               body: {
                 agent: targetAgentName,
-                parts: [{ type: 'text', text: finalPrompt }],
+                parts: [{ type: 'text', text: childPrompt }],
               },
             });
           } catch (err: any) {

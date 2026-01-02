@@ -58,7 +58,13 @@ export type EventType =
   | 'ledger.task.yielded'
   | 'ledger.governance.directive_added'
   | 'ledger.governance.assumption_added'
-  | 'ledger.learning.extracted';
+  | 'ledger.learning.extracted'
+  // Progress (v5.0 - User visibility)
+  | 'progress.phase_started'
+  | 'progress.phase_completed'
+  | 'progress.status_update'
+  | 'progress.user_action_needed'
+  | 'progress.context_handoff';
 
 /**
  * The canonical event envelope.
@@ -213,5 +219,60 @@ export interface OpenCodeClient {
   session: {
     delete(options: { path: { id: string } }): Promise<{ error?: unknown }>;
     abort(options: { path: { id: string } }): Promise<{ error?: unknown }>;
+  };
+}
+
+// ============================================================================
+// Progress Events (v5.0 - User Visibility)
+// ============================================================================
+
+/**
+ * Action required from user during HITL interaction.
+ */
+export interface ActionRequired {
+  type: 'poll' | 'approve' | 'input' | 'confirm';
+  options?: Array<{
+    id: string;
+    label: string;
+    description?: string;
+  }>;
+  prompt?: string;
+  default_option?: string;
+}
+
+/**
+ * Progress event payload for user-facing status updates.
+ */
+export interface ProgressPayload {
+  /** Agent emitting the progress */
+  agent: string;
+  /** Current phase (e.g., PLANNING, IMPLEMENTING, REVIEWING) */
+  phase: string;
+  /** User-friendly message */
+  message: string;
+  /** Progress percentage (0-100) */
+  progress_percent?: number;
+  /** Action required from user */
+  action_required?: ActionRequired;
+  /** Session ID for context */
+  session_id?: string;
+  /** Task ID if within an epic */
+  task_id?: string;
+}
+
+/**
+ * Context handoff payload when switching between agents/sessions.
+ */
+export interface ContextHandoffPayload {
+  from_agent: string;
+  from_session: string;
+  to_agent: string;
+  to_session?: string;
+  context: {
+    directives: string[];
+    decisions: string[];
+    plan?: string;
+    files_affected?: string[];
+    learnings?: string[];
   };
 }

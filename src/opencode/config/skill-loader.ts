@@ -3,6 +3,8 @@
  *
  * This module reads skill definitions from SKILL.md files and converts them into
  * the format expected by OpenCode's config.agent hook.
+ *
+ * v5.0: Updated for consolidated 8-agent roster with flat naming.
  */
 
 import fs from 'node:fs';
@@ -10,11 +12,11 @@ import path from 'path';
 import matter from 'gray-matter';
 
 export interface SkillDefinition {
-  /** Hierarchical name (e.g., "chief-of-staff/oracle") */
+  /** Hierarchical name (e.g., "chief-of-staff/architect") or flat name (e.g., "architect") */
   name: string;
   /** Full description for agent listing */
   description: string;
-  /** Model to use (e.g., "google/gemini-3-flash") */
+  /** Model to use (e.g., "google/gemini-2.5-flash") */
   model?: string;
   /** Temperature setting */
   temperature?: number;
@@ -27,6 +29,21 @@ export interface SkillDefinition {
   /** Optional metadata for visibility and categorization */
   metadata?: any;
 }
+
+/**
+ * Active agents in v5.0 roster.
+ * Deprecated agents are excluded from loading.
+ */
+const ACTIVE_AGENTS = [
+  'interviewer',
+  'architect',
+  'executor',
+  'reviewer',
+  'validator',
+  'debugger',
+  'explore',
+  'librarian',
+];
 
 /**
  * Load all chief-of-staff skill agents from the orchestrator directory
@@ -52,6 +69,11 @@ export async function loadChiefOfStaffSkills(): Promise<SkillDefinition[]> {
   const agentDirs = fs.readdirSync(agentsDir);
 
   for (const agentName of agentDirs) {
+    // Skip deprecated agents - only load active agents
+    if (!ACTIVE_AGENTS.includes(agentName)) {
+      continue;
+    }
+
     const agentPath = path.join(agentsDir, agentName);
 
     if (!fs.statSync(agentPath).isDirectory()) continue;
@@ -63,11 +85,12 @@ export async function loadChiefOfStaffSkills(): Promise<SkillDefinition[]> {
       const content = fs.readFileSync(skillMdPath, 'utf-8');
       const { data, content: markdownContent } = matter(content);
 
-      // Use hierarchical naming: chief-of-staff/{agent}
-      const fullName = `chief-of-staff/${agentName}`;
+      // v5.0: Use name from frontmatter if available, otherwise derive from directory
+      // Supports both flat names (executor) and hierarchical (chief-of-staff/executor)
+      const skillName = data.name || `chief-of-staff/${agentName}`;
 
       const skill: SkillDefinition = {
-        name: fullName,
+        name: skillName,
         description: data.description || `${agentName} agent`,
         model: data.model,
         temperature: data.temperature,

@@ -2,167 +2,264 @@
 
 ## Module Implementation Guide
 
-### Skill-Based Agent Architecture with Durable Stream (v4.1)
+### Skill-Based Agent Architecture with File-Based Ledger (v6.0)
 
-This plugin implements a **Skill-Based Subagent** architecture with **Governance-First Orchestration (v4.1)** enhanced by **Event-Sourced Persistence** via the Durable Stream API. Domain expertise is packaged into specialized, on-demand workers coordinated by a `chief-of-staff` Governor agent.
+This plugin implements a **Skill-Based Subagent** architecture with **Governance-First Orchestration (v6.0)** enhanced by **File-Based Persistence** for git-friendly history tracking. Domain expertise is packaged into specialized, on-demand workers coordinated by a `chief-of-staff` Governor agent.
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      OpenCode Runtime                           │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │           Tool & Message Hooks Event Bus                    ││
-│  │       (async, decoupled event processing)                   ││
-│  └─────────────────────────────────────────────────────────────┘│
-│         │                              │                        │
-│         ▼                              ▼                        │
-│  ┌─────────────────┐           ┌──────────────────────┐         │
-│  │  Agent Addons   │           │    Chief-of-Staff    │         │
-│  │  (This Plugin)  │           │    (Coordinator)     │         │
-│  │  ┌───────────┐  │           │  ┌───────────────┐   │         │
-│  │  │  Tools &  │◄─┴───────────┤  │  Subagents    │   │         │
-│  │  │   Hooks   │              │  │ (oracle, etc) │   │         │
-│  │  └───────────┘              │  └───────────────┘   │         │
-│  └─────────────────┬───────────┴──────────────────────┘         │
-│                    │                                            │
-│    ┌───────────────┼─────────────────────┐                      │
-│    ▼               ▼                     ▼                      │
-│ ┌──────────┐ ┌──────────────┐ ┌─────────────────────┐          │
-│ │LEDGER.md │ │Durable Stream│ │    Memory Lane      │          │
-│ │(State)   │ │(Event Source)│ │    (Vector DB)      │          │
-│ └──────────┘ └──────────────┘ └─────────────────────┘          │
-└─────────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------------+
+|                      OpenCode Runtime                              |
+|  +---------------------------------------------------------------+|
+|  |           Tool & Message Hooks Event Bus                      ||
+|  |       (async, decoupled event processing)                     ||
+|  +---------------------------------------------------------------+|
+|         |                              |                          |
+|         V                              V                          |
+|  +-----------------+           +----------------------+           |
+|  |  Agent Addons   |           |    Chief-of-Staff    |           |
+|  |  (This Plugin)  |           |    (Coordinator)     |           |
+|  |  +-----------+  |           |  +---------------+   |           |
+|  |  |  Tools &  |<-+-----------+  |  8 Subagents  |   |           |
+|  |  |   Hooks   |              |  | (v6.0 roster) |   |           |
+|  |  +-----------+              |  +---------------+   |           |
+|  +-----------------+-----------+----------------------+           |
+|                    |                                              |
+|    +---------------+---------------------+                        |
+|    V               V                     V                        |
+| +----------+ +--------------+ +---------------------+             |
+| |.opencode/| |Durable Stream| |    Memory Lane      |             |
+| |(Files)   | |(Event Source)| |    (Vector DB)      |             |
+| +----------+ +--------------+ +---------------------+             |
++-------------------------------------------------------------------+
 
-DURABLE STREAM LAYERS:
-  1. Event Log     → Persistent JSONL storage with crash recovery
-  2. Checkpoints   → Human-in-the-Loop approval workflows
-  3. Intents       → Long-running workflow tracking
-  4. Learning      → Auto-extraction of patterns from events (Universal)
+.OPENCODE/ STRUCTURE (v6.0):
+  .opencode/
+  +-- LEDGER.md           # Lightweight index (pointers only)
+  +-- context/            # Project context
+  |   +-- product.md
+  |   +-- tech-stack.md
+  |   +-- workflow.md
+  +-- epics/              # File-based epics
+  |   +-- <epic_id>/
+  |       +-- spec.md
+  |       +-- plan.md
+  |       +-- log.md
+  |       +-- metadata.json
+  +-- learnings/          # Persistent learnings
+  |   +-- patterns.md
+  |   +-- decisions.md
+  |   +-- preferences.md
+  +-- archive/            # Archived epics (git-tracked)
+      +-- <epic_id>/
 ```
 
 ---
 
-## 2. Skill-Based Agent Roster
+## 1. File-Based Ledger (v6.0)
 
-The following agents are implemented as specialized skills within the system.
+**v6.0 Changes:**
+
+- Hybrid approach: Lightweight LEDGER.md index + file-based epics
+- Git-friendly: Each epic is a separate directory for easy review
+- Persistent learnings: Not lost on archive
+- Conductor-inspired: spec.md, plan.md, log.md per epic
+
+### Benefits
+
+| Aspect             | v5.0 (Single File)    | v6.0 (File-Based) |
+| ------------------ | --------------------- | ----------------- |
+| Reviewability      | Single large file     | Git diff per epic |
+| History            | Limited archive       | Full git history  |
+| Team Collaboration | Single conflict point | Isolated epics    |
+| Learnings          | Lost on archive       | Persistent files  |
+
+### Key Files
+
+| File                     | Purpose                                    |
+| ------------------------ | ------------------------------------------ |
+| `LEDGER.md`              | Lightweight index with active epic pointer |
+| `context/product.md`     | Project description, users, goals          |
+| `context/tech-stack.md`  | Language, frameworks, conventions          |
+| `context/workflow.md`    | TDD rules, quality gates, commit strategy  |
+| `epics/<id>/spec.md`     | Requirements and acceptance criteria       |
+| `epics/<id>/plan.md`     | Implementation plan with tasks             |
+| `epics/<id>/log.md`      | Execution log with timestamps              |
+| `learnings/patterns.md`  | Successful patterns                        |
+| `learnings/decisions.md` | Key decisions                              |
+
+---
+
+## 2. Skill-Based Agent Roster (v5.0)
+
+**v5.0 Changes:**
+
+- Consolidated from 16 agents to 8 agents
+- Flat naming convention (use `interviewer` not `chief-of-staff/interviewer`)
+- Hybrid session modes (inline for planning, child for execution)
+- Progress notifications for user visibility
 
 ### Core Orchestrator
 
 - **`chief-of-staff` (The Governor)**
   - **Role**: Technical coordinator and governance engine.
-  - **Responsibilities**: Manages the Governance Loop (State Check -> Delegation -> Audit), Strategic Polling, and Parallel Orchestration using `LEDGER.md` as the single source of truth.
+  - **Responsibilities**: Manages the Governance Loop, Strategic Polling, SDD Workflow, and Parallel Orchestration using `LEDGER.md` as the single source of truth.
   - **Access**: Public (The only agent users interact with directly).
+  - **Version**: 5.0.0
 
-### Strategic & Planning Agents
+### Consolidated Agent Roster
 
-- **`chief-of-staff/oracle` (Tactical Architect)**
-  - **Role**: Technical advisor for task decomposition.
-  - **Responsibilities**: Analyzes requests, breaks them down into Epics/Tasks (max 3), determines **Execution Strategy** (Parallel/Sequential), and handles re-decomposition on conflict.
-  - **Access**: Internal (called by CoS).
-  - **Special**: Can yield `CONFLICT_REDECOMPOSE` signals.
+| Agent             | Role                          | Session Mode | v5.0 Notes                                    |
+| ----------------- | ----------------------------- | ------------ | --------------------------------------------- |
+| **`interviewer`** | Clarification + Specification | inline       | Merged: interviewer + spec-writer             |
+| **`architect`**   | Decomposition + Planning      | inline       | Merged: oracle + planner                      |
+| **`executor`**    | TDD Implementation            | child        | Parallel-safe, file tracking                  |
+| **`reviewer`**    | Spec + Quality Review         | inline       | Merged: spec-reviewer + code-quality-reviewer |
+| **`validator`**   | Quality Gate                  | inline       | Acceptance criteria verification              |
+| **`debugger`**    | Root Cause Analysis           | inline       | 4-phase debugging protocol                    |
+| **`explore`**     | Codebase Search               | inline       | Fast file/code search                         |
+| **`librarian`**   | External Docs                 | child        | API docs, library research                    |
 
-- **`chief-of-staff/planner` (Strategic Architect)**
-  - **Role**: Implementation blueprinter.
-  - **Responsibilities**: Creates detailed, file-level implementation plans for LEDGER tasks. Reports `assumptions_made` for governance tracking.
-  - **Access**: Internal.
+### Agent Details
 
-- **`chief-of-staff/workflow-architect` (Meta-Designer)**
-  - **Role**: Workflow and system designer.
-  - **Responsibilities**: Designs new agent workflows and patterns that integrate with the LEDGER.md infrastructure.
-  - **Access**: Internal.
+- **`interviewer` (Clarification + Specification)**
+  - **Merged from**: `interviewer` + `spec-writer`
+  - **Role**: Strategic polling, requirements clarification, structured specification output
+  - **Session Mode**: inline (user sees dialogue)
+  - **Access**: Internal (called by CoS)
 
-- **`chief-of-staff/interviewer` (Strategist)**
-  - **Role**: Deep ambiguity resolver (Fallback).
-  - **Responsibilities**: Used only when Strategic Polling fails. Conducts multi-turn dialogue to clarify deep ambiguity.
-  - **Access**: Internal.
+- **`architect` (Decomposition + Planning)**
+  - **Merged from**: `oracle` + `planner`
+  - **Role**: Task decomposition, execution strategy analysis, implementation blueprinting
+  - **Session Mode**: inline (user approves plan)
+  - **Access**: Internal
 
-### Execution & Specialized Workers
+- **`executor` (TDD Implementation)**
+  - **Role**: TDD-driven code implementation
+  - **Session Mode**: child (isolated execution)
+  - **Features**: Parallel-safe, file tracking, conflict detection, heartbeat protocol
+  - **Access**: Internal
 
-- **`chief-of-staff/executor` (The Builder)**
-  - **Role**: TDD-driven code implementer.
-  - **Responsibilities**: Implements tasks using Red/Green/Refactor. **Parallel-Safe**: Tracks `files_modified` and detects collision/race conditions.
-  - **Access**: Internal.
+- **`reviewer` (Unified Code Review)**
+  - **Merged from**: `spec-reviewer` + `code-quality-reviewer`
+  - **Role**: Two-phase review (Phase 1: spec compliance, Phase 2: code quality)
+  - **Session Mode**: inline (user sees review results)
+  - **Access**: Internal
 
-- **`chief-of-staff/context-loader` (The Librarian)**
-  - **Role**: Context hydration utility.
-  - **Responsibilities**: Retrieves and synthesizes relevant context (files, memory lane patterns, ledger history) for a task _before_ execution starts.
-  - **Access**: Internal.
+- **`validator` (Quality Gate)**
+  - **Role**: Acceptance criteria verification, directive compliance checking
+  - **Session Mode**: inline
+  - **Access**: Internal
 
-- **`chief-of-staff/debugger` (The Mechanic)**
-  - **Role**: Systematic root cause analyst.
-  - **Responsibilities**: Enforces "No Fix Without Root Cause". Uses 4-phase debugging protocol to isolate issues before patching.
-  - **Access**: Internal.
+- **`debugger` (Root Cause Analysis)**
+  - **Role**: 4-phase systematic debugging (NO FIX WITHOUT ROOT CAUSE)
+  - **Session Mode**: inline
+  - **Access**: Internal (can be called by executor)
 
-### Quality & Review Agents
+- **`explore` (Codebase Search)**
+  - **Role**: Fast file/code search, "Where is X?" questions
+  - **Session Mode**: inline (quick results)
+  - **Access**: Internal
 
-- **`chief-of-staff/spec-writer` (The Scribe)**
-  - **Role**: Requirements extractor.
-  - **Responsibilities**: Creates structured specifications (Functional/Non-Functional requirements, MoSCoW priorities) from user requests.
-  - **Access**: Internal.
+- **`librarian` (External Documentation)**
+  - **Role**: External API docs, library research, GitHub exploration
+  - **Session Mode**: child (may be slow, runs in background)
+  - **Access**: Internal
 
-- **`chief-of-staff/spec-reviewer` (Gatekeeper Stage 1)**
-  - **Role**: Compliance auditor.
-  - **Responsibilities**: Verifies that implementation matches the spec _exactly_ (nothing missing, nothing extra) before code quality review.
-  - **Access**: Internal.
+### Deprecated Agents (v5.0)
 
-- **`chief-of-staff/code-quality-reviewer` (Gatekeeper Stage 2)**
-  - **Role**: Code standard auditor.
-  - **Responsibilities**: Reviews code for maintainability, security, and best practices _after_ spec compliance is proven.
-  - **Access**: Internal.
+See `src/orchestrator/chief-of-staff/agents/DEPRECATED.md` for full migration guide.
 
-- **`chief-of-staff/validator` (The QA)**
-  - **Role**: Acceptance criteria verifier.
-  - **Responsibilities**: validaties that the work meets the definition of done. Checks `directive_compliance` and reports `assumptions_made`.
-  - **Access**: Internal.
+| Deprecated                | Merged Into            |
+| ------------------------- | ---------------------- |
+| `spec-writer`             | `interviewer`          |
+| `oracle`                  | `architect`            |
+| `planner`                 | `architect`            |
+| `spec-reviewer`           | `reviewer`             |
+| `code-quality-reviewer`   | `reviewer`             |
+| `frontend-ui-ux-engineer` | Removed (use executor) |
+| `workflow-architect`      | Absorbed by CoS        |
+| `context-loader`          | Inline in CoS          |
+| `memory-catcher`          | Event-driven hooks     |
 
 ---
 
-## 3. Human-in-the-Loop Interaction Patterns
+## 3. Human-in-the-Loop Interaction Patterns (v5.0)
 
 ### I. Strategic Polling (Primary)
 
-Instead of asking open-ended questions like "What DB?", the `chief-of-staff` generates a structured **Poll** (e.g., "A: Postgres, B: SQLite") and yields to the user. User selection immediately becomes a **Directive**.
+Instead of open-ended questions, agents generate structured **Polls**:
 
-### II. Assumption Audit (Post-Task)
+```
+POLL: Database Selection
+No Directive found. Based on project context:
 
-Agents report `assumptions_made` (e.g., "Assumed JWT for auth"). These are logged in the **Governance** section of `LEDGER.md`. Users implicitly endorse these by proceeding, or can explicitly reject them to trigger rework.
+(1) Postgres - scalable, pgvector support
+(2) SQLite - simple, file-based
+(3) Or describe your preference
 
-### III. Checkpoint System
+Reply '1', '2', or your choice.
+```
 
-The Durable Stream provides built-in checkpoint support for critical decisions:
+User selection immediately becomes a **Directive** in LEDGER.
 
-- **Strategy Validation**: Choose between implementation approaches
-- **Code Review Approval**: Approve proposed changes before execution
-- **Dangerous Operations**: Confirm destructive actions
-- **Design Decisions**: Ratify architectural choices
-- **Epic Completion**: Archive completed work
+### II. Progress Notifications
 
-Tools available:
+Real-time status updates via event system:
+
+```typescript
+import { emitPhaseStart, emitProgress, emitPhaseComplete } from './progress';
+
+await emitPhaseStart('CLARIFY', 'interviewer', sessionId);
+await emitProgress('interviewer', 'Analyzing requirements...', sessionId);
+await emitPhaseComplete('CLARIFY', 'interviewer', sessionId, 'success');
+```
+
+### III. Assumption Audit (Post-Task)
+
+Agents report `assumptions_made` which are logged in LEDGER. Users implicitly endorse by proceeding, or reject to trigger rework.
+
+### IV. Checkpoint System
+
+Built-in checkpoint support for critical decisions:
 
 - `checkpoint_request` - Request human approval
 - `checkpoint_approve` - Approve with optional selection
 - `checkpoint_reject` - Reject with reason
 - `checkpoint_pending` - List pending checkpoints
-- `checkpoint_templates` - Get pre-built templates
 
 ---
 
-## 4. Universal Self-Learning (v4.1)
+## 4. SDD Workflow (v5.0)
 
-The system now implements a **Universal Learning Hook** that works for both native OpenCode agents (Code, Ask) and custom subagents.
+```
+PHASE 0: LOAD       → Read LEDGER, check for active Epic
+    │
+    ▼
+PHASE 1: CLARIFY    → interviewer (inline, HITL)
+    │                 -> Approved Specification
+    ▼
+PHASE 2: PLAN       → architect (inline, HITL)
+    │                 -> Epic + Tasks + Blueprint
+    ▼
+PHASE 3: EXECUTE    → executor(s) (child, parallel/seq)
+    │                 -> Implementation
+    ▼
+PHASE 4: REVIEW     → reviewer (inline)
+    │                 -> Approved or Needs Changes
+    ▼
+PHASE 5: COMPLETE   → Archive Epic, Extract Learnings
+```
 
-### Mechanism
+### Session Strategy (Hybrid Mode)
 
-1.  **Injection (Start)**: First user message triggers a semantic search in Memory Lane. Relevant past corrections and decisions are injected into the agent's system prompt.
-2.  **Tracking (Work)**: The system monitors file modifications across all tools and automatically updates `LEDGER.md` progress logs.
-3.  **Extraction (End)**: When a session goes idle (2s delay) or is deleted, the `LearningExtractor` analyzes the transcript for:
-    - **Corrections**: "No, use Vitest not Jest"
-    - **Decisions**: "We'll use SQLite for this prototype"
-    - **Success Patterns**: "That works perfectly"
-    - **Anti-patterns**: "Error: database connection failed"
+- **inline** agents: interviewer, architect, reviewer, validator, debugger, explore
+  - User sees thinking process
+  - Good for planning and approval phases
 
-### Durable Stream Integration
-
-Extracted learnings are persisted in Memory Lane and emitted as `ledger.learning.extracted` events to the Durable Stream for auditability.
+- **child** agents: executor, librarian
+  - Isolated execution
+  - Context handoff from LEDGER
+  - Good for long-running or file-modifying tasks
 
 ---
 
@@ -170,49 +267,64 @@ Extracted learnings are persisted in Memory Lane and emitted as `ledger.learning
 
 ```
 src/
-  index.ts                    # Plugin bootstrap (Removal of swarm triggers)
+  index.ts                    # Plugin bootstrap
   agent-spawn.ts              # skill_agent tool
-  event-log.ts                # Logging
 
   memory-lane/                # Vector DB Module
     index.ts
     memory-store.ts
 
-  durable-stream/             # Event-Sourced Persistence (v4.1)
-    core.ts                   # Pure functions for event manipulation
-    orchestrator.ts           # Class facade for developers
-    store.ts                  # JSONL storage implementation
-    types.ts                  # Event type definitions
+  durable-stream/             # Event-Sourced Persistence
+    core.ts
+    orchestrator.ts
+    store.ts
+    types.ts                  # Includes progress event types (v5.0)
 
   opencode/                   # Runtime Integration
     index.ts
     loader.ts
-    skill/                    # Built-in definitions
+    config/
+      skill-loader.ts         # Agent loading with v5.0 roster filter
 
   orchestrator/               # Governance Engine
     index.ts
-    ledger.ts                 # State Management
-    learning-extractor.ts     # Universal pattern extraction (v4.1)
-    event-driven-ledger.ts    # Event emission for ledger ops (v4.1)
-    checkpoint.ts             # Human-in-the-Loop workflows (v4.1)
-    crash-recovery.ts         # State reconstruction (v4.1)
+    ledger.ts                 # Legacy v5.0 ledger (deprecated)
+    progress.ts               # Progress notifications (v5.0)
+    hitl.ts                   # HITL utilities (v5.0)
+    session-strategy.ts       # Hybrid session modes (v5.0)
+    learning-extractor.ts
+    event-driven-ledger.ts
+    checkpoint.ts
+    crash-recovery.ts
+    file-ledger/              # v6.0 File-Based Ledger
+      index.ts                # FileBasedLedger class
+      types.ts                # Type definitions
+      templates.ts            # Markdown templates
+      tools.ts                # File-based tools
     tools/
-      ledger-tools.ts         # Unified LEDGER tools (direct + event-driven) ⭐ MERGED
-      checkpoint-tools.ts     # Checkpoint tool definitions
+      ledger-tools.ts
+      checkpoint-tools.ts
     hooks/
-      opencode-session-learning.ts # Universal hook implementation
-    chief-of-staff/           # Agent Definitions (`SKILL.md`)
+      opencode-session-learning.ts
+    chief-of-staff/
+      SKILL.md                # Governor v5.0
       agents/
-        oracle/
-        executor/
-        ...
+        interviewer/          # v5.0 (merged: interviewer + spec-writer)
+        architect/            # v5.0 (merged: oracle + planner)
+        executor/             # v5.0
+        reviewer/             # v5.0 (merged: reviewers)
+        validator/            # v5.0
+        debugger/             # v5.0
+        explore/              # v5.0
+        librarian/            # v5.0
+        DEPRECATED.md         # Migration guide for removed agents
 ```
 
 ---
 
-## 5. New Tools (v4.1)
+## 6. Tools Reference
 
-### Unified Ledger Tools (v4.1.1)
+### Ledger Tools
 
 | Tool                    | Description                              |
 | ----------------------- | ---------------------------------------- |
@@ -226,196 +338,24 @@ src/
 | `ledger_create_handoff` | Create handoff section for session break |
 | `ledger_archive_epic`   | Archive the current epic                 |
 
-### Event-Driven Ledger Tools
+### Agent Tools
 
-| Tool                     | Description                             |
-| ------------------------ | --------------------------------------- |
-| `ledger_emit_event`      | Emit events for epic/task operations    |
-| `ledger_get_history`     | Query event history from durable stream |
-| `ledger_get_intents`     | List active workflow intents            |
-| `ledger_get_checkpoints` | List pending human approvals            |
+| Tool                | Description                          |
+| ------------------- | ------------------------------------ |
+| `skill_agent`       | Spawn a single agent (sync or async) |
+| `skill_spawn_batch` | Spawn multiple agents in parallel    |
+| `skill_gather`      | Gather results from async agents     |
+| `agent_yield`       | Pause execution and return to parent |
+| `agent_resume`      | Resume a yielded agent with data     |
 
-### Checkpoint Tools (Human-in-the-Loop)
+### Checkpoint Tools
 
-| Tool                   | Description                          |
-| ---------------------- | ------------------------------------ |
-| `checkpoint_request`   | Request human approval for decisions |
-| `checkpoint_approve`   | Approve a pending checkpoint         |
-| `checkpoint_reject`    | Reject with optional reason          |
-| `checkpoint_pending`   | List all pending checkpoints         |
-| `checkpoint_templates` | Get pre-built approval templates     |
-
-### Learning & Recovery Tools
-
-| Tool                | Description                       |
-| ------------------- | --------------------------------- |
-| `extract_learnings` | Auto-extract patterns from events |
-| `recovery_status`   | Check recovery state              |
-| `recovery_perform`  | Trigger crash recovery            |
-
----
-
-## 6. Leveraging the Durable Stream API (v4.1)
-
-### Event Types
-
-The Durable Stream supports the following event categories:
-
-**Lifecycle Events**
-
-- `lifecycle.session.created` - New session started
-- `lifecycle.session.idle` - Session became idle
-- `lifecycle.session.compacted` - Session context compacted
-- `lifecycle.session.error` - Session error occurred
-- `lifecycle.session.deleted` - Session physically deleted (NEW: Resource cleanup)
-- `lifecycle.session.aborted` - Session emergency stopped (NEW: Resource cleanup)
-
-**Execution Events**
-
-- `execution.step_start` - Step execution started
-- `execution.step_finish` - Step execution completed
-- `execution.tool_start` - Tool execution started
-- `execution.tool_finish` - Tool execution completed
-
-**Agent Events**
-
-- `agent.spawned` - Agent task started
-- `agent.completed` - Agent task completed successfully
-- `agent.failed` - Agent task failed
-- `agent.aborted` - Agent task was aborted
-- `agent.handoff` - Task handed off to another agent
-
-**Ledger Events (v4.1)**
-
-- `ledger.epic.created/started/completed/failed` - Epic lifecycle
-- `ledger.handoff.created/resumed` - Handoff lifecycle (v4.2) ⭐ NEW
-- `ledger.task.created/started/completed/failed/yielded` - Task lifecycle
-- `ledger.governance.directive_added` - New directive created
-- `ledger.governance.assumption_added` - New assumption recorded
-- `ledger.learning.extracted` - Learning was extracted
-
-### Using the Event-Driven Ledger
-
-```typescript
-import {
-  getEventDrivenLedger,
-  createLedgerEventHandlers,
-} from './orchestrator/event-driven-ledger';
-
-const ledger = getEventDrivenLedger();
-await ledger.initialize();
-
-const handlers = createLedgerEventHandlers(ledger);
-
-// Emit events for ledger operations
-await handlers.onEpicCreated({
-  id: 'abc123',
-  title: 'Build Auth System',
-  request: 'Implement JWT authentication',
-  status: 'pending',
-  createdAt: Date.now(),
-  tasks: [],
-  context: [],
-  progressLog: [],
-});
-
-await handlers.onTaskCreated(
-  {
-    id: 'abc123.1',
-    title: 'Implement JWT',
-    agent: 'executor',
-    status: 'pending',
-    outcome: '-',
-    dependencies: [],
-  },
-  { id: 'abc123', title: 'Build Auth System' } as any
-);
-```
-
-### Using Checkpoints
-
-```typescript
-import { getCheckpointManager, CHECKPOINT_TEMPLATES } from './orchestrator/checkpoint';
-
-const manager = getCheckpointManager();
-await manager.initialize();
-
-// Get a pre-built template
-const template = CHECKPOINT_TEMPLATES.strategyValidation([
-  'Use JWT with RS256',
-  'Use OAuth 2.0',
-  'Use session-based auth',
-]);
-
-// Request approval
-const checkpointId = await manager.requestCheckpoint('stream-id', template, (result) => {
-  if (result.approved) {
-    console.log(`Selected: ${result.selectedOption}`);
-  }
-});
-```
-
-### Crash Recovery
-
-```typescript
-import { performRecovery, getRecoveryStatus } from './orchestrator/crash-recovery';
-
-// Check if recovery is needed
-const status = await getRecoveryStatus();
-if (status.hasPendingCheckpoints || status.activeIntentCount > 0) {
-  const report = await performRecovery();
-  console.log(`Recovered ${report.eventsReplayed} events`);
-}
-```
-
-### Physical Resource Management (v4.1)
-
-The system now supports explicit session cleanup to prevent memory leaks:
-
-```typescript
-import { getDurableStream } from './durable-stream';
-
-const stream = getDurableStream();
-
-// Delete a completed session (frees server memory)
-await stream.deleteSession(client, sessionId, 'executor');
-
-// Abort a running session (emergency stop)
-await stream.abortSession(client, sessionId, 'actor_abort', 'User requested cancellation');
-```
-
-#### Resource Lifecycle Flow
-
-```
-[SPAWNED] → [RUNNING] → [COMPLETED/ABORTED] → [DELETED] → [Memory Freed]
-                                  │
-                                  ├──→ Extract learnings to Memory Lane
-                                  ├──→ Emit lifecycle event
-                                  ├──→ Call session.delete()
-                                  └──→ Remove from TaskRegistry
-```
-
-#### Recursive Abort Pattern
-
-When aborting a parent agent, all child sessions are terminated:
-
-```typescript
-async function recursiveAbort(sessionId: string, actor: string) {
-  const state = await loadActorState();
-
-  // Abort children first (reverse order)
-  const subSessionIds = Object.keys(state.subAgents);
-  for (const subId of subSessionIds.reverse()) {
-    await stream.abortSession(client, subId, actor, 'Recursive abort');
-  }
-
-  // Abort parent
-  await stream.abortSession(client, sessionId, actor, 'Recursive abort');
-
-  // Update state
-  await saveActorState({ ...state, phase: 'FAILED' });
-}
-```
+| Tool                 | Description                          |
+| -------------------- | ------------------------------------ |
+| `checkpoint_request` | Request human approval for decisions |
+| `checkpoint_approve` | Approve a pending checkpoint         |
+| `checkpoint_reject`  | Reject with optional reason          |
+| `checkpoint_pending` | List all pending checkpoints         |
 
 ---
 
@@ -424,7 +364,7 @@ async function recursiveAbort(sessionId: string, actor: string) {
 - **Type**: ES Module for OpenCode
 - **Target**: Bun runtime
 - **Purpose**: Skill-based multi-agent orchestration with durable state
-- **Version**: 4.1 (Event-Sourced Persistence)
+- **Version**: 5.0.0 (Consolidated Agent Roster)
 
 ---
 

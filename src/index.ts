@@ -25,6 +25,9 @@ import { createEventLogTools } from './event-log';
 import { initializeDurableStream, getDurableStream } from './durable-stream';
 import { ledgerTools, ledgerEventTools } from './orchestrator/tools/ledger-tools';
 import { checkpointTools } from './orchestrator/tools/checkpoint-tools';
+import { formatStatusLine } from './orchestrator/progress';
+import { formatYieldMessage } from './orchestrator/hitl';
+import type { ProgressPayload } from './durable-stream/types';
 
 const activeAgentCalls = new Map<string, string>();
 
@@ -275,7 +278,13 @@ export const SwarmToolAddons: Plugin = async (input) => {
               };
 
               if (parentStatus?.type === 'idle') {
-                // Push immediately
+                // Push immediately with user-friendly format (v5.0)
+                const formattedMessage = formatYieldMessage(
+                  signalPayload.sourceAgent,
+                  handoffData.reason,
+                  handoffData.summary || '',
+                  handoffData.options
+                );
                 await input.client.session.promptAsync({
                   path: { id: parentID },
                   body: {
@@ -283,7 +292,7 @@ export const SwarmToolAddons: Plugin = async (input) => {
                     parts: [
                       {
                         type: 'text',
-                        text: `[SYSTEM: SUBAGENT SIGNAL]\nSource: ${signalPayload.sourceAgent}\nMessage: ${handoffData.reason}\n\n(Agent yielded)`,
+                        text: formattedMessage,
                       },
                     ],
                   },
@@ -350,6 +359,38 @@ export const SwarmToolAddons: Plugin = async (input) => {
         }
       }
 
+      // 1.2 Progress Events (v5.0 - User Visibility)
+      // Stream progress updates to user session for visibility
+      if (event.type?.startsWith('progress.')) {
+        const props = event.properties as ProgressPayload;
+        const sessionId = props?.session_id || (event as any).sessionID;
+
+        if (sessionId && props) {
+          const statusLine = formatStatusLine(props);
+
+          // Only inject if actionRequired (for HITL) or significant phase change
+          const shouldNotify =
+            props.action_required ||
+            event.type === 'progress.phase_started' ||
+            event.type === 'progress.phase_completed' ||
+            event.type === 'progress.user_action_needed';
+
+          if (shouldNotify) {
+            try {
+              await input.client.session.promptAsync({
+                path: { id: sessionId },
+                body: {
+                  agent: 'system',
+                  parts: [{ type: 'text', text: statusLine }],
+                },
+              });
+            } catch {
+              // Session may be busy or closed, ignore
+            }
+          }
+        }
+      }
+
       // 2. SignalBuffer Auto-Flush (Parent Busy Resolution)
       if (event.type === 'session.status') {
         // event.data object keys are sessionIds, values are Status({type: 'idle'|'busy'})
@@ -364,8 +405,14 @@ export const SwarmToolAddons: Plugin = async (input) => {
               console.log(
                 `[SignalBuffer] Auto-flushing signal to ${sessionId}: ${sig.payload.reason}`
               );
-              // Prompt the parent with the wake-up signal
+              // Prompt the parent with user-friendly wake-up signal (v5.0)
               try {
+                const formattedSignal = formatYieldMessage(
+                  sig.sourceAgent,
+                  sig.payload.reason,
+                  sig.payload.data?.summary || '',
+                  undefined
+                );
                 await input.client.session.promptAsync({
                   path: { id: sessionId },
                   body: {
@@ -373,7 +420,7 @@ export const SwarmToolAddons: Plugin = async (input) => {
                     parts: [
                       {
                         type: 'text',
-                        text: `[SYSTEM: SUBAGENT SIGNAL]\nSource: ${sig.sourceAgent}\nMessage: ${sig.payload.reason}\nSummary: ${sig.payload.data?.summary || 'N/A'}\n\nReview the request and use 'agent_resume' when ready.`,
+                        text: formattedSignal,
                       },
                     ],
                   },
