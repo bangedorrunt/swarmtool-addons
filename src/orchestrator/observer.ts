@@ -484,10 +484,27 @@ export class TaskObserver {
 
   /**
    * Cleanup a session (mark as abandoned and physically delete)
+   * Only deletes if session is not actively running (idle, completed, or already deleted)
    */
   private async cleanupSession(sessionId: string): Promise<void> {
     try {
-      // Call SDK to physically delete the session
+      // Check session status before attempting deletion (v4.1 Safety Check)
+      const statusResult = await this.client.session.status();
+      const sessionStatus = statusResult.data?.[sessionId];
+
+      // Skip if session is still actively running (busy)
+      if (sessionStatus?.type === 'busy') {
+        console.warn(`[Observer] Session ${sessionId} is still active (busy), cannot cleanup`);
+        return;
+      }
+
+      // Skip if session no longer exists (already deleted)
+      if (!sessionStatus) {
+        console.log(`[Observer] Session ${sessionId} not in status (already deleted), skipping`);
+        return;
+      }
+
+      // Proceed with cleanup for idle sessions
       await this.client.session.delete({ path: { id: sessionId } });
       console.log(`[Observer] Physically deleted session ${sessionId}`);
     } catch (error) {
