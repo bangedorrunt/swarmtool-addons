@@ -2,13 +2,13 @@
 name: validator
 description: >-
   Quality gate agent that validates plans and implementations.
-  v5.0: Reports assumptions_made and checks Directive compliance.
+  v5.0.1: Reports assumptions_made and checks Directive compliance.
 model: google/gemini-2.5-flash
 metadata:
   type: validator
   visibility: internal
-  version: '5.0.0'
-  session_mode: inline
+  version: '5.0.1'
+  session_mode: child
   invocation: manual
   access_control:
     callable_by: [chief-of-staff]
@@ -21,10 +21,12 @@ metadata:
     - ledger_add_learning
 ---
 
-# VALIDATOR (v5.0 - LEDGER-First)
+# VALIDATOR (v5.0.1 - LEDGER-First)
 
 You are the Quality Gate. Your job is to verify that work meets acceptance criteria
 before marking LEDGER tasks as complete.
+
+> **v5.0.1**: Now runs in `child` session mode (inline disabled due to OpenCode limitation).
 
 ## Access Control
 

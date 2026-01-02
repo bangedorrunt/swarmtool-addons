@@ -69,42 +69,25 @@ export interface ConfigValidationResult {
  *   - chief-of-staff: The only user-facing orchestrator agent
  *
  * Subagents (internal, only callable by chief-of-staff or designated agents):
- *   - chief-of-staff/oracle: Strategic advisor for decomposition
- *   - chief-of-staff/planner: Implementation blueprint creator
- *   - chief-of-staff/executor: TDD-driven code generator
- *   - chief-of-staff/interviewer: User clarification via dialogue
- *   - chief-of-staff/spec-writer: Requirements extraction
- *   - chief-of-staff/validator: Quality gate verification
- *   - chief-of-staff/explore: Codebase search specialist
- *   - chief-of-staff/librarian: External library research
- *   - chief-of-staff/frontend-ui-ux-engineer: UI/UX implementation
- *   - chief-of-staff/memory-catcher: Session learning extraction
- *   - chief-of-staff/workflow-architect: Workflow design meta-agent
+ *   - architect: Strategic advisor for decomposition
+ *   - executor: TDD-driven code generator
+ *   - interviewer: User clarification via dialogue
+ *   - validator: Quality gate verification
+ *   - explore: Codebase search specialist
+ *   - librarian: External library research
  */
 export const DEFAULT_MODELS = {
   // Primary agent (user-facing)
   'chief-of-staff': 'google/gemini-3-pro-low',
+  'architect': 'google/gemini-3-flash',
+  'interviewer': 'google/gemini-3-flash',
+  'executor': 'google/gemini-3-pro-low',
+  'validator': 'google/gemini-3-flash',
+  'reviewer': 'google/gemini-3-pro-high',
+  'debugger': 'google/gemini-3-flash',
+  'explore': 'opencode/grok-code',
+  'librarian': 'opencode/grok-code',
 
-  // Strategy & Planning subagents
-  'chief-of-staff/oracle': 'google/gemini-3-flash',
-  'chief-of-staff/planner': 'google/gemini-3-flash',
-  'chief-of-staff/workflow-architect': 'google/gemini-3-pro',
-
-  // User interaction subagents (DIALOGUE mode)
-  'chief-of-staff/interviewer': 'google/gemini-3-flash',
-  'chief-of-staff/spec-writer': 'google/gemini-3-flash',
-
-  // Execution subagents
-  'chief-of-staff/executor': 'google/gemini-3-pro-low',
-  'chief-of-staff/validator': 'google/gemini-3-flash',
-  'chief-of-staff/frontend-ui-ux-engineer': 'google/gemini-3-pro-high',
-
-  // Research subagents
-  'chief-of-staff/explore': 'opencode/grok-code',
-  'chief-of-staff/librarian': 'opencode/grok-code',
-
-  // Learning subagents
-  'chief-of-staff/memory-catcher': 'google/gemini-3-flash',
 } as const;
 
 /**
@@ -206,31 +189,15 @@ export function getDefaultConfig(): SwarmToolAddonsConfig {
     models: {
       // Primary agent
       'chief-of-staff': { model: DEFAULT_MODELS['chief-of-staff'] },
+      'architect': { model: DEFAULT_MODELS['architect'] },
+      'interviewer': { model: DEFAULT_MODELS['interviewer'] },
+      'reviewer': { model: DEFAULT_MODELS['reviewer'] },
+      'executor': { model: DEFAULT_MODELS['executor'] },
+      'validator': { model: DEFAULT_MODELS['validator'] },
+      'debugger': { model: DEFAULT_MODELS['debugger'] },
+      'explore': { model: DEFAULT_MODELS['explore'] },
+      'librarian': { model: DEFAULT_MODELS['librarian'] },
 
-      // Strategy & Planning subagents
-      'chief-of-staff/oracle': { model: DEFAULT_MODELS['chief-of-staff/oracle'] },
-      'chief-of-staff/planner': { model: DEFAULT_MODELS['chief-of-staff/planner'] },
-      'chief-of-staff/workflow-architect': {
-        model: DEFAULT_MODELS['chief-of-staff/workflow-architect'],
-      },
-
-      // User interaction subagents
-      'chief-of-staff/interviewer': { model: DEFAULT_MODELS['chief-of-staff/interviewer'] },
-      'chief-of-staff/spec-writer': { model: DEFAULT_MODELS['chief-of-staff/spec-writer'] },
-
-      // Execution subagents
-      'chief-of-staff/executor': { model: DEFAULT_MODELS['chief-of-staff/executor'] },
-      'chief-of-staff/validator': { model: DEFAULT_MODELS['chief-of-staff/validator'] },
-      'chief-of-staff/frontend-ui-ux-engineer': {
-        model: DEFAULT_MODELS['chief-of-staff/frontend-ui-ux-engineer'],
-      },
-
-      // Research subagents
-      'chief-of-staff/explore': { model: DEFAULT_MODELS['chief-of-staff/explore'] },
-      'chief-of-staff/librarian': { model: DEFAULT_MODELS['chief-of-staff/librarian'] },
-
-      // Learning subagents
-      'chief-of-staff/memory-catcher': { model: DEFAULT_MODELS['chief-of-staff/memory-catcher'] },
     },
     debug: false,
     logLevel: 'info',
