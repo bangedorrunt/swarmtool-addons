@@ -510,6 +510,9 @@ export const SwarmToolAddons: Plugin = async (input) => {
       config.command = config.command ?? {};
       config.agent = config.agent ?? {};
 
+      // Set default agent for OpenCode runtime (SDK V2)
+      (config as any).default_agent = userConfig.defaultAgent ?? 'chief-of-staff';
+
       for (const cmd of commands) {
         // Apply model override from userConfig if exists, otherwise use frontmatter model
         const modelOverride = userConfig.models[cmd.frontmatter.agent];

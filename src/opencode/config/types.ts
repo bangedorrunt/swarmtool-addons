@@ -47,6 +47,9 @@ export interface SwarmToolAddonsConfig {
   /** Logging level (optional, default: 'info') */
   logLevel?: LogLevel;
 
+  /** Default agent for OpenCode sessions (optional, default: 'chief-of-staff') */
+  defaultAgent?: string;
+
   /** Additional custom settings can be added here as needed */
   [key: string]: unknown;
 }
@@ -172,6 +175,14 @@ export function validateConfig(config: SwarmToolAddonsConfig): ConfigValidationR
     }
   }
 
+  // Validate defaultAgent if provided
+  if (
+    config.defaultAgent !== undefined &&
+    (typeof config.defaultAgent !== 'string' || config.defaultAgent.trim() === '')
+  ) {
+    errors.push('defaultAgent must be a non-empty string');
+  }
+
   return {
     valid: errors.length === 0,
     errors,
@@ -199,5 +210,6 @@ export function getDefaultConfig(): SwarmToolAddonsConfig {
     },
     debug: false,
     logLevel: 'info',
+    defaultAgent: 'chief-of-staff',
   };
 }

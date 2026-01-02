@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SwarmToolAddonsConfig, parseConfig, validateConfig } from './types';
+import { SwarmToolAddonsConfig, parseConfig, validateConfig, getDefaultConfig } from './types';
 
 describe('SwarmToolAddonsConfig', () => {
   describe('type definitions', () => {
@@ -39,6 +39,17 @@ describe('SwarmToolAddonsConfig', () => {
 
       expect(config.debug).toBe(false);
       expect(config.logLevel).toBe('error');
+    });
+
+    it('should allow defaultAgent field', () => {
+      const config: SwarmToolAddonsConfig = {
+        models: {
+          'chief-of-staff': { model: 'opencode/oracle-model' },
+        },
+        defaultAgent: 'custom-agent',
+      };
+
+      expect(config.defaultAgent).toBe('custom-agent');
     });
 
     it('should require models section', () => {
@@ -193,6 +204,31 @@ describe('SwarmToolAddonsConfig', () => {
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
     });
+
+    it('should validate defaultAgent if provided', () => {
+      const config: SwarmToolAddonsConfig = {
+        models: {
+          'chief-of-staff/planner': { model: 'opencode/model' },
+        },
+        defaultAgent: 'custom-agent',
+      };
+
+      const result = validateConfig(config);
+      expect(result.valid).toBe(true);
+    });
+
+    it('should return errors for empty defaultAgent', () => {
+      const config: SwarmToolAddonsConfig = {
+        models: {
+          'chief-of-staff/planner': { model: 'opencode/model' },
+        },
+        defaultAgent: '',
+      };
+
+      const result = validateConfig(config);
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+    });
   });
 
   describe('new fields: disable and forcedSkills', () => {
@@ -294,6 +330,42 @@ describe('SwarmToolAddonsConfig', () => {
 
       expect(config.models['chief-of-staff/planner'].disable).toBeUndefined();
       expect(config.models['chief-of-staff/planner'].forcedSkills).toBeUndefined();
+    });
+  });
+
+  describe('getDefaultConfig', () => {
+    it('should return default configuration with all required fields', () => {
+      const config = getDefaultConfig();
+
+      expect(config).toBeDefined();
+      expect(config.models).toBeDefined();
+      expect(config.debug).toBe(false);
+      expect(config.logLevel).toBe('info');
+      expect(config.defaultAgent).toBe('chief-of-staff');
+    });
+
+    it('should include all agent models in default config', () => {
+      const config = getDefaultConfig();
+
+      expect(config.models['chief-of-staff']).toBeDefined();
+      expect(config.models.architect).toBeDefined();
+      expect(config.models.interviewer).toBeDefined();
+      expect(config.models.executor).toBeDefined();
+      expect(config.models.validator).toBeDefined();
+      expect(config.models.reviewer).toBeDefined();
+      expect(config.models.debugger).toBeDefined();
+      expect(config.models.explore).toBeDefined();
+      expect(config.models.librarian).toBeDefined();
+    });
+
+    it('should have model field for each agent', () => {
+      const config = getDefaultConfig();
+
+      for (const [agentPath, agentConfig] of Object.entries(config.models)) {
+        expect(agentConfig.model).toBeDefined();
+        expect(typeof agentConfig.model).toBe('string');
+        expect(agentConfig.model.length).toBeGreaterThan(0);
+      }
     });
   });
 });
