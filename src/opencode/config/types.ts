@@ -35,7 +35,7 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 /**
  * Complete configuration for swarm-tool-addons plugin
  *
- * Loaded from ~/.config/opencode/swarmtool-addons.json
+ * Loaded from ~/.config/opencode/opencode-addons.json
  */
 export interface SwarmToolAddonsConfig {
   /** Model overrides for each agent type (required) */

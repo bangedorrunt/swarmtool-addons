@@ -7,7 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+### Changed
+
+- **Plugin Rename**: Renamed from `swarmtool-addons` to `opencode-addons`
+  - Config file: `~/.config/opencode/swarmtool-addons.json` → `~/.config/opencode/opencode-addons.json`
+  - Schema directory: `workspace/swarmtool-addons` → `workspace/opencode-addons`
+  - Updated all code references and documentation
+
+- **Skill-Based Agent Model Overrides**: Fixed configuration to use hierarchical names
+  - Changed from flat names (`architect`) to hierarchical names (`chief-of-staff/architect`)
+  - All 8 skill-based agents now properly receive model overrides
+  - Updated config file to use correct agent paths
+
+### Fixed
+
+- **Model Override Not Applied**: Skill-based subagents now correctly use models from `opencode-addons.json`
+  - Root cause: Config used flat names instead of hierarchical names
+  - Solution: Updated all agent paths to `chief-of-staff/<agent-name>` format
+
+### Files Changed
+
+| File                                      | Change                                     |
+| ----------------------------------------- | ------------------------------------------ |
+| `~/.config/opencode/opencode-addons.json` | Renamed and updated agent names            |
+| `schema/opencode-addons.schema.json`      | Renamed schema file, updated $id and title |
+| `src/opencode/config/loader.ts`           | Updated getConfigPath()                    |
+| `src/opencode/config/README.md`           | Updated documentation paths                |
+| `src/opencode/config/types.ts`            | Updated comment                            |
+| `src/opencode/config/loader.test.ts`      | Updated test assertion                     |
+| `src/opencode/SPEC.md`                    | Updated reference                          |
+
+### Configuration Update Example
+
+**Before (incorrect):**
+
+```json
+{
+  "models": {
+    "architect": { "model": "opencode/minimax-m2.1-free" },
+    "executor": { "model": "opencode/minimax-m2.1-free" }
+  }
+}
+```
+
+**After (correct):**
+
+```json
+{
+  "models": {
+    "chief-of-staff/architect": { "model": "opencode/minimax-m2.1-free" },
+    "chief-of-staff/executor": { "model": "opencode/minimax-m2.1-free" }
+  }
+}
+```
+
+### Migration Notes
+
+Users should update their config file:
+
+1. Rename `~/.config/opencode/swarmtool-addons.json` to `~/.config/opencode/opencode-addons.json`
+2. Update all agent names from flat to hierarchical format (e.g., `architect` → `chief-of-staff/architect`)
+3. Restart OpenCode to apply changes
 
 - **Structured Logging with Pino** (`src/utils/logger.ts`)
   - Created new logging module with module-scoped loggers

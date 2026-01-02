@@ -56,7 +56,7 @@ export function getConfigDir(): string {
  * @returns Path to swarm-tool-addons config file
  */
 export function getConfigPath(): string {
-  return path.join(getConfigDir(), 'swarmtool-addons.json');
+  return path.join(getConfigDir(), 'opencode-addons.json');
 }
 
 /**

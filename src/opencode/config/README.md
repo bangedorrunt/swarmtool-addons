@@ -16,31 +16,32 @@ The config module handles:
 
 Platform-specific default paths:
 
-- **macOS/Linux**: `~/.config/opencode/swarmtool-addons.json`
-- **Windows**: `%APPDATA%\Roaming\opencode\swarmtool-addons.json`
+- **macOS/Linux**: `~/.config/opencode/opencode-addons.json`
+- **Windows**: `%APPDATA%\Roaming\opencode\opencode-addons.json`
 
 ## Agent Hierarchy
 
 The configuration supports a skill-based subagent architecture:
 
 ### Primary Agent (User-Facing)
+
 - `chief-of-staff`: The main orchestrator agent exposed to users
 
 ### Subagents (Internal, only callable by authorized agents)
 
-| Agent Path | Role | Default Model |
-|------------|------|---------------|
-| `chief-of-staff/oracle` | Strategic advisor | google/gemini-3-flash |
-| `chief-of-staff/planner` | Blueprint creator | google/gemini-3-flash |
-| `chief-of-staff/executor` | TDD code generator | google/gemini-3-pro |
-| `chief-of-staff/interviewer` | User clarification | google/gemini-3-flash |
-| `chief-of-staff/spec-writer` | Requirements extraction | google/gemini-3-flash |
-| `chief-of-staff/validator` | Quality gate | google/gemini-3-flash |
-| `chief-of-staff/explore` | Codebase search | opencode/grok-code |
-| `chief-of-staff/librarian` | Library research | opencode/grok-code |
-| `chief-of-staff/frontend-ui-ux-engineer` | UI/UX implementation | google/gemini-3-pro |
-| `chief-of-staff/memory-catcher` | Learning extraction | google/gemini-3-flash |
-| `chief-of-staff/workflow-architect` | Workflow design | google/gemini-3-pro |
+| Agent Path                               | Role                    | Default Model         |
+| ---------------------------------------- | ----------------------- | --------------------- |
+| `chief-of-staff/oracle`                  | Strategic advisor       | google/gemini-3-flash |
+| `chief-of-staff/planner`                 | Blueprint creator       | google/gemini-3-flash |
+| `chief-of-staff/executor`                | TDD code generator      | google/gemini-3-pro   |
+| `chief-of-staff/interviewer`             | User clarification      | google/gemini-3-flash |
+| `chief-of-staff/spec-writer`             | Requirements extraction | google/gemini-3-flash |
+| `chief-of-staff/validator`               | Quality gate            | google/gemini-3-flash |
+| `chief-of-staff/explore`                 | Codebase search         | opencode/grok-code    |
+| `chief-of-staff/librarian`               | Library research        | opencode/grok-code    |
+| `chief-of-staff/frontend-ui-ux-engineer` | UI/UX implementation    | google/gemini-3-pro   |
+| `chief-of-staff/memory-catcher`          | Learning extraction     | google/gemini-3-flash |
+| `chief-of-staff/workflow-architect`      | Workflow design         | google/gemini-3-pro   |
 
 ## Configuration Schema
 
@@ -86,33 +87,32 @@ The configuration supports overriding **both skill-based subagents and native Op
 
 You can override any native OpenCode agent by using its exact name:
 
-| Agent Name | Purpose |
-|------------|---------|
-| `Code` | Code generation and editing |
-| `Ask` | General questions and assistance |
-| `Summarize` | Code and content summarization |
-| `Plan` | Planning tasks |
-| `Build` | Build and compile tasks |
-| `Explore` | Codebase exploration |
+| Agent Name  | Purpose                          |
+| ----------- | -------------------------------- |
+| `Code`      | Code generation and editing      |
+| `Ask`       | General questions and assistance |
+| `Summarize` | Code and content summarization   |
+| `Plan`      | Planning tasks                   |
+| `Build`     | Build and compile tasks          |
+| `Explore`   | Codebase exploration             |
 
 > **Note**: Agent names are case-sensitive. Use the exact name as shown in OpenCode.
 
-
 ### Model Override Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `model` | string | **Required**. Model identifier |
-| `temperature` | number | Optional. 0.0 - 2.0 for generation |
-| `disable` | boolean | Optional. Disable this agent |
-| `forcedSkills` | string[] | Optional. Force skills to load |
+| Field          | Type     | Description                        |
+| -------------- | -------- | ---------------------------------- |
+| `model`        | string   | **Required**. Model identifier     |
+| `temperature`  | number   | Optional. 0.0 - 2.0 for generation |
+| `disable`      | boolean  | Optional. Disable this agent       |
+| `forcedSkills` | string[] | Optional. Force skills to load     |
 
 ### Top-Level Fields
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `debug` | boolean | `false` | Enable debug logging |
-| `logLevel` | string | `"info"` | One of: `debug`, `info`, `warn`, `error` |
+| Field      | Type    | Default  | Description                              |
+| ---------- | ------- | -------- | ---------------------------------------- |
+| `debug`    | boolean | `false`  | Enable debug logging                     |
+| `logLevel` | string  | `"info"` | One of: `debug`, `info`, `warn`, `error` |
 
 ## Usage
 

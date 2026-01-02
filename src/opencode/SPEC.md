@@ -26,7 +26,7 @@ Note: This repo also includes developer helper skills under `src/opencode/skill/
 
 ## 2. Configuration & Model Overrides
 
-The system allows overriding models for **any agent** via `swarmtool-addons.json`.
+The system allows overriding models for **any agent** via `opencode-addons.json`.
 
 • **Priority Order**: 1. Register skills from `SKILL.md` (Defaults). 2. Mark internal subagents (Executor, Oracle) as `internal` visibility. 3. Apply user overrides from config file (High Priority). 4. Fallback to global defaults for unregistered agents.
 

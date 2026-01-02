@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://opencode.ai/schemas/swarmtool-addons.json",
-  "title": "SwarmToolAddons Plugin Configuration",
-  "description": "Configuration for swarm-tool-addons OpenCode plugin",
+  "$id": "https://opencode.ai/schemas/opencode-addons.json",
+  "title": "OpenCode Addons Plugin Configuration",
+  "description": "Configuration for opencode-addons OpenCode plugin",
   "type": "object",
   "properties": {
     "models": {
-      "description": "Agent model configurations - maps agent paths (e.g., 'swarm/planner', 'librarian') to model overrides",
+      "description": "Agent model configurations - maps agent paths (e.g., 'chief-of-staff/architect', 'librarian') to model overrides",
       "type": "object",
       "additionalProperties": {
         "$ref": "#/definitions/ModelOverride"

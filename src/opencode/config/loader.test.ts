@@ -318,6 +318,6 @@ describe('getConfigPath', () => {
 
     expect(configPath).toBeDefined();
     expect(typeof configPath).toBe('string');
-    expect(configPath).toContain('swarmtool-addons.json');
+    expect(configPath).toContain('opencode-addons.json');
   });
 });
