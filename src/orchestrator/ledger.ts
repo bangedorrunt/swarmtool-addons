@@ -12,7 +12,7 @@
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { dirname } from 'path';
-import crypto from 'crypto';
+import { randomBytes } from 'crypto';
 import { lock } from 'proper-lockfile';
 
 // ============================================================================
@@ -116,6 +116,28 @@ export interface Handoff {
   snapshotPath?: string;
 }
 
+/**
+ * Active Dialogue state for multi-turn HITL interactions
+ * Enables ROOT-level continuation of DIALOGUE mode agents
+ */
+export interface ActiveDialogue {
+  agent: string;
+  command: string; // e.g., '/ama', '/sdd'
+  turn: number;
+  status: 'needs_input' | 'needs_approval' | 'needs_verification';
+  sessionId?: string;
+  accumulatedDirection: {
+    goals: string[];
+    constraints: string[];
+    preferences: string[];
+    decisions: string[];
+  };
+  pendingQuestions?: string[];
+  lastPollMessage?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface ArchiveEntry {
   epicId: string;
   title: string;
@@ -141,6 +163,7 @@ export interface Ledger {
   learnings: Learnings;
   handoff: Handoff | null;
   archive: ArchiveEntry[];
+  activeDialogue: ActiveDialogue | null;
 }
 
 // ============================================================================
@@ -156,7 +179,7 @@ const MAX_ARCHIVE_ENTRIES = 5;
 // ============================================================================
 
 function generateHash(): string {
-  return crypto.randomBytes(3).toString('hex'); // 6 chars: abc123
+  return randomBytes(3).toString('hex'); // 6 chars: abc123
 }
 
 function generateSessionId(): string {
@@ -203,6 +226,7 @@ function createDefaultLedger(): Ledger {
     },
     handoff: null,
     archive: [],
+    activeDialogue: null,
   };
 }
 
@@ -259,6 +283,18 @@ function parseLedgerMarkdown(content: string): Ledger {
       continue;
     } else if (line.startsWith('## Archive')) {
       currentSection = 'archive';
+      continue;
+    } else if (line.startsWith('## Active Dialogue')) {
+      currentSection = 'activeDialogue';
+      ledger.activeDialogue = {
+        agent: '',
+        command: '',
+        turn: 1,
+        status: 'needs_input',
+        accumulatedDirection: { goals: [], constraints: [], preferences: [], decisions: [] },
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
       continue;
     }
 
@@ -456,6 +492,47 @@ function parseLedgerMarkdown(content: string): Ledger {
           duration: '',
           date: cols[3],
         });
+      }
+    }
+
+    // Parse Active Dialogue section
+    if (currentSection === 'activeDialogue' && ledger.activeDialogue) {
+      if (line.startsWith('agent:')) {
+        ledger.activeDialogue.agent = line.replace('agent:', '').trim();
+      } else if (line.startsWith('command:')) {
+        ledger.activeDialogue.command = line.replace('command:', '').trim();
+      } else if (line.startsWith('turn:')) {
+        ledger.activeDialogue.turn = parseInt(line.replace('turn:', '').trim(), 10) || 1;
+      } else if (line.startsWith('status:')) {
+        ledger.activeDialogue.status = line
+          .replace('status:', '')
+          .trim() as ActiveDialogue['status'];
+      } else if (line.startsWith('session_id:')) {
+        ledger.activeDialogue.sessionId = line.replace('session_id:', '').trim();
+      } else if (line.startsWith('### Goals')) {
+        currentSubSection = 'goals';
+      } else if (line.startsWith('### Constraints')) {
+        currentSubSection = 'constraints';
+      } else if (line.startsWith('### Preferences')) {
+        currentSubSection = 'preferences';
+      } else if (line.startsWith('### Decisions')) {
+        currentSubSection = 'decisions';
+      } else if (line.startsWith('### Pending Questions')) {
+        currentSubSection = 'pendingQuestions';
+        ledger.activeDialogue.pendingQuestions = [];
+      } else if (line.startsWith('- ')) {
+        const content = line.replace('- ', '');
+        if (currentSubSection === 'goals') {
+          ledger.activeDialogue.accumulatedDirection.goals.push(content);
+        } else if (currentSubSection === 'constraints') {
+          ledger.activeDialogue.accumulatedDirection.constraints.push(content);
+        } else if (currentSubSection === 'preferences') {
+          ledger.activeDialogue.accumulatedDirection.preferences.push(content);
+        } else if (currentSubSection === 'decisions') {
+          ledger.activeDialogue.accumulatedDirection.decisions.push(content);
+        } else if (currentSubSection === 'pendingQuestions') {
+          ledger.activeDialogue.pendingQuestions?.push(content);
+        }
       }
     }
   }
@@ -687,6 +764,65 @@ function renderLedgerMarkdown(ledger: Ledger): string {
     lines.push('*No archived epics*');
   }
   lines.push('');
+  lines.push('---');
+  lines.push('');
+
+  // Active Dialogue section
+  lines.push('## Active Dialogue');
+  lines.push('');
+  if (ledger.activeDialogue) {
+    lines.push(`agent: ${ledger.activeDialogue.agent}`);
+    lines.push(`command: ${ledger.activeDialogue.command}`);
+    lines.push(`turn: ${ledger.activeDialogue.turn}`);
+    lines.push(`status: ${ledger.activeDialogue.status}`);
+    if (ledger.activeDialogue.sessionId) {
+      lines.push(`session_id: ${ledger.activeDialogue.sessionId}`);
+    }
+    lines.push('');
+
+    const dir = ledger.activeDialogue.accumulatedDirection;
+    if (dir.goals.length > 0) {
+      lines.push('### Goals');
+      for (const g of dir.goals) {
+        lines.push(`- ${g}`);
+      }
+      lines.push('');
+    }
+    if (dir.constraints.length > 0) {
+      lines.push('### Constraints');
+      for (const c of dir.constraints) {
+        lines.push(`- ${c}`);
+      }
+      lines.push('');
+    }
+    if (dir.preferences.length > 0) {
+      lines.push('### Preferences');
+      for (const p of dir.preferences) {
+        lines.push(`- ${p}`);
+      }
+      lines.push('');
+    }
+    if (dir.decisions.length > 0) {
+      lines.push('### Decisions');
+      for (const d of dir.decisions) {
+        lines.push(`- ${d}`);
+      }
+      lines.push('');
+    }
+    if (
+      ledger.activeDialogue.pendingQuestions &&
+      ledger.activeDialogue.pendingQuestions.length > 0
+    ) {
+      lines.push('### Pending Questions');
+      for (const q of ledger.activeDialogue.pendingQuestions) {
+        lines.push(`- ${q}`);
+      }
+      lines.push('');
+    }
+  } else {
+    lines.push('*No active dialogue*');
+    lines.push('');
+  }
 
   return lines.join('\n');
 }
@@ -1149,6 +1285,106 @@ export function reviewAssumption(
  */
 export function getUnreviewedAssumptions(ledger: Ledger): Assumption[] {
   return ledger.governance.assumptions.filter((a) => a.status === 'pending_review');
+}
+
+// ============================================================================
+// Active Dialogue Management
+// ============================================================================
+
+/**
+ * Start a new active dialogue for multi-turn HITL interaction
+ */
+export function setActiveDialogue(
+  ledger: Ledger,
+  agent: string,
+  command: string,
+  options?: {
+    sessionId?: string;
+    pendingQuestions?: string[];
+    lastPollMessage?: string;
+  }
+): void {
+  ledger.activeDialogue = {
+    agent,
+    command,
+    turn: 1,
+    status: 'needs_input',
+    sessionId: options?.sessionId,
+    accumulatedDirection: {
+      goals: [],
+      constraints: [],
+      preferences: [],
+      decisions: [],
+    },
+    pendingQuestions: options?.pendingQuestions,
+    lastPollMessage: options?.lastPollMessage,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  console.log(`[Ledger] Started active dialogue: ${agent} via ${command}`);
+}
+
+/**
+ * Update active dialogue with user response
+ */
+export function updateActiveDialogue(
+  ledger: Ledger,
+  updates: {
+    turn?: number;
+    status?: ActiveDialogue['status'];
+    goals?: string[];
+    constraints?: string[];
+    preferences?: string[];
+    decisions?: string[];
+    pendingQuestions?: string[];
+    lastPollMessage?: string;
+  }
+): void {
+  if (!ledger.activeDialogue) {
+    console.log('[Ledger] No active dialogue to update');
+    return;
+  }
+
+  if (updates.turn !== undefined) ledger.activeDialogue.turn = updates.turn;
+  if (updates.status) ledger.activeDialogue.status = updates.status;
+  if (updates.pendingQuestions) ledger.activeDialogue.pendingQuestions = updates.pendingQuestions;
+  if (updates.lastPollMessage) ledger.activeDialogue.lastPollMessage = updates.lastPollMessage;
+
+  // Accumulate direction (append, don't replace)
+  const dir = ledger.activeDialogue.accumulatedDirection;
+  if (updates.goals) dir.goals.push(...updates.goals);
+  if (updates.constraints) dir.constraints.push(...updates.constraints);
+  if (updates.preferences) dir.preferences.push(...updates.preferences);
+  if (updates.decisions) dir.decisions.push(...updates.decisions);
+
+  ledger.activeDialogue.updatedAt = Date.now();
+  console.log(`[Ledger] Updated active dialogue: turn=${ledger.activeDialogue.turn}`);
+}
+
+/**
+ * Get current active dialogue state
+ */
+export function getActiveDialogue(ledger: Ledger): ActiveDialogue | null {
+  return ledger.activeDialogue;
+}
+
+/**
+ * Clear active dialogue (when completed or cancelled)
+ */
+export function clearActiveDialogue(ledger: Ledger): void {
+  if (ledger.activeDialogue) {
+    console.log(`[Ledger] Cleared active dialogue: ${ledger.activeDialogue.agent}`);
+  }
+  ledger.activeDialogue = null;
+}
+
+/**
+ * Check if there's an active dialogue for a specific command
+ */
+export function hasActiveDialogue(ledger: Ledger, command?: string): boolean {
+  if (!ledger.activeDialogue) return false;
+  if (command) return ledger.activeDialogue.command === command;
+  return true;
 }
 
 // ============================================================================

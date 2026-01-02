@@ -1,28 +1,53 @@
 ---
-description: Ask for expert advice using Strategic Polling (v5.0)
+description: Ask for expert advice using Strategic Polling with Multi-Turn Dialogue (v5.1)
 model: google/gemini-2.5-flash
 ---
 
-# Ask Me Anything (AMA) - Strategic Polling v5.0
+# Ask Me Anything (AMA) - Multi-Turn Dialogue v5.1
 
 ## Overview
 
-This command enables **Human-in-the-Loop** consultation where agents proactively present structured options instead of open-ended questions.
+This command enables **Human-in-the-Loop** consultation with **multi-turn dialogue** support. Agents proactively present structured polls and continue the conversation until resolution.
+
+## v5.1 CHANGES
+
+- **Multi-Turn Support**: ROOT agent handles dialogue continuation
+- **LEDGER Integration**: Active dialogue state persisted across turns
+- **Natural Flow**: User replies in same session, agent continues
+
+---
 
 ## Your Task
 
-Delegate the request to the **Chief-of-Staff** in **CONSULTATIVE** mode.
+Handle the `/ama` command with multi-turn dialogue support.
 
-The Chief-of-Staff will:
+### Step 1: Check for Active Dialogue
 
-1. Check **LEDGER/Memory Lane** for existing context (Fast path)
-2. Generate a **Strategic Poll** if clarification needed (A/B/C options)
-3. Provide recommendations with structured choices
-
-## Execution
+First, check LEDGER for an existing active dialogue:
 
 ```javascript
-skill_agent({
+const ledger = await ledger_status({});
+
+if (ledger.activeDialogue && ledger.activeDialogue.command === '/ama') {
+  // CONTINUATION: User is responding to a previous poll
+  // The user's message ($ARGUMENTS) is their response
+  goto Step 3;
+}
+```
+
+### Step 2: Start New Dialogue
+
+If no active dialogue, start a new one:
+
+```javascript
+// Store dialogue state in LEDGER
+await ledger_set_active_dialogue({
+  agent: 'chief-of-staff',
+  command: '/ama',
+});
+
+// Delegate to Chief-of-Staff
+const result = await skill_agent({
   agent_name: 'chief-of-staff',
   prompt: `AMA Request: $ARGUMENTS
 
@@ -42,12 +67,111 @@ Based on context, I recommend:
 
 Reply '1', '2', or your own answer.
 
-4. Provide actionable recommendations
-5. Store any new decisions as Directives in LEDGER`,
+4. Return dialogue_state with status:
+   - needs_input: More questions needed
+   - approved: Question resolved
+5. Store any decisions as Directives in LEDGER`,
   async: false,
   timeout_ms: 120000,
   complexity: 'medium',
 });
+
+goto Step 4;
+```
+
+### Step 3: Continue Existing Dialogue
+
+If active dialogue exists, continue it:
+
+```javascript
+const result = await skill_agent({
+  agent_name: 'chief-of-staff',
+  prompt: `AMA Continuation
+
+User responded: $ARGUMENTS
+
+Active Dialogue Context:
+- Turn: ${ledger.activeDialogue.turn + 1}
+- Previous decisions: ${JSON.stringify(ledger.activeDialogue.accumulatedDirection.decisions)}
+- Pending questions: ${ledger.activeDialogue.pendingQuestions}
+
+Instructions:
+1. Process user's response
+2. If response is a poll selection (1, 2, 3), extract the decision
+3. Log the decision as a Directive in LEDGER
+4. If more clarification needed, generate next poll
+5. If question resolved, return dialogue_state.status = 'approved'`,
+  async: false,
+  timeout_ms: 120000,
+  complexity: 'medium',
+});
+```
+
+### Step 4: Handle Result
+
+```javascript
+// Extract dialogue state from result
+const dialogue_state = extractDialogueState(result);
+
+if (dialogue_state.status === 'needs_input') {
+  // Update LEDGER with new state
+  await ledger_update_active_dialogue({
+    turn: dialogue_state.turn,
+    status: 'needs_input',
+    decisions: dialogue_state.accumulated_direction?.decisions,
+    pendingQuestions: dialogue_state.pending_questions,
+  });
+
+  // Display poll to user - they will respond naturally
+  displayToUser(dialogue_state.message_to_user);
+
+  // DON'T clear dialogue - wait for user's next message
+} else if (dialogue_state.status === 'approved') {
+  // Clear active dialogue
+  await ledger_clear_active_dialogue({});
+
+  // Display final response
+  displayToUser(dialogue_state.message_to_user);
+}
+```
+
+---
+
+## Multi-Turn Flow Example
+
+```
+SESSION TURN 1:
+  User: /ama How should I structure my API?
+
+  [ROOT checks LEDGER - no active dialogue]
+  [ROOT calls skill_agent(chief-of-staff)]
+  [Chief-of-Staff returns: dialogue_state.status = 'needs_input']
+  [ROOT saves to LEDGER.activeDialogue]
+
+  Bot: POLL: API Architecture
+       Based on your TypeScript codebase:
+
+       (1) REST with Express - Simple, well-documented
+       (2) tRPC - Type-safe, great DX
+       (3) Or describe your preference
+
+       Reply '1', '2', '3', or your choice.
+
+SESSION TURN 2:
+  User: 2
+
+  [ROOT checks LEDGER - active dialogue exists for /ama]
+  [ROOT calls skill_agent with continuation context]
+  [Chief-of-Staff logs Directive: "API: tRPC"]
+  [Chief-of-Staff returns: dialogue_state.status = 'approved']
+  [ROOT clears LEDGER.activeDialogue]
+
+  Bot: Great choice! I've recorded:
+       - Directive: API Architecture = tRPC
+
+       tRPC provides excellent type safety between your
+       frontend and backend. Let me know if you need help
+       setting it up!
 ```
 
 ---
@@ -56,7 +180,7 @@ Reply '1', '2', or your own answer.
 
 ### When Agent Needs Clarification
 
-Instead of open-ended questions like "What database?", the agent generates a **Poll**:
+Instead of open-ended questions, generate a **Poll**:
 
 ```
 POLL: Database Selection
@@ -79,77 +203,23 @@ Reply '1', '2', or your choice (e.g., "MySQL because we have existing infra").
 
 ---
 
-## Handling Yields (Pop-Up Questions)
+## LEDGER Active Dialogue Structure
 
-If the agent needs additional clarification mid-process:
+```markdown
+## Active Dialogue
 
-```javascript
-// 1. Detect yield
-if (result.status === 'HANDOFF_INTENT') {
-  const poll = result.metadata.handoff;
+agent: chief-of-staff
+command: /ama
+turn: 2
+status: needs_input
 
-  // 2. Display poll to user
-  console.log(poll.summary);
-  console.log(poll.options);
+### Decisions
 
-  // 3. Get user selection
-  const userChoice = await getUserInput();
+- API: tRPC (from poll response)
 
-  // 4. Resume agent
-  agent_resume({
-    session_id: poll.session_id,
-    signal_data: userChoice,
-  });
-}
-```
+### Pending Questions
 
----
-
-## Example Interactions
-
-### Example 1: Architecture Question
-
-**User**: `/ama How should I structure my API?`
-
-**Agent Response**:
-
-```
-I checked LEDGER and found no existing API architecture Directive.
-
-POLL: API Architecture
-Based on your TypeScript codebase:
-
-(1) REST with Express - Simple, well-documented, familiar
-(2) tRPC - Type-safe, great DX, Next.js integration
-(3) GraphQL - Flexible queries, good for complex data
-
-Reply '1', '2', '3', or describe your preference.
-```
-
-### Example 2: With Existing Context
-
-**User**: `/ama Should I add caching?`
-
-**Agent Response**:
-
-```
-Based on LEDGER Directives:
-- Database: PostgreSQL
-- Framework: Next.js 14
-
-And Memory Lane patterns:
-- Previous project used Redis for session caching
-
-RECOMMENDATION:
-Yes, add Redis caching. It integrates well with your existing
-PostgreSQL setup and matches patterns from your past projects.
-
-POLL: Caching Strategy
-(1) Redis - In-memory, fast, you've used it before
-(2) Upstash Redis - Serverless, good for Next.js
-(3) Skip caching for now
-
-Reply '1', '2', '3', or your choice.
+- Data layer selection
 ```
 
 ---
@@ -172,7 +242,8 @@ All decisions from AMA sessions are stored:
 
 ## Notes
 
-- This replaces the legacy "Interviewer" pattern for simple questions
+- Multi-turn dialogue leverages OpenCode's natural session continuity
+- Active dialogue state persists in LEDGER across turns
 - For complex multi-turn clarification, agent may spawn `interviewer` agent
 - All responses become Directives for future reference
 - Polls always include "describe your preference" as final option

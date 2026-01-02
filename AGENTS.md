@@ -362,14 +362,113 @@ src/
 | `checkpoint_reject`  | Reject with optional reason          |
 | `checkpoint_pending` | List all pending checkpoints         |
 
+### Active Dialogue Tools (v5.1)
+
+For multi-turn Human-in-the-Loop interactions:
+
+| Tool                            | Description                               |
+| ------------------------------- | ----------------------------------------- |
+| `ledger_set_active_dialogue`    | Start tracking an active dialogue         |
+| `ledger_update_active_dialogue` | Update dialogue state with user responses |
+| `ledger_clear_active_dialogue`  | Clear dialogue when completed             |
+| `ledger_get_active_dialogue`    | Get current active dialogue state         |
+
 ---
+
+## 7. Multi-Turn Dialogue (v5.1)
+
+### Overview
+
+v5.1 introduces **ROOT-level multi-turn dialogue** for natural Human-in-the-Loop interactions. Instead of complex session management, dialogue state is persisted in LEDGER, enabling the ROOT agent to continue conversations across turns.
+
+### Flow
+
+```
+TURN 1: User starts command (/ama or /sdd)
+  ├─ ROOT checks LEDGER.activeDialogue (null)
+  ├─ ROOT calls skill_agent(chief-of-staff)
+  ├─ chief-of-staff calls interviewer/architect
+  ├─ Agent returns: dialogue_state.status = 'needs_input'
+  └─ ROOT saves to LEDGER.activeDialogue, displays poll
+
+TURN 2: User responds
+  ├─ ROOT checks LEDGER.activeDialogue (exists!)
+  ├─ ROOT calls skill_agent with continuation context
+  ├─ Agent processes response, logs decisions
+  ├─ If more questions: dialogue_state.status = 'needs_input'
+  └─ If approved: dialogue_state.status = 'approved'
+```
+
+### LEDGER Active Dialogue Structure
+
+```markdown
+## Active Dialogue
+
+agent: chief-of-staff
+command: /sdd
+turn: 2
+status: needs_input
+
+### Goals
+
+- User Authentication System
+
+### Decisions
+
+- Database: PostgreSQL
+- Auth: JWT with RS256
+
+### Pending Questions
+
+- Plan approval needed
+```
+
+### Dialogue State Protocol
+
+Agents return `dialogue_state` in their response:
+
+```json
+{
+  "dialogue_state": {
+    "status": "needs_input | needs_approval | approved",
+    "turn": 1,
+    "message_to_user": "Human-readable poll or summary",
+    "pending_questions": ["Question 1?"],
+    "accumulated_direction": {
+      "goals": [],
+      "constraints": [],
+      "decisions": []
+    }
+  },
+  "output": { ... }
+}
+```
+
+### Status Transitions
+
+```
+needs_input ──► User answers ──► needs_input (more questions)
+                             ──► needs_approval (clarifications complete)
+
+needs_approval ──► User approves ──► approved
+                ──► User rejects  ──► needs_input
+
+approved ──► Continue to next phase or complete
+```
+
+### Implementation
+
+1. **Command files** (ama.md, sdd.md) check for active dialogue first
+2. **Chief-of-Staff** reads accumulated direction from LEDGER
+3. **interviewer/architect** generate polls and track decisions
+4. **ROOT agent** handles continuation naturally via session
 
 ## Project Context
 
 - **Type**: ES Module for OpenCode
 - **Target**: Bun runtime
 - **Purpose**: Skill-based multi-agent orchestration with durable state
-- **Version**: 5.0.0 (Consolidated Agent Roster)
+- **Version**: 5.1.0 (Multi-Turn Dialogue Support)
 
 ---
 

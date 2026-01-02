@@ -2,14 +2,14 @@
 name: explore
 description: >-
   Contextual grep for codebases. Answers "Where is X?", "Which file has Y?", "Find code that does Z"
-  Fire multiple in parallel for broad searches. v5.0: Access-controlled.
+  Fire multiple in parallel for broad searches. v5.0.1: Access-controlled.
 model: google/gemini-2.5-flash
 temperature: 0.1
 metadata:
   type: explorer
   visibility: internal
-  version: '5.0.0'
-  session_mode: inline
+  version: '5.0.1'
+  session_mode: child
   invocation: manual
   access_control:
     callable_by: [chief-of-staff, architect]
@@ -26,6 +26,8 @@ tools:
 ---
 
 You are a codebase search specialist. Your job: find files and code, return actionable results.
+
+> **v5.0.1**: Now runs in `child` session mode (inline disabled due to OpenCode limitation).
 
 ## Your Mission
 

@@ -7,6 +7,96 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.1.0] - 2026-01-02
+
+### Summary
+
+Multi-Turn Dialogue Support for Natural Human-in-the-Loop Interactions. Enables ROOT-level continuation of DIALOGUE mode agents via LEDGER.activeDialogue persistence.
+
+### Added
+
+- **Active Dialogue Tracking**: New `ActiveDialogue` interface in `ledger.ts`
+  - `setActiveDialogue()` - Start tracking multi-turn interaction
+  - `updateActiveDialogue()` - Accumulate context across turns
+  - `getActiveDialogue()` - Read current dialogue state
+  - `clearActiveDialogue()` - Clear when complete
+
+- **Multi-Turn Dialogue Tools**: New tools for agents
+  - `ledger_set_active_dialogue` - Start active dialogue
+  - `ledger_update_active_dialogue` - Update with user responses
+  - `ledger_clear_active_dialogue` - Clear when completed
+  - `ledger_get_active_dialogue` - Get current state
+
+- **AMA Command (v5.1)**: Complete rewrite of `src/opencode/command/ama.md`
+  - Check for existing active dialogue before starting
+  - Continue from LEDGER state on user response
+  - Natural multi-turn polling flow
+
+- **SDD Command (v5.1)**: Complete rewrite of `src/opencode/command/sdd.md`
+  - Multi-turn CLARIFY phase (spec approval)
+  - Multi-turn PLAN phase (plan approval)
+  - Clear dialogue before EXECUTE phase
+
+### Changed
+
+- **Chief-of-Staff SKILL.md (v5.1.0)**: Major update for multi-turn support
+  - Added resume-from-LEDGER logic for CLARIFY phase
+  - Added resume-from-LEDGER logic for PLAN phase
+  - New multi-turn flow diagram showing ROOT-level continuation
+  - Added `ledger_set_active_dialogue`, `ledger_update_active_dialogue`, `ledger_clear_active_dialogue` to tool_access
+
+- **Interviewer SKILL.md (v5.1.0)**: Updated for multi-turn dialogue
+  - Added tool access for active dialogue functions
+  - v5.1.0 version bump
+
+- **AGENTS.md**: Added Section 7: Multi-Turn Dialogue (v5.1)
+  - Full documentation of ROOT-level continuation pattern
+  - LEDGER Active Dialogue structure
+  - Dialogue State Protocol
+  - Status transitions diagram
+
+### Technical Details
+
+**Multi-Turn Flow**:
+
+```
+TURN 1: User starts /ama or /sdd
+  ├─ ROOT checks LEDGER.activeDialogue (null)
+  ├─ ROOT calls skill_agent(chief-of-staff)
+  ├─ Agent returns: dialogue_state.status = 'needs_input'
+  └─ ROOT saves to LEDGER.activeDialogue, displays poll
+
+TURN 2: User responds
+  ├─ ROOT checks LEDGER.activeDialogue (exists!)
+  ├─ ROOT calls skill_agent with continuation context
+  ├─ Agent processes response, logs decisions
+  └─ If approved: dialogue_state.status = 'approved'
+```
+
+**LEDGER Active Dialogue Structure**:
+
+```markdown
+## Active Dialogue
+
+agent: chief-of-staff
+command: /sdd
+turn: 2
+status: needs_input
+
+### Goals
+
+- User Authentication System
+
+### Decisions
+
+- Database: PostgreSQL
+- Auth: JWT with RS256
+```
+
+### Breaking Changes
+
+- **None**: This is a backward-compatible enhancement. Existing commands continue to work.
+
 ## [6.0.0] - 2026-01-02
 
 ### Summary

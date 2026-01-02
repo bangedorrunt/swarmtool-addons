@@ -377,6 +377,201 @@ const status = await ledger.getStatus();
 
 ---
 
+## v5.1 Changes - Multi-Turn Dialogue (2026-01-02)
+
+### Summary
+
+Enables **natural multi-turn Human-in-the-Loop interactions** via ROOT-level continuation. Dialogue state is persisted in LEDGER, allowing agents to continue conversations across turns without complex session management.
+
+### Before vs After
+
+**Before (v5.0)**: One-shot polls, no continuation
+
+```
+User: /ama How should I structure my API?
+Bot: POLL: API Architecture... (options)
+User: 2
+Bot: [Ends - no way to continue]
+```
+
+**After (v5.1)**: Natural multi-turn dialogue
+
+```
+User: /ama How should I structure my API?
+Bot: POLL: API Architecture... (options)
+User: 2
+Bot: Great choice! POLL: Data Layer... (next question)
+User: Drizzle
+Bot: Specification confirmed!
+```
+
+### New Components
+
+#### Active Dialogue Tracking (ledger.ts)
+
+**New Interface**:
+
+```typescript
+export interface ActiveDialogue {
+  agent: string; // 'interviewer', 'architect'
+  command: string; // '/ama', '/sdd'
+  turn: number; // Current turn
+  status: 'needs_input' | 'needs_approval' | 'approved';
+  sessionId?: string;
+  accumulatedDirection: {
+    goals: string[];
+    constraints: string[];
+    preferences: string[];
+    decisions: string[];
+  };
+  pendingQuestions?: string[];
+  lastPollMessage?: string;
+}
+```
+
+**New Functions**:
+
+```typescript
+// Start tracking a dialogue
+setActiveDialogue(ledger, agent, command, options?);
+
+// Update with user response
+updateActiveDialogue(ledger, {
+  turn: 2,
+  status: 'needs_input',
+  decisions: ['Database: PostgreSQL'],
+  pendingQuestions: ['Next question?']
+});
+
+// Get current state
+getActiveDialogue(ledger); // Returns ActiveDialogue | null
+
+// Clear when done
+clearActiveDialogue(ledger);
+```
+
+#### New Tools
+
+| Tool                            | Description                         |
+| ------------------------------- | ----------------------------------- |
+| `ledger_set_active_dialogue`    | Start tracking an active dialogue   |
+| `ledger_update_active_dialogue` | Update dialogue with user responses |
+| `ledger_clear_active_dialogue`  | Clear when completed                |
+| `ledger_get_active_dialogue`    | Get current state                   |
+
+### Multi-Turn Flow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    MULTI-TURN DIALOGUE v5.1                  │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  TURN 1: User starts command                                 │
+│      ├─ ROOT checks LEDGER.activeDialogue (null)            │
+│      ├─ ROOT calls skill_agent(chief-of-staff)              │
+│      ├─ Agent generates poll                                 │
+│      ├─ Returns: dialogue_state.status = 'needs_input'      │
+│      └─ ROOT saves to LEDGER.activeDialogue                 │
+│                                                              │
+│  TURN 2: User responds                                       │
+│      ├─ ROOT checks LEDGER.activeDialogue (exists!)         │
+│      ├─ ROOT calls skill_agent with continuation context    │
+│      ├─ Agent processes response, logs decisions            │
+│      ├─ If more questions: returns 'needs_input'            │
+│      └─ If approved: returns 'approved'                     │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Updated Commands
+
+#### AMA Command (v5.1)
+
+**Flow**:
+
+1. Check LEDGER for existing active dialogue
+2. If none: Start new, call Chief-of-Staff
+3. If exists: Continue from accumulated context
+4. Display poll, wait for user response
+
+```typescript
+// Step 1: Check for active dialogue
+const ledger = await ledger_status({});
+if (ledger.activeDialogue && ledger.activeDialogue.command === '/ama') {
+  goto Continue;
+}
+
+// Step 2: Start new
+await ledger_set_active_dialogue({ agent: 'chief-of-staff', command: '/ama' });
+
+// Step 3: Handle result
+if (result.dialogue_state.status === 'needs_input') {
+  await ledger_update_active_dialogue({
+    turn: result.dialogue_state.turn,
+    decisions: result.dialogue_state.accumulated_direction?.decisions,
+  });
+}
+```
+
+#### SDD Command (v5.1)
+
+**Multi-turn phases**:
+
+- CLARIFY: Poll for specification approval (multi-turn)
+- PLAN: Poll for plan approval (multi-turn)
+- EXECUTE: No HITL (clear dialogue)
+- REVIEW: Automated
+- COMPLETE: Clear dialogue
+
+### LEDGER Structure
+
+```markdown
+## Active Dialogue
+
+agent: chief-of-staff
+command: /sdd
+turn: 2
+status: needs_input
+
+### Goals
+
+- User Authentication System
+
+### Decisions
+
+- Database: PostgreSQL
+- Auth: JWT with RS256
+
+### Pending Questions
+
+- Plan approval needed
+```
+
+### Benefits
+
+| Before (v5.0)    | After (v5.1)          |
+| ---------------- | --------------------- |
+| One poll only    | Unlimited polls       |
+| Abrupt end       | Natural continuation  |
+| Lost context     | Persisted in LEDGER   |
+| User must repeat | Accumulated direction |
+
+### Updated Agents
+
+#### Chief-of-Staff SKILL.md (v5.1.0)
+
+- Added multi-turn flow diagram
+- Added resume-from-LEDGER logic for CLARIFY
+- Added resume-from-LEDGER logic for PLAN
+- New tool access: `ledger_set_active_dialogue`, `ledger_update_active_dialogue`, `ledger_clear_active_dialogue`
+
+#### Interviewer SKILL.md (v5.1.0)
+
+- Added tool access for active dialogue functions
+- Continues to return `dialogue_state` for ROOT agent parsing
+
+---
+
 ## Module Reference
 
 ### file-ledger/ (v6.0 Core)
@@ -691,4 +886,4 @@ await ledger.createHandoff('session_break', '/sdd continue auth', 'Summary here'
 ---
 
 _Last Updated: 2026-01-02_
-_Version: 5.0.0 (Governance-First) + 6.0.0 (File-Based Ledger)_
+_Version: 5.1.0 (Multi-Turn Dialogue) + 6.0.0 (File-Based Ledger)_
