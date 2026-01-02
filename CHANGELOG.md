@@ -9,61 +9,139 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [6.0.0] - 2026-01-02
 
+### Summary
+
+File-Based Ledger with Conductor-inspired structure for git-friendly history tracking.
+
 ### Added
 
-- **File-Based Ledger (v6.0)**: New hybrid structure with `.opencode/` directory
+- **File-Based Ledger**: New hybrid structure with `.opencode/` directory
   - `LEDGER.md` as lightweight index (pointers only)
   - `context/` for project context (product.md, tech-stack.md, workflow.md)
   - `epics/<id>/` for file-based epics (spec.md, plan.md, log.md, metadata.json)
   - `learnings/` for persistent learnings (patterns.md, decisions.md, preferences.md)
   - `archive/` for completed epics with full git history
 
-- **New Modules**:
-  - `src/orchestrator/file-ledger/` - v6.0 file-based state management
-  - `src/orchestrator/progress.ts` - Progress notification system
-  - `src/orchestrator/hitl.ts` - Human-in-the-loop utilities
-  - `src/orchestrator/session-strategy.ts` - Hybrid session modes (inline/child)
-
-- **New Agents**:
-  - `architect` - Merged from oracle + planner
-  - `reviewer` - Merged from spec-reviewer + code-quality-reviewer
+- **New Module**: `src/orchestrator/file-ledger/`
+  - `types.ts` - Type definitions for file-based structure
+  - `templates.ts` - Markdown templates for spec, plan, log
+  - `index.ts` - FileBasedLedger class (22 tests)
+  - `tools.ts` - New ledger tools for file-based operations
 
 - **New Documentation**:
   - `docs/TECHNICAL.md` - Technical documentation for AI agents
-  - `docs/WORKFLOW-GUIDE.md` - User-facing workflow guide
   - `CHANGELOG.md` - This file
 
-- **New Tests**: 57 new tests
-  - `file-ledger/index.test.ts` - 22 tests
+### Changed
+
+- **Epic Structure**: Each epic is now a directory with separate files
+  - `spec.md` - Requirements and acceptance criteria
+  - `plan.md` - Implementation plan with tasks
+  - `log.md` - Execution log with timestamps
+  - `metadata.json` - Epic metadata (id, title, status, timestamps)
+
+- **Learnings Persistence**: Learnings are no longer lost on archive
+  - Stored in `.opencode/learnings/` directory
+  - Separate files: patterns.md, decisions.md, preferences.md
+
+### Deprecated
+
+- **Old Ledger**: `src/orchestrator/ledger.ts` is deprecated
+  - Use `src/orchestrator/file-ledger/` instead
+  - Migration: Run `ledger_init` to create new structure
+
+### Breaking Changes
+
+- **File Structure**: `.opencode/` directory structure changed completely
+  - Old: Single `LEDGER.md` file with all content
+  - New: File-based structure with separate directories for context, epics, learnings
+
+- **Tool Names**: New file-based ledger tools
+  - Old: `ledgerTools` from `ledger-tools.ts`
+  - New: `fileLedgerTools` from `file-ledger/tools.ts`
+
+---
+
+## [5.0.0] - 2026-01-02
+
+### Summary
+
+Governance-First Orchestration with Agent Consolidation, Strategic Polling, and Hybrid Session Strategy.
+
+### Added
+
+- **Progress Notifications**: Real-time status updates during agent orchestration
+  - `src/orchestrator/progress.ts` - Phase start/complete events
+  - Users see what agents are doing in real-time
+
+- **HITL Utilities**: Human-in-the-loop interaction patterns
+  - `src/orchestrator/hitl.ts` - Poll formatting, response parsing
+  - Strategic Polling with numbered options + free text
+  - Faster user decisions, structured responses
+
+- **Session Strategy**: Hybrid session modes for agents
+  - `src/orchestrator/session-strategy.ts` - inline/child session selection
+  - `inline` for planning agents (user sees thinking process)
+  - `child` for execution agents (isolated, parallel-safe)
+
+- **New Agents**:
+  - `architect` - Merged from oracle + planner (decomposition + planning)
+  - `reviewer` - Merged from spec-reviewer + code-quality-reviewer (two-phase review)
+
+- **New Documentation**:
+  - `docs/WORKFLOW-GUIDE.md` - User-facing workflow guide
+  - `agents/DEPRECATED.md` - Migration guide for removed agents
+
+- **New Tests**: 35 tests for v5.0 modules
   - `hitl.test.ts` - 24 tests
   - `progress.test.ts` - 11 tests
 
 ### Changed
 
 - **Agent Consolidation**: Reduced from 16 agents to 8 agents
-  - `interviewer` now includes spec-writer functionality
-  - `architect` replaces oracle and planner
-  - `reviewer` replaces spec-reviewer and code-quality-reviewer
 
-- **Session Strategy**: Hybrid session modes
-  - `inline` for planning agents (interviewer, architect, reviewer, validator, debugger, explore)
-  - `child` for execution agents (executor, librarian)
+  | New Agent     | Merged From                           | Session Mode |
+  | ------------- | ------------------------------------- | ------------ |
+  | `interviewer` | interviewer + spec-writer             | inline       |
+  | `architect`   | oracle + planner                      | inline       |
+  | `executor`    | unchanged                             | child        |
+  | `reviewer`    | spec-reviewer + code-quality-reviewer | inline       |
+  | `validator`   | unchanged                             | inline       |
+  | `debugger`    | unchanged                             | inline       |
+  | `explore`     | unchanged                             | inline       |
+  | `librarian`   | unchanged                             | child        |
 
-- **SDD Workflow**: Conductor-inspired pattern
-  - Context -> Spec -> Plan -> Execute -> Review -> Complete
+- **SDD Workflow**: Conductor-inspired 6-phase pattern
+
+  ```
+  LOAD -> CLARIFY -> PLAN -> EXECUTE -> REVIEW -> COMPLETE
+  ```
+
   - Each phase has mandatory user checkpoint
+  - CLARIFY: interviewer (spec output)
+  - PLAN: architect (task decomposition)
+  - EXECUTE: executor(s) (parallel/sequential)
+  - REVIEW: reviewer (spec + quality)
 
-- **Strategic Polling**: Numbered options + free text
-  - Replaces open-ended questions with structured polls
-  - Faster user decisions, structured responses
+- **Strategic Polling**: Replaces open-ended questions
+
+  ```
+  POLL: Database Selection
+  (1) Postgres - scalable, pgvector support
+  (2) SQLite - simple, file-based
+  (3) Or describe your preference
+  ```
+
+  User selection becomes a Directive in LEDGER
+
+- **Chief-of-Staff SKILL.md**: Complete rewrite for v5.0
+  - Governance Loop integration
+  - Parallel orchestration support
+  - Progress notification hooks
 
 ### Deprecated
 
-- **v5.0 Ledger**: `src/orchestrator/ledger.ts` is deprecated
-  - Use `src/orchestrator/file-ledger/` instead
-  - Migration: Run `ledger_init` to create new structure
-
-- **Removed Agents**:
+- **Removed Agents** (see `agents/DEPRECATED.md` for migration):
   - `spec-writer` -> merged into `interviewer`
   - `oracle` -> merged into `architect`
   - `planner` -> merged into `architect`
@@ -74,31 +152,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `context-loader` -> inline in CoS
   - `memory-catcher` -> event-driven hooks
 
-### Fixed
-
-- Progress notifications now visible to users during agent orchestration
-- HITL polling uses numbered options for faster user decisions
-
 ### Breaking Changes
-
-- **File Structure**: `.opencode/` directory structure changed completely
-  - Old: Single `LEDGER.md` file with all content
-  - New: File-based structure with separate directories for context, epics, learnings
 
 - **Agent Names**: Some agents renamed/merged
   - Update any code referencing old agent names
+  - Use `skill_list` to see current roster
 
-- **Tool Names**: New file-based ledger tools
-  - Old: `ledgerTools` from `ledger-tools.ts`
-  - New: `fileLedgerTools` from `file-ledger/tools.ts`
+- **Session Modes**: Agents now have explicit session modes
+  - `inline` agents: User sees dialogue
+  - `child` agents: Isolated execution
 
 ---
 
-## [5.0.0] - 2025-12-XX
+## [4.1.0] - 2025-12-XX
 
 ### Added
 
-- Governance-First Orchestration
+- Governance-First Orchestration foundation
 - LEDGER.md single source of truth
 - Durable Stream event-sourced persistence
 - Checkpoint system for human approval
@@ -111,7 +181,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [4.1.0] - 2025-XX-XX
+## [4.0.0] - 2025-12-XX
 
 ### Added
 
@@ -126,9 +196,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## Migration Guide: v5.0 -> v6.0
+## Migration Guide
 
-### Step 1: Initialize New Structure
+### v4.x -> v5.0 (Agent Consolidation)
+
+#### Step 1: Update Agent References
+
+| Old Agent                 | New Agent     | Notes                        |
+| ------------------------- | ------------- | ---------------------------- |
+| `spec-writer`             | `interviewer` | Merged                       |
+| `oracle`                  | `architect`   | Merged                       |
+| `planner`                 | `architect`   | Merged                       |
+| `spec-reviewer`           | `reviewer`    | Merged                       |
+| `code-quality-reviewer`   | `reviewer`    | Merged                       |
+| `frontend-ui-ux-engineer` | `executor`    | Use executor with UI context |
+| `workflow-architect`      | N/A           | Absorbed by CoS              |
+| `context-loader`          | N/A           | Inline in CoS                |
+| `memory-catcher`          | N/A           | Event-driven hooks           |
+
+#### Step 2: Update Session Strategy
+
+```typescript
+// Old: All agents were child sessions
+await skill_agent({ agent_name: 'planner', ... });
+
+// New: Use appropriate session mode
+// inline agents: interviewer, architect, reviewer, validator, debugger, explore
+// child agents: executor, librarian
+```
+
+#### Step 3: Use Strategic Polling
+
+```typescript
+// Old: Open-ended questions
+'What database do you want to use?';
+
+// New: Numbered options
+import { formatPoll } from './orchestrator/hitl';
+formatPoll('Database Selection', [
+  { id: '1', label: 'Postgres', description: 'scalable, pgvector' },
+  { id: '2', label: 'SQLite', description: 'simple, file-based' },
+]);
+```
+
+---
+
+### v5.0 -> v6.0 (File-Based Ledger)
+
+#### Step 1: Initialize New Structure
 
 ```bash
 # The agent will create .opencode/ structure
@@ -142,7 +257,7 @@ import { getFileLedger } from './orchestrator/file-ledger';
 await getFileLedger().initialize();
 ```
 
-### Step 2: Migrate Existing LEDGER.md
+#### Step 2: Migrate Existing LEDGER.md
 
 If you have an existing LEDGER.md:
 
@@ -150,32 +265,37 @@ If you have an existing LEDGER.md:
 2. Active epic can be recreated with new structure
 3. Archive can be migrated manually if needed
 
-### Step 3: Update Agent References
-
-| Old Agent               | New Agent     |
-| ----------------------- | ------------- |
-| `spec-writer`           | `interviewer` |
-| `oracle`                | `architect`   |
-| `planner`               | `architect`   |
-| `spec-reviewer`         | `reviewer`    |
-| `code-quality-reviewer` | `reviewer`    |
-
-### Step 4: Update Tool Imports
+#### Step 3: Update Tool Imports
 
 ```typescript
-// Old
+// Old (v5.0)
 import { ledgerTools } from './orchestrator/tools/ledger-tools';
 
-// New
+// New (v6.0)
 import { fileLedgerTools } from './orchestrator/file-ledger/tools';
+```
+
+#### Step 4: Update Epic Workflow
+
+```typescript
+// Old: Single file operations
+await ledger.createEpic('Title', 'Request');
+await ledger.addTask('Task 1');
+
+// New: File-based operations
+const epicId = await fileLedger.createEpic('Title', 'Request');
+await fileLedger.writeSpec(epicId, specContent);
+await fileLedger.writePlan(epicId, planContent);
+await fileLedger.appendLog(epicId, 'Started implementation');
 ```
 
 ---
 
 ## Version History
 
-| Version | Date       | Highlights                             |
-| ------- | ---------- | -------------------------------------- |
-| 6.0.0   | 2026-01-02 | File-based ledger, agent consolidation |
-| 5.0.0   | 2025-12-XX | Governance-first, LEDGER.md            |
-| 4.1.0   | 2025-XX-XX | Parallel execution, conflict detection |
+| Version | Date       | Codename                     | Highlights                                |
+| ------- | ---------- | ---------------------------- | ----------------------------------------- |
+| 6.0.0   | 2026-01-02 | File-Based Ledger            | Conductor-inspired, git-friendly epics    |
+| 5.0.0   | 2026-01-02 | Governance-First             | Agent consolidation (16→8), HITL, polling |
+| 4.1.0   | 2025-12-XX | Physical Resource Management | Parallel execution, conflict detection    |
+| 4.0.0   | 2025-12-XX | Skill-Based Architecture     | Subagent system, CoS orchestrator         |

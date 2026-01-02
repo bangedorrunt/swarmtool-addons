@@ -2,9 +2,14 @@
 
 ## Module Implementation Guide
 
-### Skill-Based Agent Architecture with File-Based Ledger (v6.0)
+### Skill-Based Agent Architecture (v5.0 + v6.0)
 
-This plugin implements a **Skill-Based Subagent** architecture with **Governance-First Orchestration (v6.0)** enhanced by **File-Based Persistence** for git-friendly history tracking. Domain expertise is packaged into specialized, on-demand workers coordinated by a `chief-of-staff` Governor agent.
+This plugin implements a **Skill-Based Subagent** architecture with two major versions:
+
+- **v5.0 - Governance-First Orchestration**: Agent consolidation (16→8), Strategic Polling, Hybrid Sessions
+- **v6.0 - File-Based Ledger**: Conductor-inspired file structure for git-friendly history tracking
+
+Domain expertise is packaged into specialized, on-demand workers coordinated by a `chief-of-staff` Governor agent.
 
 ```
 +-------------------------------------------------------------------+
