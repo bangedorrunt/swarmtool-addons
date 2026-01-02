@@ -114,7 +114,179 @@ Extract learnings to .opencode/learnings/
 
 ---
 
-## v6.0 Changes (2026-01-02)
+## v5.0 Changes - Governance-First Orchestration (2026-01-02)
+
+### Breaking Change: Agent Consolidation (16 → 8)
+
+**Before (v4.x)**: 16 specialized agents with narrow responsibilities
+
+**After (v5.0)**: 8 consolidated agents with broader, well-defined roles
+
+| v5.0 Agent  | Merged From                           | Session Mode | Role                          |
+| ----------- | ------------------------------------- | ------------ | ----------------------------- |
+| interviewer | interviewer + spec-writer             | inline       | Clarification + Specification |
+| architect   | oracle + planner                      | inline       | Decomposition + Planning      |
+| reviewer    | spec-reviewer + code-quality-reviewer | inline       | Two-phase review              |
+| executor    | (unchanged)                           | child        | TDD implementation            |
+| validator   | (unchanged)                           | inline       | Quality gate                  |
+| debugger    | (unchanged)                           | inline       | Root cause analysis           |
+| explore     | (unchanged)                           | inline       | Codebase search               |
+| librarian   | (unchanged)                           | child        | External docs                 |
+
+### Why This Change
+
+| Problem with 16 Agents       | Solution in v5.0             |
+| ---------------------------- | ---------------------------- |
+| Too much context overhead    | 8 agents = less coordination |
+| Overlapping responsibilities | Clear role boundaries        |
+| Complex orchestration        | Simpler workflow phases      |
+| Slow spawning                | Fewer agents to initialize   |
+
+### New Modules Added (v5.0)
+
+| Module                | Purpose                           | Tests    |
+| --------------------- | --------------------------------- | -------- |
+| `progress.ts`         | User notifications during phases  | 11 tests |
+| `hitl.ts`             | Poll formatting, response parsing | 24 tests |
+| `session-strategy.ts` | inline/child session modes        | yes      |
+
+### progress.ts
+
+**Purpose**: Emit progress events for user visibility
+
+**Key Functions**:
+
+```typescript
+import { emitProgress, emitPhaseStart, emitPhaseComplete, emitUserActionNeeded } from './progress';
+
+// Emit phase start
+await emitPhaseStart('CLARIFY', 'interviewer', sessionId);
+
+// Emit progress update
+await emitProgress('interviewer', 'Analyzing requirements...', sessionId, { percent: 50 });
+
+// Emit phase complete
+await emitPhaseComplete('CLARIFY', 'interviewer', sessionId, 'success');
+
+// Request user action
+await emitUserActionNeeded('interviewer', 'approval_needed', 'Review spec', sessionId);
+```
+
+**Phase Icons**: Each phase has an emoji icon for UI display (see `getPhaseIcon`)
+
+### hitl.ts
+
+**Purpose**: Human-in-the-loop utilities with Strategic Polling
+
+**Key Functions**:
+
+```typescript
+import { formatPoll, parseUserResponse, requestConfirmation } from './hitl';
+
+// Format a poll with numbered options
+const pollText = formatPoll({
+  title: 'Database Selection',
+  context: 'No directive found for database choice.',
+  options: [
+    { id: 'postgres', label: 'PostgreSQL', description: 'Scalable, pgvector support' },
+    { id: 'sqlite', label: 'SQLite', description: 'Simple, file-based' },
+  ],
+  allowFreeText: true,
+});
+
+// Output:
+// POLL: Database Selection
+// No directive found for database choice.
+//
+// (1) PostgreSQL - Scalable, pgvector support
+// (2) SQLite - Simple, file-based
+// (3) Or describe your preference
+//
+// Reply with number or your choice.
+
+// Parse user response
+const response = parseUserResponse('1', options);
+// { type: 'option', option_id: 'postgres', value: 'PostgreSQL' }
+
+const response = parseUserResponse('MongoDB', options);
+// { type: 'freetext', value: 'MongoDB' }
+
+// Request confirmation
+const approved = await requestConfirmation(sessionId, 'Approve Spec?', specSummary);
+```
+
+### session-strategy.ts
+
+**Purpose**: Determine session mode for each agent
+
+**Session Modes**:
+
+- `inline`: User sees agent thinking (interviewer, architect, reviewer, validator, debugger, explore)
+- `child`: Isolated execution, parallel-safe (executor, librarian)
+
+```typescript
+import { getSessionMode, getAgentConfig } from './session-strategy';
+
+const mode = getSessionMode('executor'); // 'child'
+const mode = getSessionMode('architect'); // 'inline'
+
+// Get full config
+const config = getAgentConfig('executor');
+// { mode: 'child', timeout_ms: 600000, max_retries: 2 }
+```
+
+### Strategic Polling Pattern
+
+**Before (v4.x)**: Open-ended questions
+
+```
+What database would you like to use?
+```
+
+**After (v5.0)**: Numbered options with context
+
+```
+POLL: Database Selection
+Based on your project requirements (API backend, need for vector search):
+
+(1) PostgreSQL - Scalable, pgvector support
+(2) SQLite - Simple, file-based
+(3) Or describe your preference
+
+Reply '1', '2', or your choice.
+```
+
+**Benefits**:
+
+- Faster user decisions (just type "1")
+- Structured responses for parsing
+- Context provided for informed choice
+- Free text still allowed for edge cases
+
+### SDD Workflow (v5.0)
+
+```
+PHASE 0: LOAD       → Read LEDGER, check for active Epic
+    │
+    ▼
+PHASE 1: CLARIFY    → interviewer (inline, HITL)
+    │                 Output: Approved Specification
+    ▼
+PHASE 2: PLAN       → architect (inline, HITL)
+    │                 Output: Epic + Tasks + Blueprint
+    ▼
+PHASE 3: EXECUTE    → executor(s) (child, parallel/seq)
+    │                 Output: Implementation
+    ▼
+PHASE 4: REVIEW     → reviewer (inline)
+    │                 Output: Approved or Needs Changes
+    ▼
+PHASE 5: COMPLETE   → Archive Epic, Extract Learnings
+```
+
+---
+
+## v6.0 Changes - File-Based Ledger (2026-01-02)
 
 ### Breaking Change: File-Based Ledger
 
@@ -152,33 +324,7 @@ Extract learnings to .opencode/learnings/
 | Learnings lost on archive    | Persistent in learnings/  |
 | Team conflicts on one file   | Isolated epic directories |
 
-### Agent Consolidation (16 -> 8)
-
-| v6.0 Agent  | Merged From                           | Role                          |
-| ----------- | ------------------------------------- | ----------------------------- |
-| interviewer | interviewer + spec-writer             | Clarification + Specification |
-| architect   | oracle + planner                      | Decomposition + Planning      |
-| reviewer    | spec-reviewer + code-quality-reviewer | Two-phase review              |
-| executor    | (unchanged)                           | TDD implementation            |
-| validator   | (unchanged)                           | Quality gate                  |
-| debugger    | (unchanged)                           | Root cause analysis           |
-| explore     | (unchanged)                           | Codebase search               |
-| librarian   | (unchanged)                           | External docs                 |
-
-### New Modules Added
-
-| Module                | Purpose                           | Tests    |
-| --------------------- | --------------------------------- | -------- |
-| `file-ledger/`        | v6.0 file-based state             | 22 tests |
-| `progress.ts`         | User notifications                | 11 tests |
-| `hitl.ts`             | Poll formatting, response parsing | 24 tests |
-| `session-strategy.ts` | inline/child session modes        | yes      |
-
----
-
-## Module Reference
-
-### file-ledger/ (v6.0 Core)
+### New Module: file-ledger/ (v6.0 Core)
 
 **Location**: `src/orchestrator/file-ledger/`
 
@@ -192,6 +338,8 @@ Extract learnings to .opencode/learnings/
 **Key Class**: `FileBasedLedger`
 
 ```typescript
+import { getFileLedger } from './orchestrator/file-ledger';
+
 const ledger = getFileLedger();
 
 // Initialize
@@ -201,70 +349,48 @@ await ledger.initialize(); // Creates .opencode/ structure
 const epicId = await ledger.createEpic('Title', 'Request');
 await ledger.writeSpec(epicId, content);
 await ledger.writePlan(epicId, content);
+await ledger.appendLog(epicId, 'Started task 1.1');
 await ledger.updateTaskInPlan(epicId, '1.1', 'completed');
 await ledger.archiveEpic('SUCCEEDED');
 
-// Learnings (persistent)
+// Learnings (persistent - not lost on archive)
 await ledger.addLearning('pattern', 'Use bcrypt for passwords');
-await ledger.addLearning('decision', 'Chose PostgreSQL');
+await ledger.addLearning('decision', 'Chose PostgreSQL for scalability');
+await ledger.addLearning('preference', 'User prefers tabs over spaces');
 
 // Status
 const status = await ledger.getStatus();
+// { initialized: true, hasActiveEpic: true, activeEpicId: 'epic_abc123', ... }
 ```
 
-### progress.ts
+### Conductor-Inspired Pattern
 
-**Purpose**: Emit progress events for user visibility
+**Decision**: Adopt spec.md, plan.md, log.md structure from Conductor
 
-**Key Functions**:
+**Rationale**:
 
-```typescript
-await emitProgress(agent, phase, message, { percent: 50 });
-await emitPhaseStart(agent, phase, description);
-await emitPhaseComplete(agent, phase, result);
-await emitUserActionNeeded(agent, action, message);
-```
+- Proven pattern (1000+ stars on GitHub)
+- Clear separation of concerns
+- Each file has single responsibility
+- Easy to review in PRs
+- Git diff shows exactly what changed
 
-**Phase Icons**: Each phase has an emoji icon for UI display (see `getPhaseIcon`)
+---
 
-### hitl.ts
+## Module Reference
 
-**Purpose**: Human-in-the-loop utilities
+### file-ledger/ (v6.0 Core)
 
-**Key Functions**:
+**Location**: `src/orchestrator/file-ledger/`
 
-```typescript
-// Format a poll with numbered options
-const pollText = formatPoll({
-  title: 'Database Selection',
-  options: [
-    { id: 'postgres', label: 'PostgreSQL' },
-    { id: 'sqlite', label: 'SQLite' },
-  ],
-  allowFreeText: true,
-});
+**Files**:
 
-// Parse user response
-const response = parseUserResponse('1', options);
-// { type: 'option', option_id: 'postgres', value: 'PostgreSQL' }
+- `types.ts` - Type definitions (LedgerIndex, EpicMetadata, etc.)
+- `templates.ts` - Markdown templates for all files
+- `index.ts` - FileBasedLedger class (main logic, 22 tests)
+- `tools.ts` - Tools for agents to use
 
-// Request confirmation
-const approved = await requestConfirmation(sessionId, 'Approve Spec?', summary);
-```
-
-### session-strategy.ts
-
-**Purpose**: Determine session mode for each agent
-
-**Session Modes**:
-
-- `inline`: User sees agent thinking (interviewer, architect, reviewer)
-- `child`: Isolated execution (executor, librarian)
-
-```typescript
-const mode = getSessionMode('executor'); // 'child'
-const mode = getSessionMode('architect'); // 'inline'
-```
+See v6.0 Changes section above for API examples.
 
 ### chief-of-staff/
 
@@ -565,4 +691,4 @@ await ledger.createHandoff('session_break', '/sdd continue auth', 'Summary here'
 ---
 
 _Last Updated: 2026-01-02_
-_Version: 6.0.0_
+_Version: 5.0.0 (Governance-First) + 6.0.0 (File-Based Ledger)_
