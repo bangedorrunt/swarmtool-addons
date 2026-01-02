@@ -537,6 +537,11 @@ function parseLedgerMarkdown(content: string): Ledger {
     }
   }
 
+  // Treat an empty Active Dialogue section (e.g. "*No active dialogue*") as null.
+  if (ledger.activeDialogue && (!ledger.activeDialogue.agent || !ledger.activeDialogue.command)) {
+    ledger.activeDialogue = null;
+  }
+
   return ledger;
 }
 

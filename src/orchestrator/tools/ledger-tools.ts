@@ -257,7 +257,8 @@ export function createLedgerTools() {
       },
       async execute(args, execContext) {
         const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
-        const sessionId = args.session_id || (execContext as any)?.sessionID;
+        const sessionId =
+          args.session_id || (execContext as any)?.parentID || (execContext as any)?.sessionID;
 
         setActiveDialogue(ledger, args.agent, args.command, {
           sessionId,
@@ -292,8 +293,16 @@ export function createLedgerTools() {
         pendingQuestions: tool.schema.array(tool.schema.string()).optional(),
         lastPollMessage: tool.schema.string().optional(),
       },
-      async execute(args) {
+      async execute(args, execContext) {
         const ledger = await loadLedger(DEFAULT_LEDGER_PATH);
+
+        // If this update is coming from a child session, bind the dialogue to the parent (root)
+        // session so user replies can be routed reliably.
+        const preferredSessionId =
+          (execContext as any)?.parentID || (execContext as any)?.sessionID;
+        if (preferredSessionId && ledger.activeDialogue) {
+          ledger.activeDialogue.sessionId = preferredSessionId;
+        }
 
         updateActiveDialogue(ledger, {
           turn: args.turn,

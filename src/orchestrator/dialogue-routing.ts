@@ -22,8 +22,11 @@ export function isCancelMessage(text: string): boolean {
 
 export function shouldRouteToActiveDialogue(active: ActiveDialogue | null, sessionId: string) {
   if (!active) return { shouldRoute: false as const };
-  if (active.sessionId && active.sessionId !== sessionId) return { shouldRoute: false as const };
-  return { shouldRoute: true as const };
+  // Defensive: ignore partially-parsed/empty dialogue sections.
+  if (!active.agent || !active.command) return { shouldRoute: false as const };
+
+  const sessionMismatch = !!active.sessionId && active.sessionId !== sessionId;
+  return { shouldRoute: true as const, sessionMismatch };
 }
 
 export function buildDialogueContinuationPrompt(args: {

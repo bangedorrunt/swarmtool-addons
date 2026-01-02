@@ -14,6 +14,8 @@ import {
   createHandoff,
   getProgress,
   surfaceLearnings,
+  setActiveDialogue,
+  updateActiveDialogue,
   parseLedgerMarkdown,
   renderLedgerMarkdown,
   type Ledger,
@@ -255,6 +257,39 @@ describe('Ledger Markdown Parser', () => {
     expect(ledger.meta.status).toBe('active');
     expect(ledger.meta.phase).toBe('CLARIFICATION');
     expect(ledger.epic).toBeNull();
+  });
+
+  it('should treat "*No active dialogue*" as no active dialogue', () => {
+    const empty = createTestLedger();
+    const markdown = renderLedgerMarkdown(empty);
+    const parsed = parseLedgerMarkdown(markdown);
+
+    expect(parsed.activeDialogue).toBeNull();
+  });
+
+  it('should round-trip an active dialogue section', () => {
+    const l = createTestLedger();
+    setActiveDialogue(l, 'chief-of-staff', '/sdd', {
+      sessionId: 'sess_root',
+      pendingQuestions: ['Approve spec?'],
+      lastPollMessage: 'Reply yes/no',
+    });
+    updateActiveDialogue(l, {
+      status: 'needs_approval',
+      decisions: ['Scope: entire project'],
+    });
+
+    const markdown = renderLedgerMarkdown(l);
+    const parsed = parseLedgerMarkdown(markdown);
+
+    expect(parsed.activeDialogue).not.toBeNull();
+    expect(parsed.activeDialogue?.agent).toBe('chief-of-staff');
+    expect(parsed.activeDialogue?.command).toBe('/sdd');
+    expect(parsed.activeDialogue?.sessionId).toBe('sess_root');
+    expect(parsed.activeDialogue?.pendingQuestions).toEqual(['Approve spec?']);
+    expect(parsed.activeDialogue?.accumulatedDirection.decisions).toContain(
+      'Scope: entire project'
+    );
   });
 
   it('should parse ledger with epic and tasks', () => {

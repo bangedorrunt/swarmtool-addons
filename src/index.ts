@@ -224,6 +224,13 @@ export const SwarmToolAddons: Plugin = async (input) => {
       const routing = shouldRouteToActiveDialogue(active, hookInput.sessionID);
       if (!routing.shouldRoute) return;
 
+      // If the dialogue was started/updated from a child session, adopt the current root session
+      // so subsequent replies keep routing correctly.
+      if (routing.sessionMismatch && ledger.activeDialogue) {
+        ledger.activeDialogue.sessionId = hookInput.sessionID;
+        await saveLedger(ledger, DEFAULT_LEDGER_PATH);
+      }
+
       if (isCancelMessage(text)) {
         clearActiveDialogue(ledger);
         await saveLedger(ledger, DEFAULT_LEDGER_PATH);
