@@ -44,7 +44,7 @@ evalite('Interviewer: HITL Dialogue System (Real LLM)', {
       system,
       prompt,
       tag: 'interviewer',
-      model: 'gemini-2.5-flash',
+      model: 'nvidia/nemotron-3-nano',
     });
 
     return result.parsed || result;

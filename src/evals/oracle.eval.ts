@@ -22,7 +22,7 @@ evalite('Oracle Agent: Real LLM Reasoning (v4.1)', {
       system,
       prompt: `Decompose this request: "${input.text}"`,
       tag: 'oracle',
-      model: 'gemini-2.5-flash',
+      model: 'nvidia/nemotron-3-nano',
     });
 
     return result.parsed || result;

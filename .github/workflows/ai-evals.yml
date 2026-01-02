@@ -39,6 +39,7 @@ jobs:
       # 3. Chạy LLM Evaluations
       - name: Run AI Evaluations
         env:
+          EVAL_PROVIDER: google
           GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
         run: npm run eval
         if: success()

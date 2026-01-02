@@ -1,5 +1,6 @@
 import { generateText } from 'ai';
 import { google } from '@ai-sdk/google';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -13,7 +14,7 @@ export async function cachedInference(params: {
   model?: string;
   tag?: string;
 }) {
-  const { prompt, system = '', model = 'gemini-2.5-flash', tag = 'default' } = params;
+  const { prompt, system = '', model = 'nvidia/nemotron-3-nano', tag = 'default' } = params;
 
   // 1. Setup Cache
   const cacheDir = path.join(process.cwd(), '.evalite/cache');
@@ -32,9 +33,23 @@ export async function cachedInference(params: {
   }
 
   // 3. Call Real LLM
-  console.log(`[LLM API] Calling ${model} for ${tag}...`);
+  const provider = process.env.EVAL_PROVIDER || 'lmstudio';
+  console.log(`[LLM API] Calling ${model} (${provider}) for ${tag}...`);
+
+  let modelInstance;
+
+  if (provider === 'google') {
+    modelInstance = google(model);
+  } else {
+    const lmstudio = createOpenAICompatible({
+      name: 'lmstudio',
+      baseURL: 'http://localhost:1234/v1',
+    });
+    modelInstance = lmstudio(model);
+  }
+
   const { text } = await generateText({
-    model: google(model),
+    model: modelInstance,
     system,
     prompt,
   });

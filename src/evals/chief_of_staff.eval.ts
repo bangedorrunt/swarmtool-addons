@@ -36,7 +36,7 @@ evalite('Chief-of-Staff: Strategic Orchestration (Real LLM)', {
       system,
       prompt,
       tag: 'cos-orchestration',
-      model: 'gemini-2.5-flash',
+      model: 'nvidia/nemotron-3-nano',
     });
 
     return result.parsed || result;

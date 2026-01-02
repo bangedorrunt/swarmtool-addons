@@ -16,3 +16,5 @@ package-lock.json
 .opencode/*.jsonl
 .opencode/memories.db
 .opencode/assumptions.json
+.evalite/cache/
+test-results.json
