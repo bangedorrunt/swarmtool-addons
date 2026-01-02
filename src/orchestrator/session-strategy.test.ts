@@ -60,29 +60,37 @@ describe('Session Strategy', () => {
     });
 
     it('should have correct session modes', () => {
-      // Inline agents
-      expect(AGENT_SESSION_CONFIG.interviewer.mode).toBe('inline');
-      expect(AGENT_SESSION_CONFIG.architect.mode).toBe('inline');
-      expect(AGENT_SESSION_CONFIG.reviewer.mode).toBe('inline');
-      expect(AGENT_SESSION_CONFIG.validator.mode).toBe('inline');
-      expect(AGENT_SESSION_CONFIG.debugger.mode).toBe('inline');
-      expect(AGENT_SESSION_CONFIG.explore.mode).toBe('inline');
-
-      // Child agents
+      // v5.0.1: ALL agents now use child mode due to inline deadlock issue
+      // See src/orchestrator/session-strategy.ts for details
+      expect(AGENT_SESSION_CONFIG.interviewer.mode).toBe('child');
+      expect(AGENT_SESSION_CONFIG.architect.mode).toBe('child');
+      expect(AGENT_SESSION_CONFIG.reviewer.mode).toBe('child');
+      expect(AGENT_SESSION_CONFIG.validator.mode).toBe('child');
+      expect(AGENT_SESSION_CONFIG.debugger.mode).toBe('child');
+      expect(AGENT_SESSION_CONFIG.explore.mode).toBe('child');
       expect(AGENT_SESSION_CONFIG.executor.mode).toBe('child');
       expect(AGENT_SESSION_CONFIG.librarian.mode).toBe('child');
+    });
+
+    it('should preserve intended modes for future reference', () => {
+      // These are the intended modes when OpenCode supports deferred inline prompts
+      expect(AGENT_SESSION_CONFIG.interviewer.intendedMode).toBe('inline');
+      expect(AGENT_SESSION_CONFIG.architect.intendedMode).toBe('inline');
+      expect(AGENT_SESSION_CONFIG.executor.intendedMode).toBe('child');
+      expect(AGENT_SESSION_CONFIG.librarian.intendedMode).toBe('child');
     });
   });
 
   describe('getSessionMode', () => {
     it('should return correct mode for known agents', () => {
-      expect(getSessionMode('interviewer')).toBe('inline');
+      // v5.0.1: All agents use child mode
+      expect(getSessionMode('interviewer')).toBe('child');
       expect(getSessionMode('executor')).toBe('child');
       expect(getSessionMode('librarian')).toBe('child');
     });
 
     it('should normalize agent names with prefix', () => {
-      expect(getSessionMode('chief-of-staff/interviewer')).toBe('inline');
+      expect(getSessionMode('chief-of-staff/interviewer')).toBe('child');
       expect(getSessionMode('chief-of-staff/executor')).toBe('child');
     });
 
