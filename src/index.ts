@@ -28,9 +28,7 @@ import { createEventLogTools } from './event-log';
 import { initializeDurableStream, getDurableStream } from './durable-stream';
 import { ledgerTools, ledgerEventTools } from './orchestrator/tools/ledger-tools';
 import { checkpointTools } from './orchestrator/tools/checkpoint-tools';
-import { formatStatusLine } from './orchestrator/progress';
 import { formatYieldMessage } from './orchestrator/hitl';
-import type { ProgressPayload } from './durable-stream/types';
 import {
   loadLedger,
   saveLedger,
@@ -438,38 +436,6 @@ export const SwarmToolAddons: Plugin = async (input) => {
 
       // 1.1 Runtime telemetry is captured by Durable Stream (no separate activity.jsonl)
 
-      // 1.2 Progress Events (v5.0 - User Visibility)
-      // Stream progress updates to user session for visibility
-      if (event.type?.startsWith('progress.')) {
-        const props = event.properties as ProgressPayload;
-        const sessionId = props?.session_id || (event as any).sessionID;
-
-        if (sessionId && props) {
-          const statusLine = formatStatusLine(props);
-
-          // Only inject if actionRequired (for HITL) or significant phase change
-          const shouldNotify =
-            props.action_required ||
-            event.type === 'progress.phase_started' ||
-            event.type === 'progress.phase_completed' ||
-            event.type === 'progress.user_action_needed';
-
-          if (shouldNotify) {
-            try {
-              await input.client.session.promptAsync({
-                path: { id: sessionId },
-                body: {
-                  agent: 'system',
-                  parts: [{ type: 'text', text: statusLine }],
-                },
-              });
-            } catch {
-              // Session may be busy or closed, ignore
-            }
-          }
-        }
-      }
-
       // 2. SignalBuffer Auto-Flush (Parent Busy Resolution)
       if (event.type === 'session.status') {
         // event.data object keys are sessionIds, values are Status({type: 'idle'|'busy'})
@@ -545,11 +511,14 @@ export const SwarmToolAddons: Plugin = async (input) => {
       config.agent = config.agent ?? {};
 
       for (const cmd of commands) {
+        // Apply model override from userConfig if exists, otherwise use frontmatter model
+        const modelOverride = userConfig.models[cmd.frontmatter.agent];
+        const model = modelOverride?.model ?? cmd.frontmatter.model ?? 'opencode/grok-code';
         config.command[cmd.name] = {
           template: cmd.template,
           description: cmd.frontmatter.description,
           agent: cmd.frontmatter.agent,
-          model: cmd.frontmatter.model,
+          model,
           subtask: cmd.frontmatter.subtask,
         };
       }
