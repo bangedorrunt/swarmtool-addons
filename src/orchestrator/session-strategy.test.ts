@@ -60,16 +60,16 @@ describe('Session Strategy', () => {
     });
 
     it('should have correct session modes', () => {
-      // v5.0.1: ALL agents now use child mode due to inline deadlock issue
-      // See src/orchestrator/session-strategy.ts for details
-      expect(AGENT_SESSION_CONFIG.interviewer.mode).toBe('child');
-      expect(AGENT_SESSION_CONFIG.architect.mode).toBe('child');
-      expect(AGENT_SESSION_CONFIG.reviewer.mode).toBe('child');
-      expect(AGENT_SESSION_CONFIG.validator.mode).toBe('child');
-      expect(AGENT_SESSION_CONFIG.debugger.mode).toBe('child');
-      expect(AGENT_SESSION_CONFIG.explore.mode).toBe('child');
+      // v5.x: Hybrid mode (inline planning + child execution)
+      expect(AGENT_SESSION_CONFIG.interviewer.mode).toBe('inline');
+      expect(AGENT_SESSION_CONFIG.architect.mode).toBe('inline');
+      expect(AGENT_SESSION_CONFIG.reviewer.mode).toBe('inline');
+      expect(AGENT_SESSION_CONFIG.validator.mode).toBe('inline');
+      expect(AGENT_SESSION_CONFIG.debugger.mode).toBe('inline');
+      expect(AGENT_SESSION_CONFIG.explore.mode).toBe('inline');
       expect(AGENT_SESSION_CONFIG.executor.mode).toBe('child');
       expect(AGENT_SESSION_CONFIG.librarian.mode).toBe('child');
+      expect(AGENT_SESSION_CONFIG['chief-of-staff'].mode).toBe('inline');
     });
 
     it('should preserve intended modes for future reference', () => {
@@ -83,14 +83,13 @@ describe('Session Strategy', () => {
 
   describe('getSessionMode', () => {
     it('should return correct mode for known agents', () => {
-      // v5.0.1: All agents use child mode
-      expect(getSessionMode('interviewer')).toBe('child');
+      expect(getSessionMode('interviewer')).toBe('inline');
       expect(getSessionMode('executor')).toBe('child');
       expect(getSessionMode('librarian')).toBe('child');
     });
 
     it('should normalize agent names with prefix', () => {
-      expect(getSessionMode('chief-of-staff/interviewer')).toBe('child');
+      expect(getSessionMode('chief-of-staff/interviewer')).toBe('inline');
       expect(getSessionMode('chief-of-staff/executor')).toBe('child');
     });
 

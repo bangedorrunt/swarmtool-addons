@@ -19,10 +19,34 @@ describe('MemoryLaneStore', () => {
     }
     store = new MemoryLaneStore();
 
-    // Mock successful lm-studio response
-    (global.fetch as any).mockResolvedValue({
-      ok: true,
-      json: async () => ({ data: [{ embedding: new Array(1024).fill(0.1) }] }),
+    // Mock successful lm-studio responses
+    (global.fetch as any).mockImplementation(async (input: any) => {
+      let url: string;
+      if (typeof input === 'string') {
+        url = input;
+      } else if (input?.url) {
+        url = String(input.url);
+      } else {
+        url = String(input);
+      }
+
+      if (url.includes('/api/v0/models')) {
+        return {
+          ok: true,
+          json: async () => ({
+            data: [{ id: 'text-embedding-mxbai-embed-large-v1', type: 'embeddings' }],
+          }),
+        };
+      }
+
+      if (url.includes('/v1/embeddings')) {
+        return {
+          ok: true,
+          json: async () => ({ data: [{ embedding: new Array(1024).fill(0.1) }] }),
+        };
+      }
+
+      return { ok: true, json: async () => ({}) };
     });
   });
 

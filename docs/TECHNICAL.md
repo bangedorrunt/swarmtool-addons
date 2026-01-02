@@ -235,6 +235,16 @@ const config = getAgentConfig('executor');
 // { mode: 'child', timeout_ms: 600000, max_retries: 2 }
 ```
 
+#### Deferred Inline Prompts (Deadlock Avoidance)
+
+Inline agents run in the **parent session** for visibility, but tools must **never** call `session.prompt()` synchronously on the *same* session (can deadlock). Instead:
+
+1. The tool returns `status: "HANDOFF_INTENT"` (with Durable Stream intent/message IDs for correlation)
+2. The plugin schedules `session.promptAsync()` from the outer hook loop (`tool.execute.after`)
+3. If the session is busy, prompts are queued in `PromptBuffer` and flushed on `session.idle` (bounded retries)
+
+**Credit**: Inspired by the **Ralph Loop** idea—drive re-entrant work from an outer loop/event hook rather than making nested SDK calls.
+
 ### Strategic Polling Pattern
 
 **Before (v4.x)**: Open-ended questions
@@ -283,6 +293,18 @@ PHASE 4: REVIEW     → reviewer (inline)
     ▼
 PHASE 5: COMPLETE   → Archive Epic, Extract Learnings
 ```
+
+### vNext Changes - Deferred Inline Prompts & Durable Stream Telemetry (2026-01-02)
+
+- **Hybrid sessions restored**: Planning agents run `inline` again (visible to users) while execution agents remain `child`.
+- **Deadlock fix**: Inline prompts are now **deferred** via `HANDOFF_INTENT` + `tool.execute.after` (no re-entrant `session.prompt()` calls).
+- **Busy-session resilience**: Deferred prompts are buffered in `PromptBuffer` and flushed on `session.idle` (bounded retries).
+- **Durable Stream as runtime source-of-truth**: Execution traces (agent/text/reasoning deltas + snapshots) are persisted as `execution.*` events.
+- **Ledger as projection**: `LedgerProjector` projects `ledger.learning.extracted` into `.opencode/LEDGER.md` on safe triggers.
+- **ActivityLogger de-emphasized**: Runtime history tooling (`ledger_get_history`) reads from Durable Stream instead of `.opencode/activity.jsonl`.
+- **Memory Lane embeddings**: Improved LM Studio embeddings reliability by auto-starting the server and loading an embeddings model (using the API-provided model identifier when available).
+
+**Credit**: The deferred inline prompt design follows the **Ralph Loop** idea (outer loop drives work; avoid nested SDK calls).
 
 ---
 
@@ -937,7 +959,7 @@ logDebug('Debug info', { key: value });
 ```json
 {"level":"info","time":"2026-01-02T10:30:00.000Z","service":"opencode-addons","module":"Ledger","msg":"Created epic","epicId":"abc123","title":"Review code"}
 {"level":"warn","time":"2026-01-02T10:30:01.000Z","service":"opencode-addons","module":"SkillLoader","msg":"Agents directory not found","agentsDir":"/path/to/agents"}
-{"level":"error","time":"2026-01-02T10:30:02.000Z","service":"opencode-addons","module":"ActivityLogger","msg":"Failed to log activity","error":{"message":"Permission denied"}}
+{"level":"error","time":"2026-01-02T10:30:02.000Z","service":"opencode-addons","module":"DurableStream","msg":"Failed to persist event","error":{"message":"Permission denied"}}
 ```
 
 ### Environment Variables

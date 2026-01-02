@@ -14,6 +14,7 @@ The **Durable Stream** serves as the "hippocampus" (long-term episodic memory) a
 | **Lineage Tracking**    | Maps `stream_id` (Trace ID) across parent-child sessions.                     |
 | **HITL Workflows**      | `checkpoint.requested` / `checkpoint.approved` events for human approval.     |
 | **Resource Management** | `session.delete()` and `session.abort()` integration for memory optimization. |
+| **Execution Telemetry** | Bridges streaming OpenCode message parts into `execution.*` events (text/reasoning/tool/agent). |
 
 ---
 
@@ -27,6 +28,8 @@ The **Durable Stream** serves as the "hippocampus" (long-term episodic memory) a
 | `session.delete()`             | **Hard delete session** | Emit `lifecycle.session.deleted`; purge from memory. |
 | `session.summarize()`          | Native summary          | Use for context compaction.                          |
 | `session.diff()`               | Get file changes        | Log `files.changed` event.                           |
+| `message.updated`              | Message lifecycle       | Emit low-frequency completion markers.               |
+| `message.part.updated`         | Streaming parts/deltas  | Emit `execution.*` telemetry events.                 |
 
 ---
 
@@ -68,11 +71,19 @@ type EventType =
   | 'lifecycle.session.error'
   | 'lifecycle.session.deleted' // NEW: Physical resource freed
   | 'lifecycle.session.aborted' // NEW: Emergency stop
-  // Execution
+  // Execution (Bridged from OpenCode message parts)
+  | 'execution.message.updated'
   | 'execution.step_start'
   | 'execution.step_finish'
   | 'execution.tool_start'
   | 'execution.tool_finish'
+  | 'execution.agent'
+  | 'execution.text_delta'
+  | 'execution.text_snapshot'
+  | 'execution.reasoning_delta'
+  | 'execution.reasoning_snapshot'
+  | 'execution.snapshot'
+  | 'execution.retry'
   // Agent
   | 'agent.spawned'
   | 'agent.completed'
@@ -88,10 +99,30 @@ type EventType =
   // Files
   | 'files.changed'
   | 'files.patched'
+  // Learning
+  | 'learning.extracted'
   // Ledger
   | 'ledger.epic.created'
+  | 'ledger.epic.started'
+  | 'ledger.epic.completed'
+  | 'ledger.epic.failed'
+  | 'ledger.epic.archived'
+  | 'ledger.handoff.created'
+  | 'ledger.handoff.resumed'
+  | 'ledger.task.created'
+  | 'ledger.task.started'
   | 'ledger.task.completed'
-  | 'ledger.governance.directive_added';
+  | 'ledger.task.failed'
+  | 'ledger.task.yielded'
+  | 'ledger.governance.directive_added'
+  | 'ledger.governance.assumption_added'
+  | 'ledger.learning.extracted'
+  // Progress (v5.0 - User visibility)
+  | 'progress.phase_started'
+  | 'progress.phase_completed'
+  | 'progress.status_update'
+  | 'progress.user_action_needed'
+  | 'progress.context_handoff';
 ```
 
 ### 3.3 Intent Model (Workflow Registration)
@@ -233,14 +264,25 @@ When aborting a parent agent, all child sessions must be cleaned up:
 
 ### 5.1 Event Bridging
 
-| SDK Event              | Durable Stream Event        | Purpose                   |
-| :--------------------- | :-------------------------- | :------------------------ |
-| `session.created`      | `lifecycle.session.created` | Initialize lineage        |
-| `session.idle`         | `lifecycle.session.idle`    | Task completion detection |
-| `session.deleted`      | `lifecycle.session.deleted` | Resource cleanup trigger  |
-| `session.error`        | `lifecycle.session.error`   | Error tracking            |
-| `tool.execute.after`   | `execution.tool_finish`     | Audit logging             |
-| `checkpoint.requested` | `checkpoint.requested`      | Human approval workflow   |
+| SDK Event | Durable Stream Event | Notes |
+| :-- | :-- | :-- |
+| `session.created` | `lifecycle.session.created` | Initialize lineage |
+| `session.idle` | `lifecycle.session.idle` | Safe trigger for low-frequency projections |
+| `session.compacted` | `lifecycle.session.compacted` | Context compaction marker |
+| `session.error` | `lifecycle.session.error` | Error tracking |
+| `message.updated` | `execution.message.updated` | Persisted mainly for completion markers; can auto-complete intents when `messageID` matches an intent id |
+| `message.part.updated` (step-start/step-finish) | `execution.step_start` / `execution.step_finish` | Step lifecycle |
+| `message.part.updated` (tool) | `execution.tool_start` / `execution.tool_finish` | Derived from `part.state.status` |
+| `message.part.updated` (agent) | `execution.agent` | Agent identity + model metadata |
+| `message.part.updated` (text) | `execution.text_delta` / `execution.text_snapshot` | Deltas streamed via `delta`; final snapshot emitted when part has `time.end` |
+| `message.part.updated` (reasoning) | `execution.reasoning_delta` / `execution.reasoning_snapshot` | Same delta/snapshot split as text |
+| `message.part.updated` (snapshot) | `execution.snapshot` | Full message snapshot |
+| `message.part.updated` (retry) | `execution.retry` | Retry markers |
+| `message.part.updated` (patch) | `files.patched` | Patch parts are treated as file patch events |
+| `file.edited` | `files.changed` | Coarse-grained file change marker |
+| `checkpoint.requested` | `checkpoint.requested` | Human approval workflow (emitted by orchestration) |
+
+**Intent correlation**: When prompting a session, pass a stable `messageID` (typically the Durable Stream intent id). OpenCode then emits `message.updated` for that `messageID`, allowing Durable Stream to mark the intent completed/failed without polling.
 
 ### 5.2 The "Phantom" Session
 

@@ -22,10 +22,18 @@ export type EventType =
   | 'lifecycle.session.deleted'
   | 'lifecycle.session.aborted'
   // Execution (Maps to SDK StepPart / ToolPart)
+  | 'execution.message.updated'
   | 'execution.step_start'
   | 'execution.step_finish'
   | 'execution.tool_start'
   | 'execution.tool_finish'
+  | 'execution.agent'
+  | 'execution.text_delta'
+  | 'execution.text_snapshot'
+  | 'execution.reasoning_delta'
+  | 'execution.reasoning_snapshot'
+  | 'execution.snapshot'
+  | 'execution.retry'
   // Agent (Our orchestration layer)
   | 'agent.spawned'
   | 'agent.completed'

@@ -59,11 +59,14 @@ export interface MemorySearchResult {
 
 export class MemoryLaneStore {
   private readonly COLLECTION = 'memory-lane';
-  private readonly EMBEDDING_MODEL = 'mixedbread-ai/mxbai-embed-large-v1';
+  private readonly EMBEDDING_MODEL = 'text-embedding-mxbai-embed-large-v1'; // Updated to use the correct identifier after loading
+  private readonly EMBEDDING_MODEL_PATH =
+    'mixedbread-ai/mxbai-embed-large-v1/mxbai-embed-large-v1-f16.gguf';
   private readonly LM_STUDIO_URL = 'http://127.0.0.1:1234';
   private readonly db: MemoryDb;
   private readonly client: Client;
   private schemaInitialized = false;
+  private currentModelId: string | null = null;
 
   constructor() {
     const dbPath = getDatabasePath();
@@ -352,22 +355,157 @@ export class MemoryLaneStore {
   }
 
   /**
+   * Ensure lm-studio is running and model is loaded
+   */
+  private async ensureLmStudio(): Promise<void> {
+    // Check if server is running
+    const serverRunning = await this.checkServerRunning();
+    if (!serverRunning) {
+      await this.startLmStudioServer();
+    }
+
+    // Check if model is loaded
+    const modelLoaded = await this.checkModelLoaded();
+    if (!modelLoaded) {
+      await this.loadEmbeddingModel();
+    }
+  }
+
+  /**
+   * Check if LM Studio server is running
+   */
+  private async checkServerRunning(): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.LM_STUDIO_URL}/api/v0/models`);
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Start LM Studio server (headless mode)
+   */
+  private async startLmStudioServer(): Promise<void> {
+    log.info('Starting LM Studio server...');
+
+    if (process.platform === 'darwin') {
+      try {
+        // Try to start headless server first
+        const { exec } = await import('node:child_process');
+        exec('lms server start &');
+
+        // Wait for server to start
+        for (let i = 0; i < 30; i++) {
+          await new Promise((r) => setTimeout(r, 1000));
+          if (await this.checkServerRunning()) {
+            log.info('LM Studio server started successfully');
+            return;
+          }
+        }
+      } catch {}
+
+      // Fallback: try opening the app
+      try {
+        const { exec } = await import('node:child_process');
+        exec('open -a "LM Studio"');
+
+        for (let i = 0; i < 30; i++) {
+          await new Promise((r) => setTimeout(r, 1000));
+          if (await this.checkServerRunning()) {
+            log.info('LM Studio app started');
+            return;
+          }
+        }
+      } catch {}
+    }
+
+    throw new Error('Failed to start LM Studio server. Please start it manually.');
+  }
+
+  /**
+   * Check if embedding model is loaded
+   */
+  private async checkModelLoaded(): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.LM_STUDIO_URL}/api/v0/models`);
+      if (!response.ok) return false;
+
+      const data = await response.json();
+      const embeddingModel = data.data?.find((m: { type: string }) => m.type === 'embeddings');
+
+      if (embeddingModel) {
+        this.currentModelId = embeddingModel.id;
+        log.info({ modelId: this.currentModelId }, 'Embedding model found');
+        return true;
+      }
+
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Load embedding model using lms CLI
+   */
+  private async loadEmbeddingModel(): Promise<void> {
+    log.info({ modelPath: this.EMBEDDING_MODEL_PATH }, 'Loading embedding model...');
+
+    try {
+      const { exec } = await import('node:child_process');
+      const { promisify } = await import('node:util');
+      const execAsync = promisify(exec);
+
+      const { stdout } = await execAsync(`lms load "${this.EMBEDDING_MODEL_PATH}"`);
+
+      // Parse the output to get the model identifier
+      // Output format: 'To use the model in the API/SDK, use the identifier "text-embedding-xxx".'
+      const match = stdout.match(/identifier\s+"([^"]+)"/);
+      if (match) {
+        this.currentModelId = match[1];
+        log.info({ modelId: this.currentModelId }, 'Model loaded with identifier');
+      }
+
+      // Wait for model to be fully loaded and available in API
+      for (let i = 0; i < 10; i++) {
+        await new Promise((r) => setTimeout(r, 1000));
+        if (await this.checkModelLoaded()) {
+          log.info('Embedding model ready');
+          return;
+        }
+      }
+
+      throw new Error('Model loaded but not available in API yet');
+    } catch (err) {
+      log.error({ err }, 'Failed to load embedding model');
+      throw new Error(
+        `Failed to load embedding model "${this.EMBEDDING_MODEL_PATH}".\n` +
+          `Please load it manually using: lms load "${this.EMBEDDING_MODEL_PATH}"`
+      );
+    }
+  }
+
+  /**
    * Generate embedding using lm-studio HTTP API (OpenAI-compatible)
    */
   private async generateEmbedding(text: string): Promise<number[]> {
     await this.ensureLmStudio();
 
     try {
+      const modelId = this.currentModelId || this.EMBEDDING_MODEL;
       const response = await fetch(`${this.LM_STUDIO_URL}/v1/embeddings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: this.EMBEDDING_MODEL,
+          model: modelId,
           input: text,
         }),
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        log.error({ status: response.status, error: errorText }, 'Embedding request failed');
         throw new Error(`lm-studio embedding failed: ${response.status}`);
       }
 
@@ -375,35 +513,7 @@ export class MemoryLaneStore {
       return data.data[0].embedding;
     } catch (err) {
       log.error({ err }, 'Embedding error');
-      return new Array(1024).fill(0);
-    }
-  }
-
-  /**
-   * Ensure lm-studio is running (Mac auto-start)
-   */
-  private async ensureLmStudio(): Promise<void> {
-    const check = async () => {
-      try {
-        const response = await fetch(`${this.LM_STUDIO_URL}/v1/models`);
-        return response.ok;
-      } catch {
-        return false;
-      }
-    };
-
-    if (await check()) return;
-
-    if (process.platform === 'darwin') {
-      try {
-        const { exec } = await import('node:child_process');
-        exec('open -a "LM Studio"');
-
-        for (let i = 0; i < 15; i++) {
-          await new Promise((r) => setTimeout(r, 1000));
-          if (await check()) return;
-        }
-      } catch {}
+      throw err;
     }
   }
 

@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.1.0] - 2026-01-02
+
+### Fixed
+
+- **Inline session mode deadlock**: Restored inline planning agents without deadlocking by deferring inline prompts.
+  - Tools return `status: "HANDOFF_INTENT"` instead of calling `session.prompt()` synchronously on the same session.
+  - The plugin schedules `session.promptAsync()` from the outer hook loop (`tool.execute.after`) and retries on `session.idle` when sessions are busy.
+
+### Added
+
+- **Prompt buffering**: `PromptBuffer` queues deferred prompts when a session is busy and flushes them on `session.idle` (with bounded retries).
+- **Ledger projection**: `LedgerProjector` projects `ledger.learning.extracted` events into `.opencode/LEDGER.md` on safe triggers (debounced + `session.idle`).
+- **Durable Stream execution telemetry**: Durable Stream now captures OpenCode SDK `message.updated` and `message.part.updated` deltas/snapshots as `execution.*` events.
+
+### Changed
+
+- **Hybrid session strategy**: Planning agents are `inline` again (interviewer/architect/reviewer/validator/debugger/explore/chief-of-staff); execution agents remain `child` (executor/librarian).
+- **History tooling**: `ledger_get_history` now reads from Durable Stream instead of `.opencode/activity.jsonl` (ActivityLogger no longer required for runtime telemetry).
+- **Memory Lane embeddings**: Improved LM Studio embeddings reliability by auto-starting the server and loading an embeddings model (and using the API-provided model identifier when available).
+
+### Credits
+
+- **Ralph Loop idea**: The deferred inline prompt design is inspired by the “outer loop drives work” pattern (avoid re-entrant SDK calls; emit intents and flush them from an external loop/event hook).
+
+### Files Changed (Deferred Inline Prompts & Durable Stream Telemetry)
+
+| File | Change |
+| --- | --- |
+| `src/orchestrator/session-strategy.ts` | Re-enabled inline modes for planning agents |
+| `src/orchestrator/tools.ts` | Inline tools now return `HANDOFF_INTENT` (no synchronous `session.prompt()` on same session) |
+| `src/index.ts` | `tool.execute.after` schedules `promptAsync`; flushes buffered prompts; triggers ledger projection on `session.idle` |
+| `src/orchestrator/prompt-buffer.ts` | **New**: queue + flush + retry for deferred prompts |
+| `src/durable-stream/types.ts` | Added `execution.*` telemetry event types |
+| `src/durable-stream/orchestrator.ts` | Captures `message.updated` + `message.part.updated` deltas/snapshots into Durable Stream |
+| `src/orchestrator/tools/ledger-tools.ts` | `ledger_get_history` queries Durable Stream instead of `activity.jsonl` |
+| `src/orchestrator/ledger-projector.ts` | **New**: projects learnings from Durable Stream into `.opencode/LEDGER.md` |
+| `src/memory-lane/memory-store.ts` | Improved LM Studio embedding model handling (server start + model load + identifier selection) |
+| `src/orchestrator/session-strategy.test.ts` | Updated expectations for restored hybrid session modes |
+
 ### Changed
 
 - **Plugin Rename**: Renamed from `swarmtool-addons` to `opencode-addons`

@@ -8,8 +8,7 @@ import {
 import { loadActorState } from './actor/state';
 import { processMessage } from './actor/core';
 import { canCallAgent } from './access-control';
-import { loadLedger, saveLedger, updateTaskStatus } from './ledger';
-import { getActivityLogger } from './activity-log';
+import { loadLedger, saveLedger } from './ledger';
 import { getTaskRegistry } from './task-registry';
 import { WorkflowLoader, WorkflowProcessor } from './workflow-engine';
 import { getDurableStream } from '../durable-stream';
@@ -295,30 +294,41 @@ export function createSkillAgentTools(client: PluginInput['client']) {
                 );
               }
 
-              // Prompt current session with different agent (visible thinking)
-              await client.session.prompt({
-                path: { id: execContext.sessionID },
-                body: {
-                  agent: targetAgentName,
-                  parts: [{ type: 'text', text: inlinePrompt }],
-                },
-              });
+              // IMPORTANT: Never call session.prompt() synchronously on the SAME session
+              // from inside a tool. Instead, we emit a HANDOFF_INTENT and let the
+              // tool.execute.after hook schedule session.promptAsync() after tool completion.
+              const durableStream = getDurableStream();
+              await durableStream.initialize();
 
-              // Fetch result from current session
-              const result = await fetchSessionResult(
-                client,
-                execContext.sessionID,
-                targetAgentName
-              );
+              // Use the intent id as the messageID for correlation (DurableStream-first).
+              const intentId = await durableStream.createIntent({
+                description: `Inline agent run: ${targetAgentName}`,
+                agent: targetAgentName,
+                prompt: inlinePrompt,
+                parent_session_id: execContext.sessionID,
+                timeout_ms: timeout_ms,
+              });
 
               return JSON.stringify(
                 {
                   success: true,
+                  status: 'HANDOFF_INTENT',
+                  message: `Running ${targetAgentName} inline`,
                   agent: targetAgentName,
                   session_id: execContext.sessionID,
                   mode: 'inline',
-                  result: result.result,
-                  dialogue_state: extractDialogueState(result.result || ''),
+                  intent_id: intentId,
+                  message_id: intentId,
+                  metadata: {
+                    handoff: {
+                      type: 'DELEGATION',
+                      target_agent: targetAgentName,
+                      prompt: inlinePrompt,
+                      session_id: execContext.sessionID,
+                      intent_id: intentId,
+                      message_id: intentId,
+                    },
+                  },
                 },
                 null,
                 2
@@ -463,6 +473,7 @@ export function createSkillAgentTools(client: PluginInput['client']) {
         // 3. Asynchronous Pattern - Handoff intent
         // NOTE: We DO NOT call prompt here, we let the hook in src/index.ts handle it
         // This avoids double prompts and ensures proper lateral handoff in the UI.
+        const needsContext = requiresContext(targetAgentName);
         let activeSessionID = session_id || execContext?.sessionID;
 
         if (!activeSessionID) {
@@ -486,6 +497,28 @@ export function createSkillAgentTools(client: PluginInput['client']) {
           }
         }
 
+        // Prepare prompt with context if needed
+        let handoffPrompt = finalPrompt;
+        if (needsContext && execContext?.sessionID) {
+          handoffPrompt = await prepareChildSessionPrompt(
+            finalPrompt,
+            (execContext as unknown as ToolContext)?.agent || 'chief-of-staff',
+            execContext.sessionID,
+            targetAgentName
+          );
+        }
+
+        // DurableStream-first correlation (intent id == messageID)
+        const durableStream = getDurableStream();
+        await durableStream.initialize();
+        const intentId = await durableStream.createIntent({
+          description: `Async agent run: ${targetAgentName}`,
+          agent: targetAgentName,
+          prompt: handoffPrompt,
+          parent_session_id: execContext?.sessionID,
+          timeout_ms: timeout_ms,
+        });
+
         // Return HANDOFF_INTENT
         return JSON.stringify({
           success: true,
@@ -493,12 +526,16 @@ export function createSkillAgentTools(client: PluginInput['client']) {
           message: `Delegating to ${targetAgentName} asynchronously`,
           agent: targetAgentName,
           session_id: activeSessionID,
+          intent_id: intentId,
+          message_id: intentId,
           metadata: {
             handoff: {
               type: 'DELEGATION',
               target_agent: targetAgentName,
-              prompt: finalPrompt, // Pass prompt for hook to use
+              prompt: handoffPrompt, // Pass prompt for hook to use
               session_id: activeSessionID,
+              intent_id: intentId,
+              message_id: intentId,
             },
           },
         });

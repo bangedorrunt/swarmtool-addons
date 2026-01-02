@@ -12,14 +12,11 @@
  * - Execution isolated to avoid context pollution
  * - Best of both worlds
  *
- * KNOWN ISSUE (2026-01-02):
- * Inline mode causes DEADLOCK when called from skill_agent tool.
- * When a tool calls session.prompt() on the SAME session, the prompt gets
- * QUEUED because the session is busy processing the tool call.
- * See GitHub issue: sst/opencode#3098 "Chained prompts executing together"
- *
- * WORKAROUND: All agents use 'child' mode until OpenCode supports deferred
- * inline prompts that execute after tool completion.
+ * NOTE (2026-01-02):
+ * Inline mode must NOT call session.prompt() synchronously from inside a tool
+ * on the same session (deadlock). This plugin uses deferred same-session
+ * prompts via HANDOFF_INTENT + session.promptAsync() (scheduled after tool
+ * completion) to preserve inline visibility without re-entrancy.
  */
 
 import { emitContextHandoff } from './progress';
@@ -63,39 +60,39 @@ export interface AgentSessionConfig {
  * - librarian: External research, may be slow
  */
 export const AGENT_SESSION_CONFIG: Record<string, AgentSessionConfig> = {
-  // INLINE (intended) - Currently using CHILD as workaround
+  // INLINE - Visible planning/review
   interviewer: {
-    mode: 'child', // WORKAROUND: was 'inline'
+    mode: 'inline',
     intendedMode: 'inline',
     reason: 'User needs to see clarification process and respond',
     contextRequired: true,
   },
   architect: {
-    mode: 'child', // WORKAROUND: was 'inline'
+    mode: 'inline',
     intendedMode: 'inline',
     reason: 'User needs to see planning/decomposition and approve',
     contextRequired: true,
   },
   reviewer: {
-    mode: 'child', // WORKAROUND: was 'inline'
+    mode: 'inline',
     intendedMode: 'inline',
     reason: 'User needs to see review results immediately',
     contextRequired: true,
   },
   validator: {
-    mode: 'child', // WORKAROUND: was 'inline'
+    mode: 'inline',
     intendedMode: 'inline',
     reason: 'User needs to see validation results immediately',
     contextRequired: true,
   },
   debugger: {
-    mode: 'child', // WORKAROUND: was 'inline'
+    mode: 'inline',
     intendedMode: 'inline',
     reason: 'Debugging visible within executor context',
     contextRequired: true,
   },
   explore: {
-    mode: 'child', // WORKAROUND: was 'inline'
+    mode: 'inline',
     intendedMode: 'inline',
     reason: 'Quick search results should be visible',
     contextRequired: false,
@@ -116,9 +113,8 @@ export const AGENT_SESSION_CONFIG: Record<string, AgentSessionConfig> = {
   },
 
   // Chief-of-Staff is special - it's the orchestrator
-  // NOTE: CoS also uses child to avoid deadlock when spawning subagents
   'chief-of-staff': {
-    mode: 'child', // WORKAROUND: was 'inline'
+    mode: 'inline',
     intendedMode: 'inline',
     reason: 'Orchestrator runs in main session',
     contextRequired: false,

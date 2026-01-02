@@ -256,6 +256,20 @@ export class DurableStream extends EventEmitter {
         break;
       }
 
+      case 'session.compacted': {
+        const sessionID = props?.sessionID as string | undefined;
+        if (sessionID) {
+          await this.append({
+            type: 'lifecycle.session.compacted',
+            stream_id: sessionID,
+            correlation_id: this.correlationId,
+            actor: 'system',
+            payload: {},
+          });
+        }
+        break;
+      }
+
       case 'session.error': {
         const sessionID = props?.sessionID as string | undefined;
         const error = props?.error;
@@ -271,8 +285,33 @@ export class DurableStream extends EventEmitter {
         break;
       }
 
+      case 'message.updated': {
+        const info = props?.info as Record<string, unknown> | undefined;
+        const sessionID = info?.sessionID as string | undefined;
+        if (sessionID) {
+          // Store a low-frequency message event (mainly for completion markers).
+          const completed = (info?.time as any)?.completed;
+          if (completed) {
+            await this.append({
+              type: 'execution.message.updated',
+              stream_id: sessionID,
+              correlation_id: this.correlationId,
+              actor: 'system',
+              payload: info,
+            });
+
+            const messageID = info?.id as string | undefined;
+            if (messageID && this.activeIntents.has(messageID)) {
+              await this.completeIntent(messageID, `message.completed:${messageID}`);
+            }
+          }
+        }
+        break;
+      }
+
       case 'message.part.updated': {
         const part = props?.part as Record<string, unknown> | undefined;
+        const delta = props?.delta as string | undefined;
         if (part?.type === 'step-start') {
           await this.append({
             type: 'execution.step_start',
@@ -295,6 +334,100 @@ export class DurableStream extends EventEmitter {
             state === 'completed' ? 'execution.tool_finish' : 'execution.tool_start';
           await this.append({
             type: eventType,
+            stream_id: part.sessionID as string,
+            correlation_id: this.correlationId,
+            actor: 'system',
+            payload: part,
+          });
+        } else if (part?.type === 'agent') {
+          await this.append({
+            type: 'execution.agent',
+            stream_id: part.sessionID as string,
+            correlation_id: this.correlationId,
+            actor: 'system',
+            payload: part,
+          });
+        } else if (part?.type === 'text') {
+          if (delta) {
+            await this.append({
+              type: 'execution.text_delta',
+              stream_id: part.sessionID as string,
+              correlation_id: this.correlationId,
+              actor: 'system',
+              payload: {
+                sessionID: part.sessionID,
+                messageID: part.messageID,
+                partID: part.id,
+                delta,
+              },
+            });
+          }
+
+          const time = part.time as { end?: number } | undefined;
+          if (time?.end && typeof part.text === 'string') {
+            await this.append({
+              type: 'execution.text_snapshot',
+              stream_id: part.sessionID as string,
+              correlation_id: this.correlationId,
+              actor: 'system',
+              payload: {
+                sessionID: part.sessionID,
+                messageID: part.messageID,
+                partID: part.id,
+                text: part.text,
+              },
+            });
+          }
+        } else if (part?.type === 'reasoning') {
+          if (delta) {
+            await this.append({
+              type: 'execution.reasoning_delta',
+              stream_id: part.sessionID as string,
+              correlation_id: this.correlationId,
+              actor: 'system',
+              payload: {
+                sessionID: part.sessionID,
+                messageID: part.messageID,
+                partID: part.id,
+                delta,
+              },
+            });
+          }
+
+          const time = part.time as { end?: number } | undefined;
+          if (time?.end && typeof part.text === 'string') {
+            await this.append({
+              type: 'execution.reasoning_snapshot',
+              stream_id: part.sessionID as string,
+              correlation_id: this.correlationId,
+              actor: 'system',
+              payload: {
+                sessionID: part.sessionID,
+                messageID: part.messageID,
+                partID: part.id,
+                text: part.text,
+              },
+            });
+          }
+        } else if (part?.type === 'snapshot') {
+          await this.append({
+            type: 'execution.snapshot',
+            stream_id: part.sessionID as string,
+            correlation_id: this.correlationId,
+            actor: 'system',
+            payload: part,
+          });
+        } else if (part?.type === 'retry') {
+          await this.append({
+            type: 'execution.retry',
+            stream_id: part.sessionID as string,
+            correlation_id: this.correlationId,
+            actor: 'system',
+            payload: part,
+          });
+        } else if (part?.type === 'patch') {
+          await this.append({
+            type: 'files.patched',
             stream_id: part.sessionID as string,
             correlation_id: this.correlationId,
             actor: 'system',

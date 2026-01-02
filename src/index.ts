@@ -14,9 +14,9 @@ import crypto from 'node:crypto';
 import { memoryLaneTools } from './memory-lane';
 import { loadConfig, DEFAULT_MODELS } from './opencode';
 import { SignalBuffer } from './orchestrator/signal-buffer';
+import { PromptBuffer } from './orchestrator/prompt-buffer';
 import { loadLocalAgents, loadSkillAgents, loadCommands } from './opencode';
 import { createSkillAgentTools, startTaskObservation, getTaskRegistry } from './orchestrator';
-import { getActivityLogger } from './orchestrator/activity-log';
 import { createOpenCodeSessionLearningHook } from './orchestrator/hooks';
 import { createModuleLogger } from './utils/logger';
 
@@ -37,6 +37,7 @@ import {
   DEFAULT_LEDGER_PATH,
   clearActiveDialogue,
 } from './orchestrator/ledger';
+import { getLedgerProjector } from './orchestrator/ledger-projector';
 import {
   buildDialogueContinuationPrompt,
   getUserTextFromParts,
@@ -376,6 +377,7 @@ export const SwarmToolAddons: Plugin = async (input) => {
         // Standard Handoff (Lateral)
         const handoff = handoffData as HandoffData;
         const { target_agent, prompt, session_id } = handoff;
+        const messageID = (handoffData as any).message_id || (handoffData as any).messageID;
 
         if (target_agent && prompt && session_id) {
           // Use a fixed delay for settling
@@ -385,12 +387,26 @@ export const SwarmToolAddons: Plugin = async (input) => {
                 path: { id: session_id },
                 body: {
                   agent: target_agent,
+                  ...(messageID ? { messageID } : {}),
                   parts: [{ type: 'text', text: prompt }],
                 },
               });
             } catch (err) {
               const errorMessage = err instanceof Error ? err.toString() : String(err);
-              log.error({ error: errorMessage }, 'Handoff prompt failed');
+              log.error({ error: errorMessage }, 'Handoff prompt failed; enqueueing for retry');
+
+              try {
+                await PromptBuffer.getInstance().enqueue({
+                  id: messageID || crypto.randomUUID(),
+                  targetSessionId: session_id,
+                  agent: target_agent,
+                  prompt,
+                  messageID,
+                  createdAt: Date.now(),
+                });
+              } catch (enqueueErr) {
+                log.error({ err: enqueueErr }, 'Failed to enqueue prompt');
+              }
             }
           }, 800);
         }
@@ -413,16 +429,14 @@ export const SwarmToolAddons: Plugin = async (input) => {
       // 1. Session Learning
       await sessionLearningHook(eventInput);
 
-      // 1.1 Durable Progress Streaming (Activity Logging)
-      if (event.type === 'message.part.updated' || event.type === 'file.edited') {
-        const props = event.properties as any;
-        const agentName = props?.part?.agent || props?.agent || 'system';
-        const message = props?.part?.content || props?.file || 'Activity detected';
-
-        if (message && typeof message === 'string' && message.length > 5) {
-          await getActivityLogger().log(agentName, message.slice(0, 100));
-        }
+      // 1.0 Ledger projection (DurableStream -> LEDGER.md) on safe trigger
+      if (event.type === 'session.idle') {
+        await getLedgerProjector()
+          .project()
+          .catch(() => {});
       }
+
+      // 1.1 Runtime telemetry is captured by Durable Stream (no separate activity.jsonl)
 
       // 1.2 Progress Events (v5.0 - User Visibility)
       // Stream progress updates to user session for visibility
@@ -461,8 +475,36 @@ export const SwarmToolAddons: Plugin = async (input) => {
         // event.data object keys are sessionIds, values are Status({type: 'idle'|'busy'})
         const statuses = event.data || {};
         const buffer = SignalBuffer.getInstance();
+        const promptBuffer = PromptBuffer.getInstance();
 
         for (const [sessionId, status] of Object.entries(statuses)) {
+          // If a session becomes IDLE and has pending prompts, flush them!
+          if ((status as any).type === 'idle' && promptBuffer.hasPrompts(sessionId)) {
+            const prompts = promptBuffer.flush(sessionId);
+            for (const p of prompts) {
+              try {
+                await input.client.session.promptAsync({
+                  path: { id: sessionId },
+                  body: {
+                    agent: p.agent,
+                    ...(p.messageID ? { messageID: p.messageID } : {}),
+                    parts: [{ type: 'text', text: p.prompt }],
+                  },
+                });
+              } catch (e) {
+                const attempts = p.attempts + 1;
+                if (attempts < 3) {
+                  await promptBuffer.enqueue({ ...p, attempts });
+                } else {
+                  log.error(
+                    { err: e, sessionId, messageID: p.messageID },
+                    'Failed to flush deferred prompt'
+                  );
+                }
+              }
+            }
+          }
+
           // If a session becomes IDLE and has pending signals, flush them!
           if ((status as any).type === 'idle' && buffer.hasSignals(sessionId)) {
             const signals = buffer.flush(sessionId);

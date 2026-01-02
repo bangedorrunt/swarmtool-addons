@@ -26,8 +26,6 @@ import {
   type Handoff,
 } from '../ledger';
 import { getEventDrivenLedger } from '../event-driven-ledger';
-import { readFile } from 'fs/promises';
-import { existsSync } from 'fs';
 
 // ============================================================================
 // Event-Driven Ledger Tools
@@ -90,7 +88,7 @@ export const ledger_get_history = tool({
       .boolean()
       .optional()
       .default(false)
-      .describe('Whether to include real-time activity logs from activity.jsonl'),
+      .describe('Whether to include recent execution trace events (Durable Stream)'),
   },
   async execute(args) {
     const ledger = getEventDrivenLedger();
@@ -108,16 +106,47 @@ export const ledger_get_history = tool({
     };
 
     if (args.include_activity) {
-      try {
-        const activityPath = '.opencode/activity.jsonl';
-        if (existsSync(activityPath)) {
-          const content = await readFile(activityPath, 'utf-8');
-          const lines = content.trim().split('\n').filter(Boolean);
-          result.activity = lines.slice(-50).map((line) => JSON.parse(line));
-        }
-      } catch (e) {
-        result.activity_error = (e as Error).message;
-      }
+      const trace = history
+        .filter((e: any) => typeof e.type === 'string' && e.type.startsWith('execution.'))
+        .slice(-200)
+        .map((e: any) => {
+          const payload = e.payload as any;
+          if (e.type === 'execution.text_delta' || e.type === 'execution.reasoning_delta') {
+            return {
+              id: e.id,
+              type: e.type,
+              timestamp: e.timestamp,
+              delta: String(payload?.delta || '').slice(0, 200),
+              messageID: payload?.messageID,
+            };
+          }
+          if (e.type === 'execution.text_snapshot' || e.type === 'execution.reasoning_snapshot') {
+            return {
+              id: e.id,
+              type: e.type,
+              timestamp: e.timestamp,
+              text: String(payload?.text || '').slice(0, 200),
+              messageID: payload?.messageID,
+            };
+          }
+          if (e.type === 'execution.agent') {
+            return {
+              id: e.id,
+              type: e.type,
+              timestamp: e.timestamp,
+              name: payload?.name,
+              messageID: payload?.messageID,
+            };
+          }
+          return {
+            id: e.id,
+            type: e.type,
+            timestamp: e.timestamp,
+            messageID: payload?.messageID,
+          };
+        });
+
+      result.activity = trace;
     }
 
     return JSON.stringify(result);

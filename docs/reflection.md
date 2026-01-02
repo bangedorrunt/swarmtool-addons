@@ -1,0 +1,508 @@
+Session Info
+
+- Date: 2026-01-02
+- Task/Feature: Fix inline session mode deadlock via deferred inline prompts + Durable Stream execution telemetry + Ledger projection
+- Duration: ~2h
+
+---
+
+What Was Built
+Deferred inline execution for planning agents (no re-entrant `session.prompt()`), Durable Stream execution telemetry bridged from OpenCode `message.updated`/`message.part.updated`, prompt buffering/retry on busy sessions, and ledger projection on safe triggers.
+
+---
+
+Technical Decisions
+| Decision | Rationale | Trade-offs |
+|----------|-----------|------------|
+| Defer inline prompts using `HANDOFF_INTENT` + `tool.execute.after` (Ralph Loop pattern) | Avoid deadlock caused by synchronous re-entrant `session.prompt()` on the same session while keeping inline visibility | More moving parts (handoff metadata, async scheduling, ordering concerns) |
+| Use Durable Stream as runtime source-of-truth, treat LEDGER as projection | Avoid hot-path file writes and make runtime telemetry crash-recoverable/queryable | Durable stream log can grow large; projections need clear boundaries/retention |
+| Add `PromptBuffer` with bounded retries flushed on `session.idle` | Make deferred prompting resilient when sessions are temporarily busy | Eventual delivery; needs careful correlation/duplicate handling |
+
+### Ralph Loop Thought Process (Why defer instead of calling SDK directly?)
+
+1. **Observed failure mode**: inline agents were deadlocking when a tool called `session.prompt()` on the _same_ session that was currently executing the tool.
+2. **Mental model**: the runtime is effectively a single “driver loop” processing hooks/tools; if a tool re-enters the SDK to schedule more work in the same session, you can create a circular wait (tool waits for prompt completion, session can’t process prompt until tool returns).
+3. **Goal constraint**: keep planning agents `inline` so users can watch the reasoning (switching everything to `child` avoided deadlock but lost the product requirement).
+4. **Pattern selection (Ralph Loop)**: move re-entrant work to the _outer loop_.
+   - Tools only **declare intent** (return `HANDOFF_INTENT` with correlation metadata).
+   - The plugin hook layer (outer loop) is responsible for **driving the next step** via `promptAsync()` after the tool finishes.
+5. **Reliability add-ons**:
+   - If the session is busy when flushing, buffer the prompt and retry on `session.idle` (`PromptBuffer`).
+   - Use a stable `messageID` (Durable Stream intent id) so the execution trace and completion can be correlated without polling.
+6. **Trade-off acceptance**: this introduces eventual delivery and more orchestration plumbing, but it preserves inline UX and eliminates the deadlock class.
+
+---
+
+## PATTERNS Applied
+
+Patterns Used Successfully
+
+- Outer-loop driver / deferred execution via event hooks (Ralph Loop)
+- Event sourcing + projection (Durable Stream → Ledger)
+- Intent correlation via stable `messageID`
+
+Patterns Discovered Newly
+
+- Using OpenCode `message.part.updated` as a high-fidelity execution telemetry stream
+- Debounced projections on safe triggers (`session.idle`) to reduce write amplification
+
+Anti-Patterns Avoided
+
+- Re-entrant SDK calls (synchronous `session.prompt()` from tool on same session)
+- Writing to ledger/activity logs on every streaming delta
+- Coupling governance artifacts (Ledger) to runtime coordination
+
+---
+
+## Problems Solved
+
+| Problem                                         | Solution                                                                                | Pattern/Approach                   |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------- |
+| Inline session deadlock                         | Replace synchronous inline prompt with deferred `HANDOFF_INTENT` + async flush          | Ralph Loop / outer-loop scheduling |
+| Session busy when prompting                     | Queue prompts and flush on `session.idle` with bounded retries                          | Buffer + eventual delivery         |
+| Missing fine-grained execution trace            | Bridge `message.updated` + `message.part.updated` into `execution.*` events             | Event-sourced telemetry            |
+| Ledger write amplification from runtime logging | Move runtime trace to Durable Stream; project only learnings to Ledger on safe triggers | Projection pattern                 |
+
+---
+
+## Code Quality
+
+- Refactoring done: Replaced ActivityLogger-based history with Durable Stream querying; re-enabled hybrid session strategy; updated tests.
+- Technical debt introduced: Versioning scheme still needs consolidation (package vs internal module/skill versions); durable stream retention policy not yet formalized.
+- Maintainability rating: Medium-High
+
+---
+
+## Architecture Fit
+
+- Aligned with system design?: Yes — reinforces Durable Stream as event-sourced backbone and keeps Ledger as governance/projection.
+- Design changes needed?: Clarify versioning strategy + add retention/compaction policy for durable stream logs.
+- Boundary issues: Ensure Ledger doesn’t creep back into runtime telemetry/coordination responsibilities.
+
+---
+
+## Wins & Regrets
+
+What I'm Proud Of
+
+- Fixed the deadlock while preserving inline visibility for planning agents.
+- Captured streaming execution telemetry in Durable Stream with intent correlation.
+
+What Could Be Better
+
+- Version bump and version markers should have been updated earlier to avoid drift.
+- External edits to `memory-store.ts` require extra vigilance to keep changelog/docs accurate.
+
+---
+
+## Blockers & Dependencies
+
+- External blockers: None
+- Waiting on: Stable OpenCode event semantics for `message.updated`/`message.part.updated`
+- Risks: Durable stream growth; prompt ordering/duplication under retries; unclear long-term retention policy
+
+---
+
+## Senior Developer Checklist
+
+- Alternatives considered
+- Code is maintainable
+- Decisions documented
+- Future scale considered
+- Solution is simple enough
+- Patterns applied appropriately
+- Anti-patterns avoided
+
+---
+
+## Learning
+
+New insight: Re-entrant SDK calls in hook/tool contexts can deadlock; push work to an outer loop with intents.
+Pattern to remember: `HANDOFF_INTENT` + `tool.execute.after` + `session.idle` flush.
+Skill practiced: Event-sourced orchestration + telemetry bridging.
+
+---
+
+## Next Actions
+
+1. Consolidate versioning across package, docs, and skill metadata (single source-of-truth).
+2. Add a durable stream retention/compaction strategy (and document it).
+
+---
+
+## Notes for Future Self
+
+```
+- If inline mode ever regresses: confirm no tool calls `session.prompt()` on the same session.
+- Keep Durable Stream as the runtime trace; only project low-frequency artifacts into Ledger.
+- Always re-run lint/test/tsc after doc + version bumps.
+```
+
+---
+
+## Energy Check
+
+- Frustration: 😐
+- Satisfaction: 🙂
+- Energy: 🔋
+
+---
+
+## Session 2
+
+Session Info
+
+- Date: 2026-01-02
+- Task/Feature: Multi-Turn Dialogue Support for /ama and /sdd commands
+- Duration: ~2h
+
+---
+
+What Was Built
+ROOT-level multi-turn dialogue continuation via LEDGER.activeDialogue persistence. Fixed DIALOGUE mode that only did 1 poll then stopped. Implemented ActiveDialogue tracking, updated commands, and full documentation.
+
+---
+
+Technical Decisions
+| Decision | Rationale | Trade-offs |
+|----------|-----------|------------|
+| ROOT-level continuation via LEDGER | Leverage OpenCode's natural multi-turn session; no complex session management | State must be properly persisted; depends on ROOT agent cooperation |
+| LEDGER.activeDialogue as state holder | Single source of truth; git-friendly; already used for epic/task state | Adds another section to parse/render; potential for state drift |
+| Narrow scope (interviewer only first) | TDD approach - validate pattern with one agent before generalizing | Later work needed to extend to architect/other agents |
+| Parent relay for user input | Natural conversation flow; no extra commands needed | Requires ROOT agent to check LEDGER on each turn |
+
+### Architecture Choice Reasoning (Why not agent-level loops?)
+
+1. **Observed failure mode**: DIALOGUE mode documented but not implemented - Chief-of-Staff had no loop logic
+2. **Mental model**: OpenCode sessions are naturally multi-turn; we can leverage this instead of building our own loop
+3. **Pattern selection**: Store state in LEDGER, ROOT agent continues conversation on user response
+4. **Reliability**: LEDGER persistence ensures state survives session boundaries
+5. **Trade-off acceptance**: Requires ROOT agent cooperation; adds parsing/rendering complexity
+
+---
+
+PATTERNS Applied
+Patterns Used Successfully
+
+- State persistence for conversation continuity (LEDGER.activeDialogue)
+- ROOT-level agent orchestration (natural session continuation)
+- Dialogue state protocol (needs_input → needs_approval → approved)
+- Accumulated direction (preserving context across turns)
+
+Patterns Discovered Newly
+
+- Using LEDGER as continuation state instead of session memory
+- Command files (ama.md, sdd.md) as orchestration logic, not just static prompts
+- Natural dialogue continuation via session persistence
+
+Anti-Patterns Avoided
+
+- Complex session management for loop handling
+- One-shot only interactions
+- Lost context between conversation turns
+
+---
+
+Problems Solved
+| Problem | Solution | Pattern/Approach |
+|---------|----------|------------------|
+| DIALOGUE mode only did 1 poll | Add ActiveDialogue tracking in LEDGER | State persistence |
+| No continuation mechanism | ROOT agent checks LEDGER.activeDialogue on each turn | Orchestration pattern |
+| Lost context between turns | Accumulated direction in active dialogue | Context preservation |
+| No clear flow for multi-turn | Documented ROOT-level continuation pattern | Documentation-driven dev |
+
+---
+
+Code Quality
+
+- Refactoring done: Complete rewrites of ama.md and sdd.md; added ActiveDialogue to ledger.ts; updated all related docs
+- Technical debt introduced: Multiple file changes increase maintenance surface; LEDGER parsing/rendering more complex
+- Maintainability rating: Medium-High
+- Note: Pre-existing test failures in loader.test.ts (deprecated agent names) unrelated to this session
+
+---
+
+Architecture Fit
+
+- Aligned with system design?: Yes - extends existing LEDGER pattern; consistent with v5.0 governance-first approach
+- Design changes needed?: None critical; ActiveDialogue follows existing ledger structure
+- Boundary issues: Must ensure dialogue state doesn't conflict with epic state
+
+---
+
+Wins & Regrets
+What I'm Proud Of
+
+- Clear problem diagnosis (documented ≠ implemented)
+- Incremental approach (ledger first, then commands, then docs)
+- Comprehensive testing at each stage (caught crypto import bug early)
+- Complete documentation coverage (AGENTS.md, TECHNICAL.md, CHANGELOG.md)
+
+What Could Be Better
+
+- No specific tests for Active Dialogue functions (added to ledger.ts without test coverage)
+- Large commit (16 files) could be split into 2-3 smaller commits
+- No integration test verifying backward compatibility (single-turn still works)
+- Edge cases (malformed dialogue_state, corrupted LEDGER) not documented
+
+---
+
+Blockers & Dependencies
+
+- External blockers: None
+- Waiting on: Nothing - all implementation completed
+- Risks: LEDGER corruption could break dialogue tracking; ROOT agent must follow continuation pattern
+
+---
+
+Senior Developer Checklist
+
+- ✅ Alternatives considered (agent-level loops, stateless polling, session reuse)
+- ✅ Code is maintainable (clean functions, clear naming, documented patterns)
+- ✅ Decisions documented (rationale in SKILL.md and AGENTS.md)
+- ✅ Future scale considered (pattern can be extended to other agents)
+- ✅ Solution is simple enough (leveraging existing mechanisms, no new complex modules)
+- ✅ Patterns applied appropriately (state persistence, orchestration)
+- ✅ Anti-patterns avoided (complex loops, lost context)
+
+---
+
+Learning
+New insight: Documentation in SKILL.md ≠ implementation. Always verify that documented patterns have actual code backing them.
+
+Pattern to remember: ROOT-level continuation via state persistence. When you need multi-turn dialogue, store state externally and have parent agent continue.
+
+Skill practiced: Multi-agent orchestration design; LEDGER schema extension; documentation-driven development; command file pattern.
+
+---
+
+Next Actions
+
+1. Add integration test for multi-turn dialogue flow
+2. Extend ActiveDialogue support to architect agent (PLAN phase multi-turn)
+3. Add error handling documentation for malformed dialogue_state
+4. Consider adding visual indicator when in active dialogue state
+
+---
+
+Notes for Future Self
+
+```
+- If multi-turn dialogue breaks: check if ROOT agent is checking LEDGER.activeDialogue
+- LEDGER.activeDialogue is cleared on approval - don't manually clear it elsewhere
+- ActiveDialogue.accumulatedDirection.decisions are appended, not replaced
+- Commands (ama.md, sdd.md) are the orchestration logic, not just static prompts
+```
+
+---
+
+Energy Check
+
+- Frustration: 😐
+- Satisfaction: 🙂
+- Energy: 🔋
+
+---
+
+Reflected: 2026-01-02
+
+---
+
+## Session 3
+
+Session Info
+
+- Date: 2026-01-02
+- Task/Feature: v5.0/v6.0 Separation + Inline Mode Deadlock Fix + Agent Consolidation
+- Duration: ~3h
+
+---
+
+What Was Built
+
+1. **v5.0/v6.0 Documentation Separation**
+   - CHANGELOG.md: Separated into distinct breaking changes with migration guides
+   - TECHNICAL.md: Added dedicated v5.0 section with API examples
+   - AGENTS.md: Updated architecture diagram and section structure
+
+2. **Inline Mode Deadlock Fix (v5.0.1)**
+   - Changed all 8 agents from `inline` to `child` session mode
+   - Added `intendedMode` field for future restoration
+   - Documented limitation: GitHub issue sst/opencode#3098
+
+3. **Agent Consolidation to v5.0.1**
+   - Updated all agent SKILL.md files with OUTPUT FORMAT requirements
+   - interviewer/architect/reviewer: Added ANALYSIS SUMMARY section
+   - validator/debugger/explore: Updated session_mode metadata
+
+---
+
+Technical Decisions
+
+| Decision                   | Rationale                                                         | Trade-offs                                            |
+| -------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------- |
+| Switch all to child mode   | Avoid deadlock from re-entrant `session.prompt()` on busy session | Lost inline visibility; user can't see agent thinking |
+| Add `intendedMode` field   | Preserve original intent for future restoration                   | Slightly more complex config                          |
+| OUTPUT FORMAT requirements | Compensate for lost visibility with structured analysis summary   | Extra work for agents; not real-time                  |
+
+### Deadlock Root Cause
+
+```
+1. Parent session running (processing tool call)
+2. skill_agent calls session.prompt() on SAME session
+3. OpenCode only allows 1 active inference per session
+4. Prompt gets QUEUED while waiting for tool to complete
+5. Tool waits for response -> DEADLOCK
+```
+
+**Reference**: sst/opencode#3098 "Chained prompts executing together"
+
+### Why Not "Ralph Loop" Pattern?
+
+In Session 1 reflection, we discussed the Ralph Loop (deferred inline prompts via HANDOFF_INTENT). However, this session we chose simpler child mode approach:
+
+| Approach              | Pros                        | Cons                                     |
+| --------------------- | --------------------------- | ---------------------------------------- |
+| Ralph Loop (deferred) | Preserves inline visibility | Complex orchestration; eventual delivery |
+| Child mode (chosen)   | Simple; guaranteed delivery | Lost visibility                          |
+
+**Decision**: Child mode for now. Ralph Loop can be revisited when OpenCode provides better event hook support.
+
+---
+
+PATTERNS Applied
+
+Patterns Used Successfully
+
+- Child session isolation (avoiding nested prompt deadlock)
+- Configuration-driven session mode with `intendedMode` for future
+- Transparency compensation via structured analysis summaries
+- Documentation-driven version management
+
+Patterns Discovered Newly
+
+- Session mode as configuration rather than hardcoded behavior
+- OUTPUT FORMAT as transparency workaround for child mode
+
+Anti-Patterns Avoided
+
+- Re-entrant synchronous session.prompt() on busy session
+- Complex orchestration for simple deadlock fix
+- Delaying fix to wait for OpenCode upstream fix
+
+---
+
+Problems Solved
+
+| Problem                         | Solution                               | Pattern/Approach          |
+| ------------------------------- | -------------------------------------- | ------------------------- |
+| Inline mode QUEUED deadlock     | Switch all agents to child mode        | Session isolation         |
+| Lost visibility from child mode | Add OUTPUT FORMAT requirements         | Transparency compensation |
+| Documentation confusion         | Separate v5.0 and v6.0 sections        | Version clarity           |
+| Agent SKILL.md inconsistency    | Update all to v5.0.1 with session_mode | Configuration alignment   |
+
+Problems Discovered (Not Fixed)
+
+| Problem                            | Status                          | Next Step                      |
+| ---------------------------------- | ------------------------------- | ------------------------------ |
+| DIALOGUE mode only does 1 poll     | Documented gap                  | Enhancement for future session |
+| Multi-turn polling not implemented | Chief-of-Staff lacks loop logic | Requires orchestration rewrite |
+
+---
+
+Code Quality
+
+- Refactoring done: 3 core files (session-strategy.ts, tools.ts, SKILL.md files), 32 files total including docs
+- Technical debt introduced: None - simplified architecture, removed inline mode complexity
+- Maintainability rating: High
+- Note: Tests updated and passing; session-strategy.test.ts updated for new behavior
+
+---
+
+Architecture Fit
+
+- Aligned with system design?: Yes - child mode aligns with existing executor/librarian pattern
+- Design changes needed?: None - configuration change, not architecture change
+- Boundary issues: Clear separation between v5.0 (agent consolidation) and v6.0 (file-based ledger)
+
+---
+
+Wins & Regrets
+
+What I'm Proud Of
+
+- Clean deadlock fix without complex orchestration
+- Clear documentation separation between v5.0 and v6.0
+- Fast turnaround (identified root cause, implemented fix, updated docs)
+- Preserved future fix path via `intendedMode` field
+
+What Could Be Better
+
+- Should have checked DIALOGUE mode implementation earlier (discovered late in session)
+- Large commit (32 files) could be split into smaller pieces
+- No proactive communication about visibility trade-off before implementing
+
+---
+
+Blockers & Dependencies
+
+- External blockers: None
+- Waiting on: OpenCode to fix nested prompt issue (#3098) for potential inline mode restoration
+- Risks: User satisfaction may decrease due to lost inline visibility
+
+---
+
+Senior Developer Checklist
+
+- ✅ Alternatives considered (Ralph Loop vs child mode)
+- ✅ Code is maintainable (simple configuration change)
+- ✅ Decisions documented (session-strategy.ts header explains rationale)
+- ✅ Future scale considered (intendedMode for restoration)
+- ✅ Solution is simple enough (1-line config change + docs update)
+- ✅ Patterns applied appropriately (session isolation)
+- ✅ Anti-patterns avoided (complex orchestration, delayed fix)
+
+---
+
+Learning
+
+New insight: OpenCode's session model fundamentally doesn't support nested prompts on the same session. The "Ralph Loop" pattern discussed in Session 1 was a theoretical solution; in practice, child mode is the reliable workaround.
+
+Pattern to remember: When a platform doesn't support a pattern (nested prompts), work with its constraints (child sessions) rather than fighting them.
+
+Pattern to remember: Documentation in SKILL.md ≠ implementation. Always verify that documented patterns (like DIALOGUE mode) have actual code backing.
+
+Skill practiced: Configuration-driven architecture; version management; documentation engineering.
+
+---
+
+Next Actions
+
+1. Monitor user feedback on visibility loss (consider reverting if complaints)
+2. Revisit Ralph Loop pattern when OpenCode improves event hooks
+3. Implement proper DIALOGUE mode multi-turn loop (separate enhancement)
+4. Add progress notification display for child mode execution
+
+---
+
+Notes for Future Self
+
+```
+- If inline mode ever needs restoration: set AGENT_SESSION_CONFIG.mode = intendedMode
+- DEADLOCK occurs when session.prompt() is called on a busy session
+- DIALOGUE mode (multi-turn polling) is documented but NOT implemented
+- Child mode is reliable but loses visibility - OUTPUT FORMAT compensates
+- v5.0 = Governance-First (agent consolidation), v6.0 = File-Based Ledger
+```
+
+---
+
+Energy Check
+
+- Frustration: 😐 (DISCOVERY: DIALOGUE mode not implemented)
+- Satisfaction: 🙂 (CLEAN: Deadlock fixed simply)
+- Energy: 🔋
+
+---
+
+Reflected: 2026-01-02
